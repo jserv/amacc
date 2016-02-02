@@ -400,12 +400,12 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
     int *pc;
     int i, tmp, genpool;
     int *je, *tje;    // current position in emitted native code
-    int *immloc, *immval, *il, *iv, *imm0;
+    int *immloc, *il, *iv, *imm0;
     char neg_char;
     int neg_int;
 
     immloc = il = malloc(1024 * 4);
-    immval = iv = malloc(1024 * 4);
+    iv = malloc(1024 * 4);
     imm0 = 0;
     genpool = 0;
     neg_char = 255;
