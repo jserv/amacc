@@ -1,6 +1,8 @@
-// char, int, and pointer types
-// if, while, return, and expression statements
-// just enough features to allow self-compilation
+// Another Mini ARM C Compiler (AMaCC)
+// supported data types: char, int, and pointer
+// supported statements: if, while, return, and expression
+//
+// The features of AMaCC is just enough to allow self-compilation.
 
 #include <stdio.h>
 #include <stdlib.h>
