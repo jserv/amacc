@@ -9,9 +9,9 @@ amacc: amacc.c
 
 check: $(BIN)
 	@echo "[ compiled ]"
-	@qemu-arm -L /usr/arm-linux-gnueabihf ./amacc hello.c
+	@qemu-arm -L /usr/arm-linux-gnueabihf ./amacc tests/hello.c
 	@echo "[ nested ]"
-	@qemu-arm -L /usr/arm-linux-gnueabihf ./amacc amacc.c hello.c
+	@qemu-arm -L /usr/arm-linux-gnueabihf ./amacc amacc.c tests/hello.c
 	@cloc --quiet amacc.c 2>/dev/null
 
 clean:
