@@ -2,6 +2,7 @@ CROSS_COMPILE =
 CFLAGS = -Os -Wall
 LIBS = -ldl
 BIN = amacc
+QEMU = qemu-arm
 
 ifeq ($(PREFIX), arm-linux-gnueabihf-)
 	CROSS_COMPILE = arm-linux-gnueabihf
@@ -16,9 +17,9 @@ amacc: amacc.c
 
 check: $(BIN)
 	@echo "[ compiled ]"
-	@qemu-arm -L /usr/$(CROSS_COMPILE) ./amacc tests/hello.c
+	@$(QEMU) -L /usr/$(CROSS_COMPILE) ./amacc tests/hello.c
 	@echo "[ nested ]"
-	@qemu-arm -L /usr/$(CROSS_COMPILE) ./amacc amacc.c tests/hello.c
+	@$(QEMU) -L /usr/$(CROSS_COMPILE) ./amacc amacc.c tests/hello.c
 	@cloc --quiet amacc.c 2>/dev/null
 
 clean:
