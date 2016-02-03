@@ -543,7 +543,7 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
 int jit(int poolsz, int *start, int argc, char **argv)
 {
     char *jitmem;      // executable memory for JIT-compiled native code
-    int *je, *tje, *_start,  retval, *jitmap;
+    int *je, *tje, *_start,  retval, *jitmap, *res;
 
     // setup jit memory
     // PROT_EXEC | PROT_READ | PROT_WRITE = 7
@@ -572,9 +572,13 @@ int jit(int poolsz, int *start, int argc, char **argv)
     if (je >= jitmap) { printf("jitmem too small\n"); exit(7); }
     *tje = 0xeb000000 | (((jitmap[((int)start - (int)text) >> 2] - (int)tje - 8) >> 2) & 0x00ffffff);
     __clear_cache(jitmem, je);
-    bsearch(&sym, sym, 2, 1, (void*) _start); // hack to jump into a function pointer
-
-    return retval;
+    res = bsearch(&sym, sym, 2, 1, (void*) _start); // hack to jump into a function pointer
+	if(((void*) 0) != res)
+		return retval;
+	else {
+		printf("Error: can't find the function pointer");
+		exit(0);
+	}
 }
 
 int main(int argc, char **argv)
