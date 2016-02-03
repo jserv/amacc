@@ -1,6 +1,6 @@
 CROSS_COMPILE =
 CFLAGS = -Os -Wall
-
+LIBS = -ldl
 BIN = amacc
 
 ifeq ($(PREFIX), arm-linux-gnueabihf-)
@@ -12,7 +12,7 @@ endif
 all: $(BIN)
 
 amacc: amacc.c
-	$(CROSS_COMPILE)-gcc $(CFLAGS) -fsigned-char -o amacc amacc.c -g -ldl
+	$(CROSS_COMPILE)-gcc $(CFLAGS) -fsigned-char -o amacc amacc.c -g $(LIBS)
 
 check: $(BIN)
 	@echo "[ compiled ]"
