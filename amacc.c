@@ -31,7 +31,7 @@ int verbose;         // print executed instructions
 // tokens and classes (operators last and in precedence order)
 enum {
     Num = 128, Fun, Sys, Glo, Loc, Id,
-    Char, Else, Enum, If, Int, Return, Sizeof, While,
+    Char, Else, Enum, If, Int, Return, Sizeof, Switch, Case, Break, While,
     Assign, Cond,
     Lor, Lan, Or, Xor, And,
     Eq, Ne, Lt, Gt, Le, Ge,
@@ -50,6 +50,11 @@ enum { CHAR, INT, PTR };
 
 // identifier offsets (since we can't create an ident struct)
 enum { Tk, Hash, Name, Class, Type, Val, HClass, HType, HVal, Idsz };
+
+// has break or not
+enum { OFF, ON };
+int *out;            // output point for break
+int bk;              // break or not
 
 void next()
 {
@@ -376,6 +381,12 @@ void stmt()
         stmt();
         *++e = JMP; *++e = (int)a;
         *b = (int)(e + 1);
+        if (bk == ON) { *out = (int)(e + 1); bk = OFF; }
+    }
+    else if (tk == Break) {
+        next();
+        if (tk == ';') next(); else { printf("%d: semicolon expected\n", line); exit(-1); }
+        *++e = JMP; out = ++e; bk = ON;
     }
     else if (tk == Return) {
         next();
@@ -604,13 +615,14 @@ int main(int argc, char **argv)
     memset(e, 0, poolsz);
     memset(data, 0, poolsz);
 
-    p = "char else enum if int return sizeof while "
+    p = "char else enum if int return sizeof switch case break while "
         "open read write close printf malloc memset memcmp memcpy mmap dlsym "
         "bsearch __clear_cache exit void main";
     i = Char; while (i <= While) { next(); id[Tk] = i++; } // add keywords to symbol table
     i = OPEN; while (i <= EXIT) { next(); id[Class] = Sys; id[Type] = INT; id[Val] = i++; } // add library to symbol table
     next(); id[Tk] = Char; // handle void type
     next(); idmain = id; // keep track of main
+    bk = OFF; // initial bk value
 
     if (!(lp = p = malloc(poolsz))) { printf("could not malloc(%d) source area\n", poolsz); return -1; }
     if ((i = read(fd, p, poolsz-1)) <= 0) { printf("read() returned %d\n", i); return -1; }
