@@ -1,4 +1,4 @@
-AMACC = Another Mini ARM C Compiler
+AMaCC = Another Mini ARM C Compiler
 
 Prerequisites
 -------------
@@ -9,3 +9,6 @@ Prerequisites
 ```
 sudo apt-get install qemu-user
 ```
+
+AMaCC is inspired by [c4](https://github.com/rswier/c4). AMaC works
+as a small Just-in-Time compiler for ARM backend.
