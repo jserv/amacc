@@ -573,11 +573,11 @@ int jit(int poolsz, int *start, int argc, char **argv)
     *tje = 0xeb000000 | (((jitmap[((int)start - (int)text) >> 2] - (int)tje - 8) >> 2) & 0x00ffffff);
     __clear_cache(jitmem, je);
     res = bsearch(&sym, sym, 2, 1, (void*) _start); // hack to jump into a function pointer
-	if(NULL != res)
+	if(((void*) 0) != res)
 		return retval;
 	else {
 		printf("Error: can't find the function pointer");
-		exit(EXIT_SUCCESS);
+		exit(0);
 	}
 }
 
