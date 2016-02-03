@@ -1,5 +1,5 @@
 CROSS_COMPILE =
-CFLAGS = -Os -Wall
+CFLAGS = -Os -Wall -fsigned-char -g
 LIBS = -ldl
 BIN = amacc
 QEMU = qemu-arm
@@ -15,7 +15,7 @@ CROSS_EXEC = $(QEMU) -L /usr/$(CROSS_COMPILE)
 all: $(BIN)
 
 amacc: amacc.c
-	$(CROSS_COMPILE)-gcc $(CFLAGS) -fsigned-char -o $(BIN) amacc.c -g $(LIBS)
+	$(CROSS_COMPILE)-gcc $(CFLAGS) -o $(BIN) amacc.c $(LIBS)
 
 check: $(BIN)
 	@echo "[ compiled ]"
