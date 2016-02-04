@@ -831,3 +831,5 @@ int main(int argc, char **argv)
 
     return jit(poolsz, (int *)idmain[Val], argc, argv);
 }
+
+// vim: set tabstop=4 shiftwidth=4 expandtab:
