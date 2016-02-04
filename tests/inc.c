@@ -10,5 +10,5 @@ int add2(int x)
 
 int main(int argc, char **argv)
 {
-    return add2(argc);
+    return add2(argc) - 4;
 }

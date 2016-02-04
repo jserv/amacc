@@ -14,4 +14,5 @@ int main()
     printf("passed\n");
   else
     printf("failed, e - s = %x\n", v);
+  return 0;
 }

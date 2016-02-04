@@ -24,4 +24,5 @@ int main()
     a = ((b & 0x007fffff) << 8) | 12;
     c = (a >> 8) | ((int)b & 0xff800000);
     printf("a = %x, b = %x, c = %x\n", a, b, c);
+    return 0;
 }

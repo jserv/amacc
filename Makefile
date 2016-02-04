@@ -14,7 +14,7 @@ all: $(BIN)
 amacc: amacc.c
 	$(CROSS_COMPILE)-gcc $(CFLAGS) -fsigned-char -o amacc amacc.c -g -ldl
 
-check: $(BIN)
+check: $(BIN) $(TEST_OBJ)
 	@echo "[ compiled ]"
 	@qemu-arm -L /usr/$(CROSS_COMPILE) ./amacc tests/hello.c
 	@echo "[ nested ]"
