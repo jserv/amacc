@@ -684,14 +684,11 @@ int jit(int poolsz, int *start, int argc, char **argv)
     if (!(je = codegen(je, jitmap, 0))) return 1;
     if (je >= jitmap) { printf("jitmem too small\n"); exit(7); }
     *tje = 0xeb000000 | (((jitmap[((int)start - (int)text) >> 2] - (int)tje - 8) >> 2) & 0x00ffffff);
+
+    // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
-    res = bsearch(&sym, sym, 2, 1, (void*) _start); // hack to jump into a function pointer
-    if (((void*) 0) != res)
-        return retval;
-    else {
-        printf("Error: can't find the function pointer");
-        exit(0);
-    }
+    res = bsearch(&sym, sym, 1, 1, (void*) _start);
+    if (((void*) 0) != res) return 0; return -1; // always true: just make compiler happy
 }
 
 int main(int argc, char **argv)

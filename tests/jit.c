@@ -14,7 +14,7 @@ int main(int ac, char **av)
     __clear_cache(jitmem, je);
 
     var = ac;
-    qsort(av, 2, 1, (void *)jitmem);
+    bsearch(&av, av, 1, 1, (void*) jitmem);
     printf("ac = %d, var = %d\n", ac, var);
     return 0;
 }
