@@ -781,7 +781,7 @@ int main(int argc, char **argv)
         verbose = 1; --argc; ++argv;
     }
     if (argc < 1) {
-        printf("usage: mcc [-s] [-d] file ...\n"); return -1;
+        printf("usage: amacc [-s] [-d] file ...\n"); return -1;
     }
 
     if ((fd = open(*argv, 0)) < 0) {
