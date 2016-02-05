@@ -691,6 +691,157 @@ int jit(int poolsz, int *start, int argc, char **argv)
     if (((void*) 0) != res) return 0; return -1; // always true: just make compiler happy
 }
 
+int interpret(int poolsz, int *start, int argc, char **argv)
+{
+    int *pc, *sp, *bp, a, cycle; // vm registers
+    int i, *t; // temps
+
+    if (!(sp = malloc(poolsz))) { printf("could not malloc(%d) stack area\n", poolsz); return -1; }
+    if (!(pc = start)) { printf("main() not defined\n"); return -1; }
+    if (src) return 0;
+
+    // setup stack
+    sp = (int *)((int)sp + poolsz);
+    *--sp = EXIT; // call exit if main returns
+    *--sp = PSH; t = sp;
+    *--sp = argc;
+    *--sp = (int)argv;
+    *--sp = (int)t;
+
+    a = 0;
+    bp = 0;
+    cycle = 0;
+    while (1) {
+        i = *pc++;
+        ++cycle;
+        if (verbose) {
+            printf("%d> %.4s", cycle,
+                   &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,"
+                    "LI  ,LC  ,SI  ,SC  ,PSH ,"
+                    "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,"
+                    "SHL ,SHR ,ADD ,SUB ,MUL ,"
+                    "OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,"
+                    "DSYM,BSCH,MMAP,CLCA,EXIT"[i * 5]);
+            if (i <= ADJ) printf(" %d\n", *pc);
+            else if (i == EXIT) printf("exit(%d) cycle = %d\n", *sp, cycle);
+            else printf("\n");
+        }
+        switch (i) {
+        case LEA:
+            a = (int)(bp + *pc++);
+            break;
+        case IMM:
+            a = *pc++; // load global address or immediate
+            break;
+        case JMP:
+            pc = (int *)*pc; // jump
+            break;
+        case JSR:
+            *--sp = (int)(pc + 1); pc = (int *)*pc; // jump to subroutine
+            break;
+        case BZ:
+            pc = a ? pc + 1 : (int *)*pc; // branch if zero
+            break;
+        case BNZ:
+            pc = a ? (int *)*pc : pc + 1; // branch if not zero
+            break;
+        case ENT:
+            *--sp = (int)bp; bp = sp; sp = sp - *pc++; // enter subroutine
+            break;
+        case ADJ:
+            sp = sp + *pc++; // stack adjust
+            break;
+        case LEV:
+            sp = bp; bp = (int *)*sp++; pc = (int *)*sp++; // leave subroutine
+            break;
+        case LI:
+            a = *(int *)a; // load int
+            break;
+        case LC:
+            a = *(char *)a; // load char
+            break;
+        case SI:
+            *(int *)*sp++ = a; // store int
+            break;
+        case SC:
+            a = *(char *)*sp++ = a; // store char
+            break;
+        case PSH:
+            *--sp = a; // push
+            break;
+        case OR:
+            a = *sp++ |  a;
+            break;
+        case XOR:
+            a = *sp++ ^  a;
+            break;
+        case AND:
+            a = *sp++ &  a;
+            break;
+        case EQ:
+            a = *sp++ == a;
+            break;
+        case NE:
+            a = *sp++ != a;
+            break;
+        case LT:
+            a = *sp++ <  a;
+            break;
+        case GT:
+            a = *sp++ >  a;
+            break;
+        case LE:
+            a = *sp++ <= a;
+            break;
+        case GE:
+            a = *sp++ >= a;
+            break;
+        case SHL:
+            a = *sp++ << a;
+            break;
+        case SHR:
+            a = *sp++ >> a;
+            break;
+        case ADD:
+            a = *sp++ +  a;
+            break;
+        case SUB:
+            a = *sp++ -  a;
+            break;
+        case MUL:
+            a = *sp++ *  a;
+            break;
+        case OPEN:
+            a = open((char *)sp[1], *sp);
+            break;
+        case READ:
+            a = read(sp[2], (char *)sp[1], *sp);
+            break;
+        case CLOS:
+            a = close(*sp);
+            break;
+        case PRTF:
+            t = sp + pc[1];
+            a = printf((char *)t[-1], t[-2], t[-3], t[-4], t[-5], t[-6]);
+            break;
+        case MALC:
+            a = (int)malloc(*sp);
+            break;
+        case MSET:
+            a = (int)memset((char *)sp[2], sp[1], *sp);
+            break;
+        case MCMP:
+            a = memcmp((char *)sp[2], (char *)sp[1], *sp);
+            break;
+        case EXIT:
+            return *sp;
+        default:
+            printf("unknown instruction = %d! cycle = %d\n", i, cycle);
+            return -1;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     int fd, bt, ty, poolsz, *idmain;
@@ -826,6 +977,7 @@ int main(int argc, char **argv)
         next();
     }
 
+    return interpret(poolsz, (int *)idmain[Val], argc, argv);
     return jit(poolsz, (int *)idmain[Val], argc, argv);
 }
 
