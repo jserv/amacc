@@ -27,8 +27,8 @@ int main()
     mcpy(p, "hello world", 12);
     printf("%s\n", p);
     printf("memcmp = %d\n", mcmp(p, "hello world", 12));
-    printf("memcmp = %d\n", mcmp(p, "hello sorld", 12));
-    printf("memcmp = %d\n", mcmp(p, "hello zorld", 12));
+    printf("memcmp = %d\n", mcmp(p, "hello xorld", 12));
+    printf("memcmp = %d\n", mcmp(p, "hello yorld", 12));
     p[0] = -1;
     v = p[0];
     printf("%x %d %d %x\n", p[0], p[0], v, p[1]);
