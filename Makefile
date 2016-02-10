@@ -20,7 +20,6 @@ check: $(BIN) $(TEST_OBJ)
 	@$(ARM_EXEC) ./amacc tests/hello.c
 	@echo "[ nested ]"
 	@$(ARM_EXEC) ./amacc amacc.c tests/hello.c
-	@cloc --quiet amacc.c 2>/dev/null
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN)
 	@echo "[********* test  $<******* ]"
