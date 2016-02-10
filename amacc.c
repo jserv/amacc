@@ -713,12 +713,24 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
     while (pc <= e) {
         je = (int*)jitmap[((int)pc - (int)text) >> 2]; i = *pc++;
         if (i == JSR || i == JMP || i == BZ || i == BNZ) {
-            if      (i == JSR)   *je = 0xeb000000; // bl #(tmp)
-            else if (i == JMP)   *je = 0xea000000; // bl #(tmp)
-            else if (i == BZ)  *++je = 0x0a000000; // beq #(tmp)
-            else if (i == BNZ) *++je = 0x1a000000; // bne #(tmp)
+            switch (i) {
+            case JSR:
+                *je = 0xeb000000;  // bl #(tmp)
+                break;
+            case JMP:
+                *je = 0xea000000;  // bl #(tmp)
+                break;
+            case BZ:
+                *++je = 0x0a000000; // beq #(tmp)
+                break;
+            case BNZ:
+                *++je = 0x1a000000; // bne #(tmp)
+                break;
+            }
             tmp = *pc++;
-            *je = *je | (((jitmap[(tmp - (int)text) >> 2] - (int)je - 8) >> 2) & 0x00ffffff);
+            *je = *je |
+                  (((jitmap[(tmp - (int)text) >> 2] - (int)je - 8) >> 2) &
+                   0x00ffffff);
         }
         else if (i < LEV) { ++pc; }
     }
