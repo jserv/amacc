@@ -10,5 +10,5 @@ Prerequisites
 sudo apt-get install qemu-user
 ```
 
-AMaCC is inspired by [c4](https://github.com/rswier/c4). AMaC works
+AMaCC is inspired by [c4](https://github.com/rswier/c4). AMaCC works
 as a small Just-in-Time compiler for ARM backend.
