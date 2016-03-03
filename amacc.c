@@ -33,7 +33,7 @@ int verbose;         // print executed instructions
 enum {
     Num = 128, Fun, Sys, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
-    Switch, While,
+    Switch, For, While,
     Assign, Cond,
     Lor, Lan, Or, Xor, And,
     Eq, Ne, Lt, Gt, Le, Ge,
@@ -406,6 +406,7 @@ void expr(int lev)
 void stmt()
 {
     int *a, *b, *d;
+    int *x, *y, *z;
     int i;
 
     switch (tk) {
@@ -484,6 +485,48 @@ void stmt()
         *++e = LEV;
         if (tk == ';') next();
         else { printf("%d: semicolon expected\n", line); exit(-1); }
+        return;
+    case For:
+        next();
+        if (tk == '(') next();
+        else { printf("%d: open paren expected\n", line); exit(-1); }
+        expr(Assign);
+        while (tk == ',') {
+            next();
+            expr(Assign);
+        }
+        if (tk == ';') next();
+        else { printf("%d: semicolon expected\n", line); exit(-1); }
+        a = e + 1;
+        expr(Assign);
+        if (tk == ';') next();
+        else { printf("%d: semicolon expected\n", line); exit(-1); }
+        *++e = BZ; b = ++e;
+        x = e + 1; // Points to entry of for loop afterthought
+        expr(Assign);
+        while (tk == ',') {
+            next();
+            expr(Assign);
+        }
+        if (tk == ')') next();
+        else { printf("%d: close paren expected\n", line); exit(-1); }
+        y = e + 1; // Points to entry of for loop body
+        stmt();
+        z = e + 1; // Points to entry of jmp command
+        *++e = JMP; *++e = (int)a;
+        *b = (int)(e + 1);
+
+        // Swaps body chunk and afterthought chunk
+        //
+        // We parse it as:
+        // Init -> Cond -> Bz -> After -> Body -> Jmp
+        //
+        // But we want it to be:
+        // Init -> Cond -> Bz -> Body -> After -> Jmp
+        memcpy((void*)((int)e + 4), x, (int)y - (int)x);
+        memcpy(x, y, (int)z - (int) y);
+        memcpy((void*)((int)x + (int)z - (int)y), (void*)((int)e + 4), (int)y - (int)x);
+        memset((void*)((int)e + 4), 0, (int)y - (int)x);
         return;
     case '{':
         next();
@@ -815,7 +858,7 @@ int main(int argc, char **argv)
     memset(e, 0, poolsz);
     memset(data, 0, poolsz);
 
-    p = "break case char default else enum if int return sizeof switch while "
+    p = "break case char default else enum if int return sizeof switch for while "
         "open read write close printf malloc memset memcmp memcpy mmap dlsym "
         "bsearch __clear_cache exit void main";
 
