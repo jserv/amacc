@@ -10,5 +10,17 @@ Prerequisites
 sudo apt-get install qemu-user
 ```
 
+Running AMaCC
+-------------
+Run 'make check' and you should see this:
+```
+[ compiled ]
+hello, world
+[ nested ]
+hello, world
+```
+
+Acknowledgements
+----------------
 AMaCC is inspired by [c4](https://github.com/rswier/c4). AMaCC works
 as a small Just-in-Time compiler for ARM backend.
