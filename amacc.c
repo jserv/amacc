@@ -2,6 +2,7 @@
 // data types: char, int, struct, and pointer
 // condition statements: if, while, switch, return, and expression
 
+#include "ELF.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -29,6 +30,8 @@ int loc;             // local variable offset
 int line;            // current line number
 int src;             // print source and assembly flag
 int verbose;         // print executed instructions
+int elf;             // print ELF format
+int elf_fd;
 
 // identifier
 struct ident_s {
@@ -72,6 +75,9 @@ enum {
 
 // types
 enum { CHAR, INT, PTR = 256, PTR2 = 512 };
+
+#define FUNC_NUM (EXIT - OPEN + 1)
+char* plt_func_addr[FUNC_NUM];
 
 void next()
 {
@@ -711,43 +717,43 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
             else if (i >= OPEN) {
                 switch (i) {
                 case OPEN:
-                    tmp = (int)dlsym(0, "open");
+                    tmp = elf ? (int)plt_func_addr[0] : (int)dlsym(0, "open");
                     break;
                 case READ:
-                    tmp = (int)dlsym(0, "read");
+                    tmp = elf ? (int)plt_func_addr[1] : (int)dlsym(0, "read");
                     break;
                 case WRIT:
-                    tmp = (int)dlsym(0, "write");
+                    tmp = elf ? (int)plt_func_addr[2] : (int)dlsym(0, "write");
                     break;
                 case CLOS:
-                    tmp = (int)dlsym(0, "close");
+                    tmp = elf ? (int)plt_func_addr[3] : (int)dlsym(0, "close");
                     break;
                 case PRTF:
-                    tmp = (int)dlsym(0, "printf");
+                    tmp = elf ? (int)plt_func_addr[4] : (int)dlsym(0, "printf");
                     break;
                 case MALC:
-                    tmp = (int)dlsym(0, "malloc");
+                    tmp = elf ? (int)plt_func_addr[5] : (int)dlsym(0, "malloc");
                     break;
                 case MSET:
-                    tmp = (int)dlsym(0, "memset");
+                    tmp = elf ? (int)plt_func_addr[6] : (int)dlsym(0, "memset");
                     break;
                 case MCMP:
-                    tmp = (int)dlsym(0, "memcmp");
+                    tmp = elf ? (int)plt_func_addr[7] : (int)dlsym(0, "memcmp");
                     break;
                 case MCPY:
-                    tmp = (int)dlsym(0, "memcpy");
+                    tmp = elf ? (int)plt_func_addr[8] : (int)dlsym(0, "memcpy");
                     break;
                 case MMAP:
-                    tmp = (int)dlsym(0, "mmap");
+                    tmp = elf ? (int)plt_func_addr[9] : (int)dlsym(0, "mmap");
                     break;
                 case DSYM:
-                    tmp = (int)dlsym(0, "dlsym");
+                    tmp = elf ? (int)plt_func_addr[10] : (int)dlsym(0, "dlsym");
                     break;
                 case BSCH:
-                    tmp = (int)dlsym(0, "bsearch");
+                    tmp = elf ? (int)plt_func_addr[11] : (int)dlsym(0, "bsearch");
                     break;
                 case EXIT:
-                    tmp = (int)dlsym(0, "exit");
+                    tmp = elf ? (int)plt_func_addr[13] : (int)dlsym(0, "exit");
                     break;
                 default:
                     printf("unrecognized code %d\n", i);
@@ -869,6 +875,321 @@ int jit(int poolsz, int *start, int argc, char **argv)
     if (((void*) 0) != res) return 0; return -1; // make compiler happy
 }
 
+int elf32(int poolsz, int *start)
+{
+    char *o, *buf, *code, *entry, *je, *tje;
+    char *to, *phdr, *dseg, *phdr_end;
+    char *pt_dyn, *dynstr, *libc, *ldso, *linker, *dynsym, *sym, *rel;
+    int pt_dyn_off, linker_off, code_off,*ti, i, *ti2;
+    int retval, *_start;
+
+#define ALIGN 4096
+    int *jitmap;
+    code = malloc(poolsz);
+    buf = malloc(poolsz);
+    jitmap = (int *)(code + (poolsz >> 1));
+    memset(buf, 0, poolsz);
+    o = buf = (char *)(((int) buf + ALIGN - 1)  & -ALIGN);
+    code =    (char *)(((int) code + ALIGN - 1) & -ALIGN);
+    // we must get the plt_func_addr[x] non-zero value, otherwise code length after codegen will be wrong
+    for (i = 0; i < FUNC_NUM;i++)
+        plt_func_addr[i] = o;
+
+    char *tmp_code = code;
+    int jitcode_off = 7;  // 7 instruction (tmp_code)
+    tmp_code += jitcode_off * 4;
+    je = codegen(tmp_code, jitmap, 1);
+    if (!je)
+        return 1;
+    if (je >= jitmap) { printf("jitmem too small\n"); exit(7); }
+    tje = code + 4 * 4; // before tmp_code=tje, 4 instruction * 4 byte
+    tje = 0xeb000000 |
+           (((jitmap[((int)start - (int)text) >> 2] - (int)tje - 8) >> 2) &
+            0x00ffffff);
+
+    // elf32_hdr
+    *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
+    *o++ = 1;    *o++ = 1;   *o++ = 1;   *o++ = 0;
+    o = o + 8;
+    *o++ = 2; *o++ = 0; *o++ = 40; *o++ = 0; // e_type 2 = executable & e_machine 40 = ARM
+    *(int*) o = 1;           o = o + 4;
+    entry = o;    o = o + 4; // e_entry
+    *(int *) o = 52;          o = o + 4; // e_phoff
+    char *e_shoff = o;      o = o + 4; // e_shoff
+    *(int *) o = 0x5000402;           o = o + 4; // e_flags
+    *o++ = 52; *o++ = 0;
+    *o++ = 32; *o++ = 0; *o++ = 5; *o++ = 0; // e_phentsize & e_phnum
+    *o++ = 40; *o++ = 0; *o++ = 12; *o++ = 0; // e_shentsize & e_shnum
+    *o++ =  1; *o++ = 0;
+
+    phdr = o; o = o + PHDR_SIZE * 4; // e_phentsize * e_phnum for phdr size
+    o = (char *)(((int) o + ALIGN - 1)  & -ALIGN); // to 0x1000
+    code_off = o - buf; // 0x1000
+    // must add a value >= 4. sometimes first codegen size is not eq to second codegen
+    int code_size = je - code + 8;  
+    int rel_size = 8 * FUNC_NUM;
+    int rel_off = code_off + code_size;
+    char* rel_addr = o + code_size; 
+
+    int plt_size = 20 + 12 * FUNC_NUM;
+    int plt_off = rel_off + rel_size;
+    char *plt_addr = rel_addr + rel_size; 
+
+    char *code_addr = o;
+    o++;
+    o = (char *)(((int)o + ALIGN - 1)  & -ALIGN); // to 0x2000
+    memcpy(code_addr, code,  0x1000);
+    *(int *) entry = (int) code_addr;
+
+    // data
+    int pt_dyn_size = 14 * 8 + 16;
+    dseg = o; o = o + 4096; // 0x3000
+    char *_data_end = data;
+    data = (char *)(((int) data + ALIGN - 1)  & -ALIGN); // force data addr align to offset
+    pt_dyn = data; pt_dyn_off = dseg - buf; data = data + pt_dyn_size;
+    linker = data; memcpy(linker, "/lib/ld-linux-armhf.so.3", 25);
+    linker_off = pt_dyn_off + pt_dyn_size; data = data + 25;
+
+    // the first 4k in this address space is for elf header, especially
+    // elf_phdr because ld.so must be able to see it
+    // PT_LOAD for code
+    to = phdr;
+    int code_idx = gen_PT(to, PT_LOAD, 0, (int) buf, 
+                          0x2000, PF_X | PF_R, 0x1000);
+    to += PHDR_SIZE;
+    // PT_LOAD for data
+    int data_idx = gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn,
+                          4096 , PF_W | PF_R, 0x1000);
+    to += PHDR_SIZE;
+
+    // PT_INTERP
+    int interp_idx = gen_PT(to, PT_INTERP, linker_off, (int) linker, 
+                            25 , PF_R, 0x1);
+    to += PHDR_SIZE;
+
+    // PT_DYNAMIC
+    int dynamic_idx = gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn, 
+                             pt_dyn_size , PF_R | PF_W, 4);
+    to += PHDR_SIZE;
+
+    // offset and v_addr must align for 0xFFF(or 0xFFFF?)
+    int rodata_off = 0x3000 | ((int) _data & 0xfff);
+    // PT_LOAD for others data
+    int other_data_idx = gen_PT(to, PT_LOAD, rodata_off, (int)_data, 
+                                _data_end - _data, PF_X | PF_R, 1);
+    to += PHDR_SIZE;
+    phdr_end = to;
+
+    // .shstrtab (embedded in PT_LOAD of data)
+    char *shstrtab_addr = data;
+    int shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
+    int shstrtab_size = 99;
+    memcpy(shstrtab_addr,
+            "\0.shstrtab\0.text\0.data\0.dynamic\0.strtab\0.symtab\0.dynstr"
+            "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rodata\0"
+            , shstrtab_size);
+    data += shstrtab_size;
+
+    char *func_str =
+            "\0open\0read\0write\0close\0"
+            "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
+            "dlsym\0bsearch\0__clear_cache\0exit\0";
+    int func_str_size = 96;
+
+    // .dynstr (embedded in PT_LOAD of data)
+    char *dynstr_addr = data;
+    int dynstr_off = shstrtab_off + shstrtab_size;
+    libc = data = data +  1; memcpy(data, "libc.so.6", 10);
+    ldso = data = data + 10; memcpy(data, "libdl.so.2", 11);
+    data += 11;
+    sym = data;
+    int dynlink_sym_size = func_str_size;
+    memcpy(sym, func_str, dynlink_sym_size);
+    int dynstr_size = 22 + dynlink_sym_size;
+    data += dynlink_sym_size;
+
+    // .dynsym (embedded in PT_LOAD of data)
+    char *dynsym_addr = data;
+    int dynsym_off = dynstr_off + dynstr_size;
+    memset(data, 0, SYM_SIZE);
+    data += SYM_SIZE;
+    gen_sym(data, 23, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 28, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 33, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 39, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 45, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 52, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 59, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 66, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 73, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 80, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 85, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 91, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 99, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+    gen_sym(data, 113, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    data += SYM_SIZE;
+
+    int dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
+    char *_gap = data;
+    data = (char *)(((int)data + 15)  & -16);
+    int gap = (int)data - (int)_gap;
+    // .got
+    char* got_addr = data;
+    int got_off = dynsym_off + dynsym_size + gap;
+    *(int *) data = (int) pt_dyn; data += 4;
+    data += 4;  // reserved 2 and 3 entry for linke
+    char *to_got_movw = data, *to_got_movt = data;  // here is the addr handles dyn link, plt must jump here 
+    data += 4;  // reserved 2 and 3 entry for linker    
+    // .got function slot
+    char *got_func_slot[FUNC_NUM];
+    for (i = 0; i < FUNC_NUM; i++) {
+        got_func_slot[i] = data;
+        *(int *) data = (int) plt_addr; data += 4;
+    }
+    data += 4;  // end with 0x0
+    int got_size = (int) data - (int) got_addr;
+
+    // .plt 
+    to = plt_addr;
+    *(int *) to = 0xe52de004;         to = to + 4; // push {lr}
+    // movw r10 addr_to_got
+    *(int *) to = 0xe300a000 | (0xfff & (int)(to_got_movw)) |
+                  (0xf0000 & ((int)(to_got_movw) << 4));
+    to = to + 4;
+    // movt r10 addr_to_got
+    *(int *) to = 0xe340a000 | (0xfff & ((int)(to_got_movt)>>16)) |
+                  (0xf0000 & ((int)(to_got_movt) >> 12));
+    to = to + 4;
+    *(int *) to = 0xe1a0e00a; to = to + 4;  // mov lr,r10
+    *(int *) to = 0xe59ef000; to = to + 4;  // ldr pc, [lr]
+
+    // We must preserve ip for code below, dyn link use this as return address
+    for (i = 0; i < FUNC_NUM; i++) {
+        plt_func_addr[i] = to;
+        // movt ip addr_to_got
+        *(int *) to = 0xe300c000 | (0xfff & (int)(got_func_slot[i])) |
+                      (0xf0000 & ((int)(got_func_slot[i]) << 4));
+	to += 4;
+        // movw ip addr_to_got
+  	*(int *) to = 0xe340c000 |
+                      (0xfff & ((int) (got_func_slot[i]) >> 16)) |
+                      (0xf0000 & ((int) (got_func_slot[i]) >> 12));
+        to += 4;
+        *(int *) to = 0xe59cf000; to = to + 4;  // ldr pc, [ip]
+    }
+    
+    // .rel.plt
+    to = rel_addr;
+    for (i = 0; i < FUNC_NUM; i++) { 
+        *(int *) to = (int) got_func_slot[i]; to = to + 4; 
+        *(int *) to = 0x16 | (i + 1) << 8 ; to = to + 4; // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
+    }
+
+    //  .rodata
+    int rodata_size = _data_end - _data;
+    o += rodata_off - 0x3000;
+    memcpy(o, _data, rodata_size);
+    o += rodata_size;
+    *(int *) e_shoff = (int)(o - buf);
+    // .dynamic (embedded in PT_LOAD of data)
+    to = pt_dyn;
+    char *sh_dyn = to;
+    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr;   to = to + 4;
+    *(int *) to = 10; to = to + 4; *(int *) to = dynstr_size; to = to + 4;
+    *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr; to = to + 4;
+    *(int *) to = 11; to = to + 4; *(int *) to = 16; to = to + 4;
+    *(int *) to = 17; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
+    *(int *) to = 18; to = to + 4; *(int *) to = rel_size; to = to + 4;
+    *(int *) to = 19; to = to + 4; *(int *) to = 8; to = to + 4;
+    *(int *) to =  3; to = to + 4; *(int *) to = (int) got_addr; to = to + 4;
+    *(int *) to =  2; to = to + 4; *(int *) to = rel_size; to = to + 4;
+    *(int *) to = 20; to = to + 4; *(int *) to = 17; to = to + 4;
+    *(int *) to = 23; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
+    *(int *) to =  1; to = to + 4; *(int *) to = libc - dynstr_addr; to = to + 4;
+    *(int *) to =  1; to = to + 4; *(int *) to = ldso - dynstr_addr; to = to + 4;
+    *(int *) to =  0; to = to + 8;
+
+    // we gen code again bacause address of .plt function slots must confirmed
+    tmp_code = code;
+    *(int *) tmp_code = 0xe1a00001; tmp_code += 4;  // mov     r0, r1 ; argc
+    *(int *) tmp_code = 0xe1a01002; tmp_code += 4;  // mov     r1, r2 ; argv
+    *(int *) tmp_code = 0xe52d0004; tmp_code += 4;  // push    {r0}
+    *(int *) tmp_code = 0xe52d1004; tmp_code += 4;  // push    {r1}
+    *(int *) tmp_code =  (int) tje; tmp_code += 4;  // bl      jitmain
+    *(int *) tmp_code = 0xe3a07001; tmp_code += 4;  // mov     r7, #1
+    *(int *) tmp_code = 0xef000000; tmp_code += 4;  // svc 0
+    je = codegen(tmp_code, jitmap, 1);
+    if (!je)
+        return 1;
+    if (je >= jitmap) { printf("jitmem too small\n"); exit(7); }
+    memcpy(code_addr, code,  je - code);
+
+    gen_SH(o, SHT_NULL, 0, 0, 0, 0,
+           0, 0, 0, 0, 0);
+    o += SHDR_SIZE;
+
+    int sh_shstrtab_idx = gen_SH(o, SHT_STRTAB, 1, shstrtab_off, 0, shstrtab_size,
+                                 0, 0, 0, 1, 0);
+    o += SHDR_SIZE;
+
+    int sh_text_idx = gen_SH(o, SHT_PROGBITS, 11, code_off, code_addr, code_size,
+                             0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 0);
+    o += SHDR_SIZE;
+
+    int sh_data_idx = gen_SH(o, SHT_PROGBITS, 17, pt_dyn_off, (int) pt_dyn, 0x1000,
+                             0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
+    o += SHDR_SIZE;
+
+    int sh_dynstr_idx = gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr, dynstr_size,
+                               0, 0, SHF_ALLOC, 1, 0);
+    o += SHDR_SIZE;
+    
+    int sh_dynsym_idx = gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr, dynsym_size,
+                               sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
+    o += SHDR_SIZE;
+    
+    int sh_dynamic_idx = gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn, pt_dyn_size,
+                                sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
+    o += SHDR_SIZE;
+
+    int sh_interp_idx = gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker, 25,
+                               0, 0, SHF_ALLOC, 1, 0);
+    o += SHDR_SIZE;
+
+    int sh_rel_idx = gen_SH(o, SHT_REL, 72, rel_off, (int) rel_addr, rel_size,
+                            sh_dynsym_idx, 11, SHF_ALLOC | 0x40, 4, 8);
+    o += SHDR_SIZE;
+
+    int sh_plt_idx = gen_SH(o, SHT_PROGBITS, 81, plt_off, (int) plt_addr, plt_size,
+                            0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 4);
+    o += SHDR_SIZE;
+
+    int sh_got_idx = gen_SH(o, SHT_PROGBITS, 86, got_off, (int)_data, got_size,
+                            0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
+    o += SHDR_SIZE;
+
+    int sh_rodata_idx = gen_SH(o, SHT_PROGBITS, 91, rodata_off, (int)_data, rodata_size,
+                               0, 0, SHF_ALLOC, 0, 1);
+    o += SHDR_SIZE;
+
+    memcpy(dseg, pt_dyn, 0x1000);
+    write(elf_fd, buf, o - buf);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int fd, bt, mbt, ty, poolsz;
@@ -883,8 +1204,14 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'v') {
         verbose = 1; --argc; ++argv;
     }
+    if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
+        elf = 1; --argc; ++argv;
+      if((elf_fd = open(*argv, O_CREAT|O_WRONLY, 0775)) < 0) {
+          printf("could not open(%s)\n", *argv); return -1;
+      } ++argv;
+    }
     if (argc < 1) {
-        printf("usage: amacc [-s] [-d] file ...\n"); return -1;
+        printf("usage: amacc [-s] [-d] [-o object] file ...\n"); return -1;
     }
 
     if ((fd = open(*argv, 0)) < 0) {
@@ -898,7 +1225,7 @@ int main(int argc, char **argv)
     if (!(text = le = e = malloc(poolsz))) {
         printf("could not malloc(%d) text area\n", poolsz); return -1;
     }
-    if (!(data = malloc(poolsz))) {
+    if (!(_data = data = malloc(poolsz))) {
         printf("could not malloc(%d) data area\n", poolsz); return -1;
     }
     if (!(tsize = malloc(PTR * sizeof(int)))) {
@@ -1152,7 +1479,9 @@ int main(int argc, char **argv)
         next();
     }
 
-    return jit(poolsz, (int *)idmain->val, argc, argv);
+    if (elf)
+        return elf32(poolsz, idmain->val);
+    return jit(poolsz, idmain->val, argc, argv);
 }
 
 // vim: set tabstop=4 shiftwidth=4 expandtab:

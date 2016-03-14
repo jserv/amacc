@@ -1,5 +1,6 @@
 CROSS_COMPILE ?= arm-linux-gnueabihf-
-CFLAGS = -Os -Wall
+CFLAGS = -O0 -Wall
+OBJ_DIR = elf
 TEST_DIR = ./tests
 TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_OBJ = $(TEST_SRC:.c=.o)
@@ -12,8 +13,11 @@ ARM_EXEC = qemu-arm -L /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
 
 all: $(BIN)
 
-amacc: amacc.c
-	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -o amacc amacc.c -g -ldl
+amacc: amacc.c ELF.o
+	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -o amacc $? -g -ldl
+
+ELF.o: ELF.c
+	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -c -o $@ $< -g -ldl
 
 check: $(BIN) $(TEST_OBJ)
 	@echo "[ compiled ]"
@@ -24,7 +28,11 @@ check: $(BIN) $(TEST_OBJ)
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN)
 	@echo "[********* test  $<******* ]"
 	@$(ARM_EXEC) ./amacc $< 2
+	@echo "[********* test  $< elf*** ]"
+	@mkdir -p $(OBJ_DIR)
+	@$(ARM_EXEC) ./amacc -o $(OBJ_DIR)/$(notdir $(basename $<)) $<
+	@$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2
 	@/bin/echo -e "$(PASS_COLOR)$< pass$(NO_COLOR)\n"
 
 clean:
-	$(RM) $(BIN)
+	$(RM) $(BIN) $(OBJ_DIR)/*
