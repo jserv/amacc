@@ -1,6 +1,6 @@
 // Another Mini ARM C Compiler (AMaCC)
 // data types: char, int, struct, and pointer
-// condition statements: if, while, switch, return, and expression
+// condition statements: if, while, for, switch, return, and expression
 
 #include <stdio.h>
 #include <stdlib.h>
