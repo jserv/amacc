@@ -13,11 +13,8 @@ ARM_EXEC = qemu-arm -L /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
 
 all: $(BIN)
 
-amacc: amacc.c ELF.o
+amacc: amacc.c
 	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -o amacc $? -g -ldl
-
-ELF.o: ELF.c
-	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -c -o $@ $< -g -ldl
 
 check: $(BIN) $(TEST_OBJ)
 	@echo "[ compiled ]"
