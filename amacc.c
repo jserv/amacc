@@ -75,8 +75,8 @@ enum {
 // types
 enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 
-#define FUNC_NUM (EXIT - OPEN + 1)
-char* plt_func_addr[FUNC_NUM];
+// ELF generation
+char **plt_func_addr;
 
 void next()
 {
@@ -881,23 +881,19 @@ enum {
     SYM_SIZE = 16
 };
 
-#include <stdint.h>
-typedef uint32_t Elf32_Addr; // Program address
-typedef uint32_t Elf32_Off;  // File offset
-typedef uint16_t Elf32_Half;
-typedef uint32_t Elf32_Word;
-
 struct Elf32_Shdr {
-    Elf32_Word sh_name;      // Section name (index into string table)
-    Elf32_Word sh_type;      // Section type (SHT_*)
-    Elf32_Word sh_flags;     // Section flags (SHF_*)
-    Elf32_Addr sh_addr;      // Address where section is to be loaded
-    Elf32_Off  sh_offset;    // File offset of section data, in bytes
-    Elf32_Word sh_size;      // Size of section, in bytes
-    Elf32_Word sh_link;      // Section type-specific header table index link
-    Elf32_Word sh_info;      // Section type-specific extra information
-    Elf32_Word sh_addralign; // Section address alignment
-    Elf32_Word sh_entsize;   // Size of records contained within the section
+    int sh_name;      // [Elf32_Word] Section name (index into string table)
+    int sh_type;      // [Elf32_Word] Section type (SHT_*)
+    int sh_flags;     // [Elf32_Word] Section flags (SHF_*)
+    int sh_addr;      // [Elf32_Addr] Address where section is to be loaded
+    int sh_offset;    // [Elf32_Off] File offset of section data, in bytes
+    int sh_size;      // [Elf32_Word] Size of section, in bytes
+    int sh_link;      // [Elf32_Word] Section type-specific header table
+                      //              index link
+    int sh_info;      // [Elf32_Word] Section type-specific extra information
+    int sh_addralign; // [Elf32_Word] Section address alignment
+    int sh_entsize;   // [Elf32_Word] Size of records contained within
+                      //              the section
 };
 
 // Special section indices.
@@ -924,17 +920,20 @@ enum {
 
 // Symbol table entries for ELF32.
 struct Elf32_Sym {
-    Elf32_Word    st_name;  // Symbol name (index into string table)
-    Elf32_Addr    st_value; // Value or address associated with the symbol
-    Elf32_Word    st_size;  // Size of the symbol
-    unsigned char st_info;  // Symbol's type and binding attributes
-    unsigned char st_other; // Must be zero; reserved
-    Elf32_Half    st_shndx; // Which section (header table index) it's defined in
+    int st_name;  // [Elf32_Word] Symbol name (index into string table)
+    int st_value; // [Elf32_Addr] Value or address associated with the symbol
+    int st_size;  // [Elf32_Word] Size of the symbol
+    char st_info; // [unsigned] Symbol's type and binding attributes
+    char st_other;// [unsigned] Must be zero; reserved
+    char st_shndx, st_shndx_1, st_shndx_2, st_shndx_3; // [Elf32_Half]
+                  // Which section (header table index) it's defined
 };
 // Symbol bindings.
 enum {
-    STB_LOCAL = 0,   // Local symbol, not visible outside obj file containing def
-    STB_GLOBAL = 1,  // Global symbol, visible to all object files being combined
+    STB_LOCAL = 0,   // Local symbol, not visible outside obj file
+                     //               containing def
+    STB_GLOBAL = 1,  // Global symbol, visible to all object files
+                     //                being combined
 };
 
 // Symbol types.
@@ -950,14 +949,17 @@ enum {
 
 // Program header for ELF32.
 struct Elf32_Phdr {
-    Elf32_Word p_type;   // Type of segment
-    Elf32_Off  p_offset; // File offset where segment is located, in bytes
-    Elf32_Addr p_vaddr;  // Virtual address of beginning of segment
-    Elf32_Addr p_paddr;  // Physical address of beginning of segment (OS-specific)
-    Elf32_Word p_filesz; // Num. of bytes in file image of segment (may be zero)
-    Elf32_Word p_memsz;  // Num. of bytes in mem image of segment (may be zero)
-    Elf32_Word p_flags;  // Segment flags
-    Elf32_Word p_align;  // Segment alignment constraint
+    int p_type;   // [Elf32_Word] Type of segment
+    int p_offset; // [Elf32_Off] File offset where segment is located, in bytes
+    int p_vaddr;  // [Elf32_Addr] Virtual address of beginning of segment
+    int p_paddr;  // [Elf32_Addr] Physical address of beginning of segment
+                  //              (OS-specific)
+    int p_filesz; // [Elf32_Word] Number of bytes in file image of segment
+                  //              (may be zero)
+    int p_memsz;  // [Elf32_Word] Number of bytes in mem image of segment
+                  //              (may be zero)
+    int p_flags;  // [Elf32_Word] Segment flags
+    int p_align;  // [Elf32_Word] Segment alignment constraint
 };
 
 // Segment types.
@@ -991,14 +993,13 @@ enum {
     DT_JMPREL       = 23,       // Address of relocations associated with PLT.
 };
 
-int PT_idx = 0;
-int SH_idx = 0;
-int sym_idx = 0;
+int PT_idx, SH_idx, sym_idx;
 
 int gen_PT(char *ptr, int type, int offset, int addr, int size,
            int flag, int align)
 {
-    struct Elf32_Phdr *phdr = (struct Elf32_Phdr *) ptr;
+    struct Elf32_Phdr *phdr;
+    phdr = (struct Elf32_Phdr *) ptr;
     phdr->p_type =  type;
     phdr->p_offset = offset;
     phdr->p_vaddr = addr;
@@ -1014,7 +1015,8 @@ int gen_SH(char *ptr, int type, int name, int offset, int addr,
            int size, int link, int info,
            int flag, int align, int entsize)
 {
-    struct Elf32_Shdr *shdr = (struct Elf32_Shdr *) ptr;
+    struct Elf32_Shdr *shdr;
+    shdr = (struct Elf32_Shdr *) ptr;
     shdr->sh_name = name;
     shdr->sh_type = type;
     shdr->sh_addr = addr;
@@ -1031,15 +1033,19 @@ int gen_SH(char *ptr, int type, int name, int offset, int addr,
 int gen_sym(char *ptr, int name, unsigned char info,
             int shndx, int size, int value)
 {
-    struct Elf32_Sym *sym = (struct Elf32_Sym *) ptr;
+    struct Elf32_Sym *sym;
+    sym = (struct Elf32_Sym *) ptr;
     sym->st_name = name;
     sym->st_info = info;
     sym->st_other = 0;
-    sym->st_shndx = shndx;
+    // sym->st_shndx = shndx;
+    memcpy(&(sym->st_shndx), (char *) &shndx, 2);
     sym->st_value = value;
     sym->st_size = size;
     return sym_idx++;
 }
+
+enum { ALIGN = 4096 };
 
 int elf32(int poolsz, int *start)
 {
@@ -1047,22 +1053,62 @@ int elf32(int poolsz, int *start)
     char *to, *phdr, *dseg;
     char *pt_dyn, *libc, *ldso, *linker, *sym;
     int pt_dyn_off, linker_off, code_off, i;
-
-    enum { ALIGN = 4096 };
     int *jitmap;
+    char *tmp_code;
+    int jitcode_off;
+    int FUNC_NUM;
+    char *e_shoff;
+
+    int code_size, rel_size, rel_off;
+    char* rel_addr;
+    int plt_size, plt_off;
+    char *plt_addr;
+    char *code_addr;
+    int pt_dyn_size;
+    char *_data_end;
+    int rodata_off;
+    char *shstrtab_addr;
+    int shstrtab_off, shstrtab_size;
+    char *func_str;
+    int func_str_size;
+    char *dynstr_addr;
+    int dynstr_off;
+    int dynlink_sym_size;
+    int dynstr_size;
+    char *dynsym_addr;
+    int dynsym_off;
+    int dynsym_size;
+    char *_gap;
+    int gap;
+    char *got_addr;
+    int got_off;
+    char *to_got_movw, *to_got_movt;
+    char **got_func_slot;
+    int got_size;
+    int rodata_size;
+    int sh_dynstr_idx, sh_dynsym_idx;
+
     code = malloc(poolsz);
     buf = malloc(poolsz);
     jitmap = (int *)(code + (poolsz >> 1));
     memset(buf, 0, poolsz);
     o = buf = (char *)(((int) buf + ALIGN - 1)  & -ALIGN);
     code =    (char *)(((int) code + ALIGN - 1) & -ALIGN);
-    // we must get the plt_func_addr[x] non-zero value, otherwise code length after codegen will be wrong
-    for (i = 0; i < FUNC_NUM;i++)
+
+    PT_idx = 0;
+    SH_idx = 0;
+    sym_idx = 0;
+
+    // we must get the plt_func_addr[x] non-zero value, otherwise
+    // code length after codegen will be wrong
+    FUNC_NUM = EXIT - OPEN + 1;
+    plt_func_addr = malloc(FUNC_NUM);
+    for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o;
 
-    char *tmp_code = code;
-    int jitcode_off = 7;  // 7 instruction (tmp_code)
-    tmp_code += jitcode_off * 4;
+    tmp_code = code;
+    jitcode_off = 7;  // 7 instruction (tmp_code)
+    tmp_code = tmp_code + jitcode_off * 4;
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
     if (!je)
         return 1;
@@ -1080,7 +1126,7 @@ int elf32(int poolsz, int *start)
     *(int *) o = 1; o = o + 4;
     entry = o; o = o + 4; // e_entry
     *(int *) o = 52; o = o + 4; // e_phoff
-    char *e_shoff = o; o = o + 4; // e_shoff
+    e_shoff = o; o = o + 4; // e_shoff
     *(int *) o = 0x5000402;           o = o + 4; // e_flags
     *o++ = 52; *o++ = 0;
     *o++ = 32; *o++ = 0; *o++ = 5; *o++ = 0; // e_phentsize & e_phnum
@@ -1091,25 +1137,25 @@ int elf32(int poolsz, int *start)
     o = (char *) (((int) o + ALIGN - 1)  & -ALIGN); // to 0x1000
     code_off = o - buf; // 0x1000
     // must add a value >= 4. sometimes first codegen size is not eq to second codegen
-    int code_size = je - code + 8;  
-    int rel_size = 8 * FUNC_NUM;
-    int rel_off = code_off + code_size;
-    char* rel_addr = o + code_size; 
+    code_size = je - code + 8;
+    rel_size = 8 * FUNC_NUM;
+    rel_off = code_off + code_size;
+    rel_addr = o + code_size;
 
-    int plt_size = 20 + 12 * FUNC_NUM;
-    int plt_off = rel_off + rel_size;
-    char *plt_addr = rel_addr + rel_size; 
+    plt_size = 20 + 12 * FUNC_NUM;
+    plt_off = rel_off + rel_size;
+    plt_addr = rel_addr + rel_size;
 
-    char *code_addr = o;
+    code_addr = o;
     o++;
     o = (char *)(((int)o + ALIGN - 1)  & -ALIGN); // to 0x2000
     memcpy(code_addr, code,  0x1000);
     *(int *) entry = (int) code_addr;
 
     // data
-    int pt_dyn_size = 14 * 8 + 16;
+    pt_dyn_size = 14 * 8 + 16;
     dseg = o; o = o + 4096; // 0x3000
-    char *_data_end = data;
+    _data_end = data;
     data = (char *)(((int) data + ALIGN - 1)  & -ALIGN); // force data addr align to offset
     pt_dyn = data; pt_dyn_off = dseg - buf; data = data + pt_dyn_size;
     linker = data; memcpy(linker, "/lib/ld-linux-armhf.so.3", 25);
@@ -1121,113 +1167,112 @@ int elf32(int poolsz, int *start)
     to = phdr;
     // code_idx
     gen_PT(to, PT_LOAD, 0, (int) buf, 0x2000, PF_X | PF_R, 0x1000);
-    to += PHDR_SIZE;
+    to = to+ PHDR_SIZE;
     // PT_LOAD for data
     // data_idx
     gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn, 4096, PF_W | PF_R, 0x1000);
-    to += PHDR_SIZE;
+    to = to + PHDR_SIZE;
 
     // PT_INTERP
     // interp_idx
     gen_PT(to, PT_INTERP, linker_off, (int) linker, 
            25 , PF_R, 0x1);
-    to += PHDR_SIZE;
+    to = to + PHDR_SIZE;
 
     // PT_DYNAMIC
     // dynamic_idx
     gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn, 
            pt_dyn_size , PF_R | PF_W, 4);
-    to += PHDR_SIZE;
+    to = to + PHDR_SIZE;
 
     // offset and v_addr must align for 0xFFF(or 0xFFFF?)
-    int rodata_off = 0x3000 | ((int) _data & 0xfff);
+    rodata_off = 0x3000 | ((int) _data & 0xfff);
     // PT_LOAD for others data
     // other_data_idx
     gen_PT(to, PT_LOAD, rodata_off, (int)_data, 
            _data_end - _data, PF_X | PF_R, 1);
-    to += PHDR_SIZE;
+    to = to + PHDR_SIZE;
 
     // .shstrtab (embedded in PT_LOAD of data)
-    char *shstrtab_addr = data;
-    int shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
-    int shstrtab_size = 99;
+    shstrtab_addr = data;
+    shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
+    shstrtab_size = 99;
     memcpy(shstrtab_addr,
             "\0.shstrtab\0.text\0.data\0.dynamic\0.strtab\0.symtab\0.dynstr"
             "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rodata\0"
             , shstrtab_size);
-    data += shstrtab_size;
+    data = data + shstrtab_size;
 
-    char *func_str =
-            "\0open\0read\0write\0close\0"
-            "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
-            "dlsym\0bsearch\0__clear_cache\0exit\0";
-    int func_str_size = 96;
+    func_str = "\0open\0read\0write\0close\0"
+               "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
+               "dlsym\0bsearch\0__clear_cache\0exit\0";
+    func_str_size = 96;
 
     // .dynstr (embedded in PT_LOAD of data)
-    char *dynstr_addr = data;
-    int dynstr_off = shstrtab_off + shstrtab_size;
+    dynstr_addr = data;
+    dynstr_off = shstrtab_off + shstrtab_size;
     libc = data = data +  1; memcpy(data, "libc.so.6", 10);
     ldso = data = data + 10; memcpy(data, "libdl.so.2", 11);
-    data += 11;
+    data = data + 11;
     sym = data;
-    int dynlink_sym_size = func_str_size;
+    dynlink_sym_size = func_str_size;
     memcpy(sym, func_str, dynlink_sym_size);
-    int dynstr_size = 22 + dynlink_sym_size;
-    data += dynlink_sym_size;
+    dynstr_size = 22 + dynlink_sym_size;
+    data = data + dynlink_sym_size;
 
     // .dynsym (embedded in PT_LOAD of data)
-    char *dynsym_addr = data;
-    int dynsym_off = dynstr_off + dynstr_size;
+    dynsym_addr = data;
+    dynsym_off = dynstr_off + dynstr_size;
     memset(data, 0, SYM_SIZE);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 23, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 28, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 33, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 39, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 45, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 52, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 59, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 66, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 73, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 80, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 85, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 91, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 99, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
     gen_sym(data, 113, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data += SYM_SIZE;
+    data = data + SYM_SIZE;
 
-    int dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
-    char *_gap = data;
+    dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
+    _gap = data;
     data = (char *) (((int) data + 15) & -16);
-    int gap = (int)data - (int) _gap;
+    gap = (int) data - (int) _gap;
     // .got
-    char* got_addr = data;
-    int got_off = dynsym_off + dynsym_size + gap;
-    *(int *) data = (int) pt_dyn; data += 4;
-    data += 4;  // reserved 2 and 3 entry for linke
-    char *to_got_movw = data, *to_got_movt = data;  // here is the addr handles dyn link, plt must jump here 
-    data += 4;  // reserved 2 and 3 entry for linker    
+    got_addr = data;
+    got_off = dynsym_off + dynsym_size + gap;
+    *(int *) data = (int) pt_dyn; data = data + 4;
+    data = data + 4;  // reserved 2 and 3 entry for linke
+    to_got_movw = data; to_got_movt = data;  // here is the addr handles dyn link, plt must jump here 
+    data = data + 4;  // reserved 2 and 3 entry for linker
     // .got function slot
-    char *got_func_slot[FUNC_NUM];
+    got_func_slot = malloc(FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++) {
         got_func_slot[i] = data;
-        *(int *) data = (int) plt_addr; data += 4;
+        *(int *) data = (int) plt_addr; data = data + 4;
     }
-    data += 4;  // end with 0x0
-    int got_size = (int) data - (int) got_addr;
+    data = data + 4;  // end with 0x0
+    got_size = (int) data - (int) got_addr;
 
     // .plt 
     to = plt_addr;
@@ -1249,12 +1294,12 @@ int elf32(int poolsz, int *start)
         // movt ip addr_to_got
         *(int *) to = 0xe300c000 | (0xfff & (int)(got_func_slot[i])) |
                       (0xf0000 & ((int)(got_func_slot[i]) << 4));
-	to += 4;
+	to = to + 4;
         // movw ip addr_to_got
   	*(int *) to = 0xe340c000 |
                       (0xfff & ((int) (got_func_slot[i]) >> 16)) |
                       (0xf0000 & ((int) (got_func_slot[i]) >> 12));
-        to += 4;
+        to = to + 4;
         *(int *) to = 0xe59cf000; to = to + 4;  // ldr pc, [ip]
     }
     
@@ -1262,14 +1307,15 @@ int elf32(int poolsz, int *start)
     to = rel_addr;
     for (i = 0; i < FUNC_NUM; i++) { 
         *(int *) to = (int) got_func_slot[i]; to = to + 4; 
-        *(int *) to = 0x16 | (i + 1) << 8 ; to = to + 4; // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
+        *(int *) to = 0x16 | (i + 1) << 8 ; to = to + 4;
+        // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
     }
 
     //  .rodata
-    int rodata_size = _data_end - _data;
-    o += rodata_off - 0x3000;
+    rodata_size = _data_end - _data;
+    o = o + rodata_off - 0x3000;
     memcpy(o, _data, rodata_size);
-    o += rodata_size;
+    o = o + rodata_size;
     *(int *) e_shoff = (int)(o - buf);
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
@@ -1290,13 +1336,20 @@ int elf32(int poolsz, int *start)
 
     // we gen code again bacause address of .plt function slots must confirmed
     tmp_code = code;
-    *(int *) tmp_code = 0xe1a00001; tmp_code += 4;  // mov     r0, r1 ; argc
-    *(int *) tmp_code = 0xe1a01002; tmp_code += 4;  // mov     r1, r2 ; argv
-    *(int *) tmp_code = 0xe52d0004; tmp_code += 4;  // push    {r0}
-    *(int *) tmp_code = 0xe52d1004; tmp_code += 4;  // push    {r1}
-    *(int *) tmp_code =  (int) tje; tmp_code += 4;  // bl      jitmain
-    *(int *) tmp_code = 0xe3a07001; tmp_code += 4;  // mov     r7, #1
-    *(int *) tmp_code = 0xef000000; tmp_code += 4;  // svc 0
+    *(int *) tmp_code = 0xe1a00001;
+             tmp_code = tmp_code + 4;  // mov     r0, r1 ; argc
+    *(int *) tmp_code = 0xe1a01002;
+             tmp_code = tmp_code + 4;  // mov     r1, r2 ; argv
+    *(int *) tmp_code = 0xe52d0004;
+             tmp_code = tmp_code + 4;  // push    {r0}
+    *(int *) tmp_code = 0xe52d1004;
+             tmp_code = tmp_code + 4;  // push    {r1}
+    *(int *) tmp_code =  (int) tje;
+             tmp_code = tmp_code + 4;  // bl      jitmain
+    *(int *) tmp_code = 0xe3a07001;
+             tmp_code = tmp_code + 4;  // mov     r7, #1
+    *(int *) tmp_code = 0xef000000;
+             tmp_code = tmp_code + 4;  // svc 0
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
     if (!je)
         return 1;
@@ -1305,62 +1358,62 @@ int elf32(int poolsz, int *start)
 
     gen_SH(o, SHT_NULL, 0, 0, 0, 0,
            0, 0, 0, 0, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_shstrtab_idx
     gen_SH(o, SHT_STRTAB, 1, shstrtab_off, 0, shstrtab_size,
            0, 0, 0, 1, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_text_idx
     gen_SH(o, SHT_PROGBITS, 11, code_off, (int) code_addr, code_size,
            0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_data_idx
     gen_SH(o, SHT_PROGBITS, 17, pt_dyn_off, (int) pt_dyn, 0x1000,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
-    int sh_dynstr_idx =
+    sh_dynstr_idx =
     gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr, dynstr_size,
            0, 0, SHF_ALLOC, 1, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
     
-    int sh_dynsym_idx =
+    sh_dynsym_idx =
     gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr, dynsym_size,
           sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
     
     // sh_dynamic_idx
     gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn, pt_dyn_size,
            sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_interp_idx
     gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker, 25,
            0, 0, SHF_ALLOC, 1, 0);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_rel_idx
     gen_SH(o, SHT_REL, 72, rel_off, (int) rel_addr, rel_size,
           sh_dynsym_idx, 11, SHF_ALLOC | 0x40, 4, 8);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_plt_idx
     gen_SH(o, SHT_PROGBITS, 81, plt_off, (int) plt_addr, plt_size,
            0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 4);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_got_idx
     gen_SH(o, SHT_PROGBITS, 86, got_off, (int)_data, got_size,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     // sh_rodata_idx
     gen_SH(o, SHT_PROGBITS, 91, rodata_off, (int)_data, rodata_size,
            0, 0, SHF_ALLOC, 0, 1);
-    o += SHDR_SIZE;
+    o = o + SHDR_SIZE;
 
     memcpy(dseg, pt_dyn, 0x1000);
     write(elf_fd, buf, o - buf);
@@ -1383,9 +1436,11 @@ int main(int argc, char **argv)
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
-      if((elf_fd = open(*argv, O_CREAT|O_WRONLY, 0775)) < 0) {
-          printf("could not open(%s)\n", *argv); return -1;
-      } ++argv;
+	// O_CREAT|O_WRONLY = 65, 0775 = 509
+        if ((elf_fd = open(*argv, 65, 509)) < 0) {
+            printf("could not open(%s)\n", *argv); return -1;
+        }
+        ++argv;
     }
     if (argc < 1) {
         printf("usage: amacc [-s] [-d] [-o object] file ...\n"); return -1;
