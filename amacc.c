@@ -29,6 +29,7 @@ int src;             // print source and assembly flag
 int verbose;         // print executed instructions
 int elf;             // print ELF format
 int elf_fd;
+int rodata_align_off;
 
 // identifier
 struct ident_s {
@@ -163,6 +164,7 @@ void next()
                 if (tk == '"') *data++ = ival;
             }
             ++p;
+            //  if .text too big rodata v_addr will overlap it, add that to stay away from .text
             if (tk == '"') ival = (int) pp; else tk = Num;
             return;
         case '=': if (*p == '=') { ++p; tk = Eq; } else tk = Assign; return;
@@ -1054,6 +1056,7 @@ int elf32(int poolsz, int *start)
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
     int got_size, rodata_size, sh_dynstr_idx, sh_dynsym_idx;
+    int code_size_align;
 
     code = malloc(poolsz);
     buf = malloc(poolsz);
@@ -1105,7 +1108,7 @@ int elf32(int poolsz, int *start)
     code_off = o - buf; // 0x1000
     // must add a value >= 4. sometimes first codegen size is not equal
     // to second codegen
-    code_size = je - code + 8;
+    code_size = je - code + 128;
     rel_size = 8 * FUNC_NUM;
     rel_off = code_off + code_size;
     rel_addr = o + code_size;
@@ -1116,7 +1119,8 @@ int elf32(int poolsz, int *start)
 
     code_addr = o;
     o++;
-    o = (char *) (((int) o + ALIGN - 1) & -ALIGN); // to 0x2000
+    code_size_align = (((int) code_size + ALIGN - 1)  & -ALIGN);
+    o = (char *)(((int)(o + code_size) + ALIGN - 1)  & -ALIGN); // to 0x2000
     memcpy(code_addr, code,  0x1000);
     *(int *) entry = (int) code_addr;
 
@@ -1134,27 +1138,37 @@ int elf32(int poolsz, int *start)
     // elf_phdr because ld.so must be able to see it
     // PT_LOAD for code
     to = phdr;
-    gen_PT(to, PT_LOAD, 0, (int) buf, 0x2000, PF_X | PF_R, 0x1000);
+    // code_idx
+    gen_PT(to, PT_LOAD, 0, (int) buf, code_size_align + 0x1000,
+           PF_X | PF_R, 0x1000);
     to = to+ PHDR_SIZE;
+    code_size_align = code_size_align - 0x1000;
     // PT_LOAD for data
-    gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn, 4096, PF_W | PF_R, 0x1000);
+    // data_idx
+    gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn + code_size_align, 4096,
+           PF_W | PF_R, 0x1000);
     to = to + PHDR_SIZE;
 
     // PT_INTERP
-    gen_PT(to, PT_INTERP, linker_off, (int) linker, 
+    // interp_idx
+    gen_PT(to, PT_INTERP, linker_off, (int) linker + code_size_align, 
            25 , PF_R, 0x1);
     to = to + PHDR_SIZE;
 
     // PT_DYNAMIC
-    gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn, 
+    gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn + code_size_align, 
            pt_dyn_size , PF_R | PF_W, 4);
     to = to + PHDR_SIZE;
 
     // offset and v_addr must align for 0xFFF(or 0xFFFF?)
-    rodata_off = 0x3000 | ((int) _data & 0xfff);
+    rodata_off = (pt_dyn_off + 0x1000) | ((int) _data & 0xfff);
     // PT_LOAD for others data
+    // FIXME: .text and .rodata will be at least 3 * 256 * 1024 =
+    // 3 * 2^18 bytes = 0xc0000 offset
+    // so now AMaCC can only generate code which code size is less than
+    // about 786K
     gen_PT(to, PT_LOAD, rodata_off, (int)_data, 
-           _data_end - _data, PF_X | PF_R, 1);
+           _data_end - _data, PF_X | PF_R | PF_W, 1);
     to = to + PHDR_SIZE;
 
     // .shstrtab (embedded in PT_LOAD of data)
@@ -1227,13 +1241,14 @@ int elf32(int poolsz, int *start)
     got_off = dynsym_off + dynsym_size + gap;
     *(int *) data = (int) pt_dyn; data = data + 4;
     data = data + 4;  // reserved 2 and 3 entry for linker
-    to_got_movw = data; to_got_movt = data;  // the address handling dynamic
-                                             // linking, plt must jump here 
+    to_got_movw = data + code_size_align;
+    to_got_movt = data + code_size_align;  // the address manupulates dynamic
+                                           // linking, plt must jump here 
     data = data + 4;  // reserved 2 and 3 entry for linker
     // .got function slot
     got_func_slot = malloc(FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++) {
-        got_func_slot[i] = data;
+        got_func_slot[i] = data + code_size_align;
         *(int *) data = (int) plt_addr; data = data + 4;
     }
     data = data + 4;  // end with 0x0
@@ -1278,20 +1293,21 @@ int elf32(int poolsz, int *start)
 
     //  .rodata
     rodata_size = _data_end - _data;
-    o = o + rodata_off - 0x3000;
+    o = o + (rodata_off - (pt_dyn_off + 0x1000)); // rodata_off has align x bytes
     memcpy(o, _data, rodata_size);
     o = o + rodata_size;
     *(int *) e_shoff = (int)(o - buf);
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
-    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr; to = to + 4;
+    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr +
+                                                 code_size_align; to = to + 4;
     *(int *) to = 10; to = to + 4; *(int *) to = dynstr_size; to = to + 4;
-    *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr; to = to + 4;
+    *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr + code_size_align; to = to + 4;
     *(int *) to = 11; to = to + 4; *(int *) to = 16; to = to + 4;
     *(int *) to = 17; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
     *(int *) to = 18; to = to + 4; *(int *) to = rel_size; to = to + 4;
     *(int *) to = 19; to = to + 4; *(int *) to = 8; to = to + 4;
-    *(int *) to =  3; to = to + 4; *(int *) to = (int) got_addr; to = to + 4;
+    *(int *) to =  3; to = to + 4; *(int *) to = (int) got_addr + code_size_align; to = to + 4;
     *(int *) to =  2; to = to + 4; *(int *) to = rel_size; to = to + 4;
     *(int *) to = 20; to = to + 4; *(int *) to = 17; to = to + 4;
     *(int *) to = 23; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
@@ -1337,27 +1353,27 @@ int elf32(int poolsz, int *start)
     o = o + SHDR_SIZE;
 
     // sh_data_idx
-    gen_SH(o, SHT_PROGBITS, 17, pt_dyn_off, (int) pt_dyn, 0x1000,
+    gen_SH(o, SHT_PROGBITS, 17, pt_dyn_off, (int) pt_dyn + code_size_align, 0x1000,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o = o + SHDR_SIZE;
 
     sh_dynstr_idx =
-    gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr, dynstr_size,
+    gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr + code_size_align, dynstr_size,
            0, 0, SHF_ALLOC, 1, 0);
     o = o + SHDR_SIZE;
     
     sh_dynsym_idx =
-    gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr, dynsym_size,
+    gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr + code_size_align, dynsym_size,
           sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
     o = o + SHDR_SIZE;
     
     // sh_dynamic_idx
-    gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn, pt_dyn_size,
+    gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn + code_size_align, pt_dyn_size,
            sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o = o + SHDR_SIZE;
 
     // sh_interp_idx
-    gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker, 25,
+    gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker + code_size_align, 25,
            0, 0, SHF_ALLOC, 1, 0);
     o = o + SHDR_SIZE;
 
@@ -1372,7 +1388,7 @@ int elf32(int poolsz, int *start)
     o = o + SHDR_SIZE;
 
     // sh_got_idx
-    gen_SH(o, SHT_PROGBITS, 86, got_off, (int)_data, got_size,
+    gen_SH(o, SHT_PROGBITS, 86, got_off, (int)got_addr + code_size_align, got_size,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
     o = o + SHDR_SIZE;
 
@@ -1416,12 +1432,12 @@ int main(int argc, char **argv)
         printf("could not open(%s)\n", *argv); return -1;
     }
 
-    poolsz = 256 * 1024; // arbitrary size
-    if (!(sym = malloc(poolsz))) {
-        printf("could not malloc(%d) symbol area\n", poolsz); return -1;
-    }
+    poolsz = 256*1024; // arbitrary size
     if (!(text = le = e = malloc(poolsz))) {
         printf("could not malloc(%d) text area\n", poolsz); return -1;
+    }
+    if (!(sym = malloc(poolsz))) {
+        printf("could not malloc(%d) symbol area\n", poolsz); return -1;
     }
     if (!(_data = data = malloc(poolsz))) {
         printf("could not malloc(%d) data area\n", poolsz); return -1;
@@ -1476,7 +1492,6 @@ int main(int argc, char **argv)
     // add primitive types
     tsize[tnew++] = sizeof(char);
     tsize[tnew++] = sizeof(int);
-
     // parse declarations
     line = 1;
     next();
