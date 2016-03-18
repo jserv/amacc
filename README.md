@@ -1,5 +1,20 @@
 AMaCC = Another Mini ARM C Compiler
 
+Introduction
+------------
+AMaCC is built from scratch, supoorting ARM architecture.
+There are 3 execution modes AMaCC implements:
+* Just-in-Time compiler for ARM backend
+* Generate valid Executable and Linkable Format (ELF) executables
+* Interpreter-only execution
+
+Compatibility
+-------------
+AMaCC is capable of compiling C source files written in the following
+syntax:
+* data types: char, int, struct, and pointer
+* condition statements: if, while, for, switch, return, and expression
+
 Prerequisites
 -------------
 * Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
@@ -22,5 +37,4 @@ hello, world
 
 Acknowledgements
 ----------------
-AMaCC is inspired by [c4](https://github.com/rswier/c4). AMaCC works
-as a small Just-in-Time compiler for ARM backend.
+AMaCC is inspired by [c4](https://github.com/rswier/c4).
