@@ -81,14 +81,11 @@ void next()
     char *pp;
     while ((tk = *p)) {
         ++p;
-        if ((tk >= 'a' && tk <= 'z') ||
-            (tk >= 'A' && tk <= 'Z') ||
+        if ((tk >= 'a' && tk <= 'z') || (tk >= 'A' && tk <= 'Z') ||
             (tk == '_')) {
             pp = p - 1;
-            while ((*p >= 'a' && *p <= 'z') ||
-                   (*p >= 'A' && *p <= 'Z') ||
-                   (*p >= '0' && *p <= '9') ||
-                   (*p == '_'))
+            while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+                   (*p >= '0' && *p <= '9') || (*p == '_'))
                 tk = tk * 147 + *p++;
             tk = (tk << 6) + (p - pp);
             id = sym;
@@ -218,13 +215,13 @@ void expr(int lev)
             exit(-1);
         }
         ty = INT;
-        if (tk == Int)
-    	    next();
-        else if (tk == Char) { next(); ty = CHAR; }
-        else if (tk == Struct) {
+        switch (tk) {
+        case Int: next(); break;
+        case Char: next(); ty = CHAR; break;
+        case Struct:
             next();
             if (tk != Id) { printf("%d: bad struct type\n", line); exit(-1); }
-            ty = id->stype; next();
+            ty = id->stype; next(); break;
         }
         while (tk == Mul) { next(); ty = ty + PTR; }
         if (tk == ')')
@@ -246,17 +243,21 @@ void expr(int lev)
                 if (tk == ',') next();
             }
             next();
-            if (d->class == Sys) *++e = d->val;
-            else if (d->class == Fun) { *++e = JSR; *++e = d->val; }
-            else { printf("%d: bad function call\n", line); exit(-1); }
+            switch (d->class) {
+            case Sys: *++e = d->val; break;
+            case Fun: *++e = JSR; *++e = d->val; break;
+            default: printf("%d: bad function call\n", line); exit(-1);
+            }
             if (t) { *++e = ADJ; *++e = t; }
             ty = d->type;
         }
         else if (d->class == Num) { *++e = IMM; *++e = d->val; ty = INT; }
         else {
-            if (d->class == Loc) { *++e = LEA; *++e = loc - d->val; }
-            else if (d->class == Glo) { *++e = IMM; *++e = d->val; }
-            else { printf("%d: undefined variable\n", line); exit(-1); }
+            switch (d->class) {
+            case Loc: *++e = LEA; *++e = loc - d->val; break;
+            case Glo: *++e = IMM; *++e = d->val; break;
+            default: printf("%d: undefined variable\n", line); exit(-1);
+            }
             if ((ty = d->type) <= INT || ty >= PTR)
                 *++e = (ty == CHAR) ? LC : LI;
         }
@@ -264,14 +265,15 @@ void expr(int lev)
     case '(':
         next();
         if (tk == Int || tk == Char || tk == Struct) {
-            if (tk == Int) { next(); t = INT; }
-            else if (tk == Char) { next(); t = CHAR; }
-            else {
+            switch (tk) {
+            case Int: next(); t = INT; break;
+            case Char: next(); t = CHAR; break;
+            default:
                 next();
                 if (tk != Id) {
                     printf("%d: bad struct type\n", line); exit(-1);
                 }
-                t = id->stype; next();
+                t = id->stype; next(); break;
             }
             while (tk == Mul) { next(); t = t + PTR; }
             if (tk == ')') next();
@@ -316,9 +318,12 @@ void expr(int lev)
     case Inc:
     case Dec:
         t = tk; next(); expr(Inc);
-        if (*e == LC) { *e = PSH; *++e = LC; }
-        else if (*e == LI) { *e = PSH; *++e = LI; }
-        else { printf("%d: bad lvalue in pre-increment\n", line); exit(-1); }
+        switch (*e) {
+        case LC: *e = PSH; *++e = LC; break;
+        case LI: *e = PSH; *++e = LI; break;
+        default:
+            printf("%d: bad lvalue in pre-increment\n", line); exit(-1);
+        }
         *++e = PSH;
         *++e = IMM;
         *++e = ty >= PTR2 ? sizeof(int) :
@@ -568,8 +573,8 @@ void stmt()
         y = e + 1; // Points to entry of for loop body
         stmt();
         z = e + 1; // Points to entry of jmp command
-        *++e = JMP; *++e = (int)a;
-        *b = (int)(e + 1);
+        *++e = JMP; *++e = (int) a;
+        *b = (int) (e + 1);
 
         // Swaps body chunk and afterthought chunk
         //
@@ -578,10 +583,11 @@ void stmt()
         //
         // But we want it to be:
         // Init -> Cond -> Bz -> Body -> After -> Jmp
-        memcpy((void*)((int)e + 4), x, (int)y - (int)x);
-        memcpy(x, y, (int)z - (int) y);
-        memcpy((void*)((int)x + (int)z - (int)y), (void*)((int)e + 4), (int)y - (int)x);
-        memset((void*)((int)e + 4), 0, (int)y - (int)x);
+        memcpy((void *) ((int) e + 4), x, (int) y - (int) x);
+        memcpy(x, y, (int) z - (int) y);
+        memcpy((void *) ((int) x + (int) z - (int) y),
+               (void *) ((int) e + 4), (int)y - (int) x);
+        memset((void *) ((int) e + 4), 0, (int)y - (int) x);
         return;
     case '{':
         next();
@@ -622,11 +628,13 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
             printf("%p -> %p: %8.4s", pc, je, &ops[i * 5]);
             if (i <= ADJ) printf(" %d\n", pc[1]); else printf("\n");
         }
-        jitmap[((int)pc++ - (int)text) >> 2] = (int)je;
+        jitmap[((int) pc++ - (int) text) >> 2] = (int) je;
         switch (i) {
         case LEA:
             tmp = *pc++;
-            if (tmp >= 64 || tmp <= -64) { printf("jit: LEA %d out of bounds\n", tmp); exit(6); }
+            if (tmp >= 64 || tmp <= -64) {
+                printf("jit: LEA %d out of bounds\n", tmp); exit(6);
+            }
             if (tmp >= 0)
                 *je++ = 0xe28b0000 | tmp * 4;    // add     r0, fp, #(tmp)
             else
@@ -635,7 +643,7 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
         case IMM:
             tmp = *pc++;
             if (0 <= tmp && tmp < 256)
-                *je++ = 0xe3a00000 + tmp; // mov r0, #(tmp)
+                *je++ = 0xe3a00000 + tmp;        // mov r0, #(tmp)
             else { if (!imm0) imm0 = je; *il++ = (int)(je++); *iv++ = tmp;}
             break;
         case JSR:
@@ -644,21 +652,23 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
             break;
         case BZ:
         case BNZ:
-            *je++ = 0xe3500000; pc++; je++; // cmp r0, #0
+            *je++ = 0xe3500000; pc++; je++;      // cmp r0, #0
             break;
         case ENT:
             *je++ = 0xe92d4800; *je++ = 0xe28db000; // push {fp, lr}; add  fp, sp, #0
             tmp = *pc++; if (tmp) *je++ = 0xe24dd000 | (tmp * 4); // sub  sp, sp, #(tmp * 4)
-            if (tmp >= 64 || tmp < 0) { printf("jit: ENT %d out of bounds\n", tmp); exit(6); }
+            if (tmp >= 64 || tmp < 0) {
+                printf("jit: ENT %d out of bounds\n", tmp); exit(6);
+            }
             break;
         case ADJ:
-            *je++ = 0xe28dd000 + *pc++ * 4; // add sp, sp, #(tmp * 4)
+            *je++ = 0xe28dd000 + *pc++ * 4;      // add sp, sp, #(tmp * 4)
             break;
         case LEV:
             *je++ = 0xe28bd000; *je++ = 0xe8bd8800; // add sp, fp, #0; pop {fp, pc}
             break;
         case LI:
-            *je++ = 0xe5900000;                     // ldr r0, [r0]
+            *je++ = 0xe5900000;                  // ldr r0, [r0]
             break;
         case LC:
             *je++ = 0xe5d00000; if (neg_int < 0)  *je++ = 0xe6af0070; // ldrb r0, [r0]; (sxtb r0, r0)
@@ -697,76 +707,84 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
             *je++ = 0xe49d1004; *je++ = 0xe0000091; // pop {r1}; mul r0, r1, r0
             break;
         case CLCA:
-            *je++ = 0xe59d0004; *je++ = 0xe59d1000;                    // ldr r0, [sp, #4]; ldr r1, [sp]
-            *je++ = 0xe3a0780f; *je++ = 0xe2877002;                    // mov r7, #0xf0000; add r7, r7, #2
-            *je++ = 0xe3a02000; *je++ = 0xef000000;                    // mov r2, #0;       svc 0
+            *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
+                                                    // ldr r1, [sp]
+            *je++ = 0xe3a0780f; *je++ = 0xe2877002; // mov r7, #0xf0000
+                                                    // add r7, r7, #2
+            *je++ = 0xe3a02000; *je++ = 0xef000000; // mov r2, #0
+                                                    // svc 0
             break;
         default:
             if (EQ <= i && i <= GE) {
-                *je++ = 0xe49d1004; *je++ = 0xe1510000;                    // pop {r1}; cmp r1, r0
+                *je++ = 0xe49d1004; *je++ = 0xe1510000; // pop {r1}; cmp r1, r0
                 if (i <= NE) { je[0] = 0x03a00000; je[1] = 0x13a00000; }   // moveq r0, #0; movne r0, #0
                 else if (i == LT || i == GE) { je[0] = 0xb3a00000; je[1] = 0xa3a00000; } // movlt r0, #0; movge   r0, #0
                 else { je[0] = 0xc3a00000; je[1] = 0xd3a00000; }           // movgt r0, #0; movle r0, #0
-                if (i == EQ || i == LT || i == GT) je[0] = je[0] | 1; else je[1] = je[1] | 1;
+                if (i == EQ || i == LT || i == GT) je[0] = je[0] | 1;
+                else je[1] = je[1] | 1;
                 je = je + 2;
                 break;
             }
             else if (i >= OPEN) {
                 switch (i) {
                 case OPEN:
-                    tmp = elf ? (int)plt_func_addr[0] : (int)dlsym(0, "open");
+                    tmp = (int) (elf ? plt_func_addr[0] : dlsym(0, "open"));
                     break;
                 case READ:
-                    tmp = elf ? (int)plt_func_addr[1] : (int)dlsym(0, "read");
+                    tmp = (int) (elf ? plt_func_addr[1] : dlsym(0, "read"));
                     break;
                 case WRIT:
-                    tmp = elf ? (int)plt_func_addr[2] : (int)dlsym(0, "write");
+                    tmp = (int) (elf ? plt_func_addr[2] : dlsym(0, "write"));
                     break;
                 case CLOS:
-                    tmp = elf ? (int)plt_func_addr[3] : (int)dlsym(0, "close");
+                    tmp = (int) (elf ? plt_func_addr[3] : dlsym(0, "close"));
                     break;
                 case PRTF:
-                    tmp = elf ? (int)plt_func_addr[4] : (int)dlsym(0, "printf");
+                    tmp = (int) (elf ? plt_func_addr[4] : dlsym(0, "printf"));
                     break;
                 case MALC:
-                    tmp = elf ? (int)plt_func_addr[5] : (int)dlsym(0, "malloc");
+                    tmp = (int) (elf ? plt_func_addr[5] : dlsym(0, "malloc"));
                     break;
                 case MSET:
-                    tmp = elf ? (int)plt_func_addr[6] : (int)dlsym(0, "memset");
+                    tmp = (int) (elf ? plt_func_addr[6] : dlsym(0, "memset"));
                     break;
                 case MCMP:
-                    tmp = elf ? (int)plt_func_addr[7] : (int)dlsym(0, "memcmp");
+                    tmp = (int) (elf ? plt_func_addr[7] : dlsym(0, "memcmp"));
                     break;
                 case MCPY:
-                    tmp = elf ? (int)plt_func_addr[8] : (int)dlsym(0, "memcpy");
+                    tmp = (int) (elf ? plt_func_addr[8] : dlsym(0, "memcpy"));
                     break;
                 case MMAP:
-                    tmp = elf ? (int)plt_func_addr[9] : (int)dlsym(0, "mmap");
+                    tmp = (int) (elf ? plt_func_addr[9] : dlsym(0, "mmap"));
                     break;
                 case DSYM:
-                    tmp = elf ? (int)plt_func_addr[10] : (int)dlsym(0, "dlsym");
+                    tmp = (int) (elf ? plt_func_addr[10] : dlsym(0, "dlsym"));
                     break;
                 case BSCH:
-                    tmp = elf ? (int)plt_func_addr[11] : (int)dlsym(0, "bsearch");
+                    tmp = (int) (elf ? plt_func_addr[11] : dlsym(0, "bsearch"));
                     break;
                 case EXIT:
-                    tmp = elf ? (int)plt_func_addr[13] : (int)dlsym(0, "exit");
+                    tmp = (int) (elf ? plt_func_addr[13] : dlsym(0, "exit"));
                     break;
                 default:
                     printf("unrecognized code %d\n", i);
                     return 0;
                 }
-                if (*pc++ != ADJ) { printf("no ADJ after native proc!\n"); exit(2); }
+                if (*pc++ != ADJ) {
+                    printf("no ADJ after native proc!\n"); exit(2);
+                }
                 i = *pc;
-                if (i > 10) { printf("no support for 10+ arguments!\n"); exit(3); }
+                if (i > 10) {
+                    printf("no support for 10+ arguments!\n"); exit(3);
+                }
                 while (i > 0) *je++ = 0xe49d0004 | (--i << 12); // pop r(i-1)
                 i = *pc++;
-                if (i > 4) *je++ = 0xe92d03f0;                  // push {r4-r9}
-                *je++ = 0xe28fe000;                             // add lr, pc, #0
+                if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
+                *je++ = 0xe28fe000;                          // add lr, pc, #0
                 if (!imm0) imm0 = je;
                 *il++ = (int)je++ + 1;
                 *iv++ = tmp;
-                if (i > 4) *je++ = 0xe28dd018; // add sp, sp, #24
+                if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
                 break;
             }
             else { printf("code generation failed for %d!\n", i); return 0; }
@@ -774,23 +792,30 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
 
         if (imm0) {
             if (i == LEV) genpool = 1;
-            else if ((int)je > (int)imm0 + 3000) {tje = je++; genpool = 2; }
+            else if ((int) je > (int) imm0 + 3000) {
+                tje = je++; genpool = 2;
+            }
         }
         if (genpool) {
-            if (verbose) printf("POOL %d %d %d\n", genpool, il - immloc, je - imm0);
+            if (verbose) printf("POOL %d %d %d\n", genpool,
+                                                   il - immloc, je - imm0);
             *iv = 0;
             while (il > immloc) {
                 tmp = *--il;
-                if ((int)je > tmp + 4096 + 8) { printf("can't reach the pool\n"); exit(5); }
+                if ((int) je > tmp + 4096 + 8) {
+                    printf("can't reach the pool\n"); exit(5);
+                }
                 iv--; if (iv[0] == iv[1]) je--;
                 if (tmp & 1)
-                    *(int*)(tmp - 1) = 0xe59ff000 | ((int)je - tmp - 7); // ldr pc, [pc, #..]
+                    *(int *) (tmp - 1) = 0xe59ff000 | ((int) je - tmp - 7);
+                    // ldr pc, [pc, #..]
                 else
-                    *(int*)tmp = 0xe59f0000 | ((int)je - tmp - 8); // ldr r0, [pc, #..]
+                    *(int *) tmp = 0xe59f0000 | ((int) je - tmp - 8);
+  	            // ldr r0, [pc, #..]
                 *je++ = *iv;
             }
             if (genpool == 2) { // jump past the pool
-                tmp = ((int)je - (int)tje - 8) >> 2;
+                tmp = ((int) je - (int) tje - 8) >> 2;
                 *tje = 0xea000000 | (tmp & 0x00ffffff); // b #(je)
             }
             imm0 = 0;
@@ -803,7 +828,7 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
     // second pass
     pc = text + 1;
     while (pc <= e) {
-        je = (int*)jitmap[((int)pc - (int)text) >> 2]; i = *pc++;
+        je = (int *) jitmap[((int) pc - (int) text) >> 2]; i = *pc++;
         if (i == JSR || i == JMP || i == BZ || i == BNZ) {
             switch (i) {
             case JSR:
@@ -821,7 +846,7 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
             }
             tmp = *pc++;
             *je = *je |
-                  (((jitmap[(tmp - (int)text) >> 2] - (int)je - 8) >> 2) &
+                  (((jitmap[(tmp - (int) text) >> 2] - (int) je - 8) >> 2) &
                    0x00ffffff);
         }
         else if (i < LEV) { ++pc; }
@@ -831,10 +856,10 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
 
 int jit(int poolsz, int *start, int argc, char **argv)
 {
-    char *jitmem;      // executable memory for JIT-compiled native code
+    char *jitmem;  // executable memory for JIT-compiled native code
     int *je, *tje, *_start,  retval, *jitmap, *res;
 
-    // setup jit memory
+    // setup JIT memory
     // PROT_EXEC | PROT_READ | PROT_WRITE = 7
     // MAP_PRIVATE | MAP_ANON = 0x22
     jitmem = mmap(0, poolsz, 7, 0x22, -1, 0);
@@ -842,13 +867,12 @@ int jit(int poolsz, int *start, int argc, char **argv)
         printf("could not mmap(%d) jit executable memory\n", poolsz);
         return -1;
     }
-    if (src)
-        return 1;
-    jitmap = (int*)(jitmem + (poolsz >> 1));
-    je = (int*)jitmem;
-    *je++ = (int)&retval;
+    if (src) return 1;
+    jitmap = (int *) (jitmem + (poolsz >> 1));
+    je = (int *) jitmem;
+    *je++ = (int) &retval;
     *je++ = argc;
-    *je++ = (int)argv;
+    *je++ = (int) argv;
     _start = je;
     *je++ = 0xe92d5ff0;       // push    {r4-r12, lr}
     *je++ = 0xe51f0014;       // ldr     r0, [pc, #-20] ; argc
@@ -856,7 +880,7 @@ int jit(int poolsz, int *start, int argc, char **argv)
     *je++ = 0xe52d0004;       // push    {r0}
     *je++ = 0xe52d1004;       // push    {r1}
     tje = je++;               // bl      jitmain
-    *je++ = 0xe51f502c; // ldr     r5, [pc, #-44] ; retval
+    *je++ = 0xe51f502c;       // ldr     r5, [pc, #-44] ; retval
     *je++ = 0xe5850000;       // str     r0, [r5]
     *je++ = 0xe28dd008;       // add     sp, sp, #8
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
@@ -868,16 +892,12 @@ int jit(int poolsz, int *start, int argc, char **argv)
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
-    res = bsearch(&sym, sym, 1, 1, (void*) _start);
-    if (((void*) 0) != res) return 0; return -1; // make compiler happy
+    res = bsearch(&sym, sym, 1, 1, (void *) _start);
+    if (((void *) 0) != res) return 0; return -1; // make compiler happy
 }
 
-int ELF32_ST_INFO(int b, int t) { return (b<< 4) + (t & 0xf); }
-enum {
-    PHDR_SIZE = 32,
-    SHDR_SIZE = 40,
-    SYM_SIZE = 16
-};
+int ELF32_ST_INFO(int b, int t) { return (b << 4) + (t & 0xf); }
+enum { PHDR_SIZE = 32, SHDR_SIZE = 40, SYM_SIZE = 16 };
 
 struct Elf32_Shdr {
     int sh_name;      // [Elf32_Word] Section name (index into string table)
@@ -894,29 +914,25 @@ struct Elf32_Shdr {
                       //              the section
 };
 
-// Special section indices.
 enum {
+    // Special section indices
     SHN_UNDEF     = 0,      // Undefined, missing, irrelevant, or meaningless
-};
 
-// Section types.
-enum {
-    SHT_NULL          = 0,  // No associated section (inactive entry).
-    SHT_PROGBITS      = 1,  // Program-defined contents.
-    SHT_STRTAB        = 3,  // String table.
-    SHT_DYNAMIC       = 6,  // Information for dynamic linking.
-    SHT_REL           = 9,  // Relocation entries; no explicit addends.
-    SHT_DYNSYM        = 11, // Symbol table.
-};
+    // Section types
+    SHT_NULL          = 0,  // No associated section (inactive entry)
+    SHT_PROGBITS      = 1,  // Program-defined contents
+    SHT_STRTAB        = 3,  // String table
+    SHT_DYNAMIC       = 6,  // Information for dynamic linking
+    SHT_REL           = 9,  // Relocation entries; no explicit addends
+    SHT_DYNSYM        = 11, // Symbol table
 
-// Section flags.
-enum {
+    // Section flags
     SHF_WRITE = 0x1,
     SHF_ALLOC = 0x2,
     SHF_EXECINSTR = 0x4,
 };
 
-// Symbol table entries for ELF32.
+// Symbol table entries for ELF32
 struct Elf32_Sym {
     int st_name;  // [Elf32_Word] Symbol name (index into string table)
     int st_value; // [Elf32_Addr] Value or address associated with the symbol
@@ -926,26 +942,23 @@ struct Elf32_Sym {
     char st_shndx, st_shndx_1, st_shndx_2, st_shndx_3; // [Elf32_Half]
                   // Which section (header table index) it's defined
 };
-// Symbol bindings.
+
 enum {
+    // Symbol bindings
     STB_LOCAL = 0,   // Local symbol, not visible outside obj file
                      //               containing def
     STB_GLOBAL = 1,  // Global symbol, visible to all object files
                      //                being combined
-};
 
-// Symbol types.
-enum {
+    // Symbol types
     STT_NOTYPE  = 0,   // Symbol's type is not specified
     STT_FUNC    = 2,   // Symbol is executable code (function, etc.)
-};
 
-// Symbol number.
-enum {
+    // Symbol number
     STN_UNDEF = 0
 };
 
-// Program header for ELF32.
+// Program header for ELF32
 struct Elf32_Phdr {
     int p_type;   // [Elf32_Word] Type of segment
     int p_offset; // [Elf32_Off] File offset where segment is located, in bytes
@@ -960,35 +973,32 @@ struct Elf32_Phdr {
     int p_align;  // [Elf32_Word] Segment alignment constraint
 };
 
-// Segment types.
+// Segment types
 enum {
-    PT_NULL    = 0, // Unused segment.
-    PT_LOAD    = 1, // Loadable segment.
-    PT_DYNAMIC = 2, // Dynamic linking information.
-    PT_INTERP  = 3, // Interpreter pathname.
-};
-// Segment flag bits.
-enum {
+    PT_NULL    = 0, // Unused segment
+    PT_LOAD    = 1, // Loadable segment
+    PT_DYNAMIC = 2, // Dynamic linking information
+    PT_INTERP  = 3, // Interpreter pathname
+
+    // Segment flag bits
     PF_X        = 1,         // Execute
     PF_W        = 2,         // Write
     PF_R        = 4,         // Read
-};
 
-// Dynamic table entry tags.
-enum {
-    DT_NULL         = 0,        // Marks end of dynamic array.
-    DT_NEEDED       = 1,        // String table offset of needed library.
-    DT_PLTRELSZ     = 2,        // Size of relocation entries in PLT.
-    DT_PLTGOT       = 3,        // Address associated with linkage table.
-    DT_STRTAB       = 5,        // Address of dynamic string table.
-    DT_SYMTAB       = 6,        // Address of dynamic symbol table.
-    DT_STRSZ        = 10,       // Total size of the string table.
-    DT_SYMENT       = 11,       // Size of a symbol table entry.
-    DT_REL          = 17,       // Address of relocation table (Rel entries).
-    DT_RELSZ        = 18,       // Size of Rel relocation table.
-    DT_RELENT       = 19,       // Size of a Rel relocation entry.
-    DT_PLTREL       = 20,       // Type of relocation entry used for linking.
-    DT_JMPREL       = 23,       // Address of relocations associated with PLT.
+    // Dynamic table entry tags
+    DT_NULL         = 0,     // Marks end of dynamic array
+    DT_NEEDED       = 1,     // String table offset of needed library
+    DT_PLTRELSZ     = 2,     // Size of relocation entries in PLT
+    DT_PLTGOT       = 3,     // Address associated with linkage table
+    DT_STRTAB       = 5,     // Address of dynamic string table
+    DT_SYMTAB       = 6,     // Address of dynamic symbol table
+    DT_STRSZ        = 10,    // Total size of the string table
+    DT_SYMENT       = 11,    // Size of a symbol table entry
+    DT_REL          = 17,    // Address of relocation table (Rel entries)
+    DT_RELSZ        = 18,    // Size of Rel relocation table
+    DT_RELENT       = 19,    // Size of a Rel relocation entry
+    DT_PLTREL       = 20,    // Type of relocation entry used for linking
+    DT_JMPREL       = 23,    // Address of relocations associated with PLT
 };
 
 int PT_idx, SH_idx, sym_idx;
@@ -1058,40 +1068,22 @@ int elf32(int poolsz, int *start)
     char *e_shoff;
 
     int code_size, rel_size, rel_off;
-    char* rel_addr;
-    int plt_size, plt_off;
-    char *plt_addr;
-    char *code_addr;
-    int pt_dyn_size;
-    char *_data_end;
-    int rodata_off;
-    char *shstrtab_addr;
+    char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
+    int plt_size, plt_off, pt_dyn_size, rodata_off;
     int shstrtab_off, shstrtab_size;
-    char *func_str;
-    int func_str_size;
-    char *dynstr_addr;
-    int dynstr_off;
-    int dynlink_sym_size;
-    int dynstr_size;
-    char *dynsym_addr;
-    int dynsym_off;
-    int dynsym_size;
-    char *_gap;
-    int gap;
-    char *got_addr;
-    int got_off;
+    char *func_str, *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
+    int func_str_size, dynstr_off, dynlink_sym_size, dynstr_size;
+    int dynsym_off, dynsym_size, gap, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
-    int got_size;
-    int rodata_size;
-    int sh_dynstr_idx, sh_dynsym_idx;
+    int got_size, rodata_size, sh_dynstr_idx, sh_dynsym_idx;
 
     code = malloc(poolsz);
     buf = malloc(poolsz);
-    jitmap = (int *)(code + (poolsz >> 1));
+    jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
-    o = buf = (char *)(((int) buf + ALIGN - 1)  & -ALIGN);
-    code =    (char *)(((int) code + ALIGN - 1) & -ALIGN);
+    o = buf = (char *) (((int) buf + ALIGN - 1)  & -ALIGN);
+    code =    (char *) (((int) code + ALIGN - 1) & -ALIGN);
 
     PT_idx = 0;
     SH_idx = 0;
@@ -1108,19 +1100,19 @@ int elf32(int poolsz, int *start)
     jitcode_off = 7;  // 7 instruction (tmp_code)
     tmp_code = tmp_code + jitcode_off * 4;
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
-    if (!je)
-        return 1;
+    if (!je) return 1;
     if (je >= jitmap) { printf("jitmem too small\n"); exit(7); }
     tje = code + 4 * 4; // before tmp_code=tje, 4 instruction * 4 byte
     tje = 0xeb000000 |
-          (((jitmap[((int)start - (int)text) >> 2] - (int)tje - 8) >> 2) &
+          (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
            0x00ffffff);
 
     // elf32_hdr
     *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
     *o++ = 1;    *o++ = 1;   *o++ = 1;   *o++ = 0;
     o = o + 8;
-    *o++ = 2; *o++ = 0; *o++ = 40; *o++ = 0; // e_type 2 = executable & e_machine 40 = ARM
+    *o++ = 2; *o++ = 0; *o++ = 40; *o++ = 0; // e_type 2 = executable
+                                             // e_machine 40 = ARM
     *(int *) o = 1; o = o + 4;
     entry = o; o = o + 4; // e_entry
     *(int *) o = 52; o = o + 4; // e_phoff
@@ -1134,7 +1126,8 @@ int elf32(int poolsz, int *start)
     phdr = o; o = o + PHDR_SIZE * 4; // e_phentsize * e_phnum for phdr size
     o = (char *) (((int) o + ALIGN - 1)  & -ALIGN); // to 0x1000
     code_off = o - buf; // 0x1000
-    // must add a value >= 4. sometimes first codegen size is not eq to second codegen
+    // must add a value >= 4. sometimes first codegen size is not equal
+    // to second codegen
     code_size = je - code + 8;
     rel_size = 8 * FUNC_NUM;
     rel_off = code_off + code_size;
@@ -1146,7 +1139,7 @@ int elf32(int poolsz, int *start)
 
     code_addr = o;
     o++;
-    o = (char *)(((int)o + ALIGN - 1)  & -ALIGN); // to 0x2000
+    o = (char *) (((int) o + ALIGN - 1) & -ALIGN); // to 0x2000
     memcpy(code_addr, code,  0x1000);
     *(int *) entry = (int) code_addr;
 
@@ -1154,7 +1147,8 @@ int elf32(int poolsz, int *start)
     pt_dyn_size = 14 * 8 + 16;
     dseg = o; o = o + 4096; // 0x3000
     _data_end = data;
-    data = (char *)(((int) data + ALIGN - 1)  & -ALIGN); // force data addr align to offset
+    data = (char *) (((int) data + ALIGN - 1) & -ALIGN); // force data address
+                                                         // align to offset
     pt_dyn = data; pt_dyn_off = dseg - buf; data = data + pt_dyn_size;
     linker = data; memcpy(linker, "/lib/ld-linux-armhf.so.3", 25);
     linker_off = pt_dyn_off + pt_dyn_size; data = data + 25;
@@ -1163,22 +1157,18 @@ int elf32(int poolsz, int *start)
     // elf_phdr because ld.so must be able to see it
     // PT_LOAD for code
     to = phdr;
-    // code_idx
     gen_PT(to, PT_LOAD, 0, (int) buf, 0x2000, PF_X | PF_R, 0x1000);
     to = to+ PHDR_SIZE;
     // PT_LOAD for data
-    // data_idx
     gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn, 4096, PF_W | PF_R, 0x1000);
     to = to + PHDR_SIZE;
 
     // PT_INTERP
-    // interp_idx
     gen_PT(to, PT_INTERP, linker_off, (int) linker, 
            25 , PF_R, 0x1);
     to = to + PHDR_SIZE;
 
     // PT_DYNAMIC
-    // dynamic_idx
     gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn, 
            pt_dyn_size , PF_R | PF_W, 4);
     to = to + PHDR_SIZE;
@@ -1186,7 +1176,6 @@ int elf32(int poolsz, int *start)
     // offset and v_addr must align for 0xFFF(or 0xFFFF?)
     rodata_off = 0x3000 | ((int) _data & 0xfff);
     // PT_LOAD for others data
-    // other_data_idx
     gen_PT(to, PT_LOAD, rodata_off, (int)_data, 
            _data_end - _data, PF_X | PF_R, 1);
     to = to + PHDR_SIZE;
@@ -1260,8 +1249,9 @@ int elf32(int poolsz, int *start)
     got_addr = data;
     got_off = dynsym_off + dynsym_size + gap;
     *(int *) data = (int) pt_dyn; data = data + 4;
-    data = data + 4;  // reserved 2 and 3 entry for linke
-    to_got_movw = data; to_got_movt = data;  // here is the addr handles dyn link, plt must jump here 
+    data = data + 4;  // reserved 2 and 3 entry for linker
+    to_got_movw = data; to_got_movt = data;  // the address handling dynamic
+                                             // linking, plt must jump here 
     data = data + 4;  // reserved 2 and 3 entry for linker
     // .got function slot
     got_func_slot = malloc(FUNC_NUM);
@@ -1274,14 +1264,14 @@ int elf32(int poolsz, int *start)
 
     // .plt 
     to = plt_addr;
-    *(int *) to = 0xe52de004;         to = to + 4; // push {lr}
+    *(int *) to = 0xe52de004; to = to + 4; // push {lr}
     // movw r10 addr_to_got
-    *(int *) to = 0xe300a000 | (0xfff & (int)(to_got_movw)) |
+    *(int *) to = 0xe300a000 | (0xfff & (int) (to_got_movw)) |
                   (0xf0000 & ((int)(to_got_movw) << 4));
     to = to + 4;
     // movt r10 addr_to_got
-    *(int *) to = 0xe340a000 | (0xfff & ((int)(to_got_movt)>>16)) |
-                  (0xf0000 & ((int)(to_got_movt) >> 12));
+    *(int *) to = 0xe340a000 | (0xfff & ((int) (to_got_movt) >> 16)) |
+                  (0xf0000 & ((int) (to_got_movt) >> 12));
     to = to + 4;
     *(int *) to = 0xe1a0e00a; to = to + 4;  // mov lr,r10
     *(int *) to = 0xe59ef000; to = to + 4;  // ldr pc, [lr]
@@ -1290,8 +1280,8 @@ int elf32(int poolsz, int *start)
     for (i = 0; i < FUNC_NUM; i++) {
         plt_func_addr[i] = to;
         // movt ip addr_to_got
-        *(int *) to = 0xe300c000 | (0xfff & (int)(got_func_slot[i])) |
-                      (0xf0000 & ((int)(got_func_slot[i]) << 4));
+        *(int *) to = 0xe300c000 | (0xfff & (int) (got_func_slot[i])) |
+                      (0xf0000 & ((int) (got_func_slot[i]) << 4));
 	to = to + 4;
         // movw ip addr_to_got
   	*(int *) to = 0xe340c000 |
@@ -1317,7 +1307,7 @@ int elf32(int poolsz, int *start)
     *(int *) e_shoff = (int)(o - buf);
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
-    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr;   to = to + 4;
+    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr; to = to + 4;
     *(int *) to = 10; to = to + 4; *(int *) to = dynstr_size; to = to + 4;
     *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr; to = to + 4;
     *(int *) to = 11; to = to + 4; *(int *) to = 16; to = to + 4;
@@ -1332,7 +1322,8 @@ int elf32(int poolsz, int *start)
     *(int *) to =  1; to = to + 4; *(int *) to = ldso - dynstr_addr; to = to + 4;
     *(int *) to =  0; to = to + 8;
 
-    // we gen code again bacause address of .plt function slots must confirmed
+    // we generate code again bacause address of .plt function slots
+    // must be confirmed
     tmp_code = code;
     *(int *) tmp_code = 0xe1a00001;
              tmp_code = tmp_code + 4;  // mov     r0, r1 ; argc
@@ -1448,7 +1439,7 @@ int main(int argc, char **argv)
         printf("could not open(%s)\n", *argv); return -1;
     }
 
-    poolsz = 256*1024; // arbitrary size
+    poolsz = 256 * 1024; // arbitrary size
     if (!(sym = malloc(poolsz))) {
         printf("could not malloc(%d) symbol area\n", poolsz); return -1;
     }
@@ -1566,16 +1557,17 @@ int main(int argc, char **argv)
                 i = 0;
                 while (tk != '}') {
                     mbt = INT;
-                    if (tk == Int) next();
-                    else if (tk == Char) { next(); mbt = CHAR; }
-                    else if (tk == Struct) {
+                    switch (tk) {
+                    case Int: next(); break;
+                    case Char: next(); mbt = CHAR; break;
+                    case Struct:
                         next(); 
                         if (tk != Id) {
                             printf("%d: bad struct declaration\n", line);
                             return -1;
                         }
                         mbt = id->stype;
-                        next();
+                        next(); break;
                     }
                     while (tk != ';') {
                         ty = mbt;
@@ -1619,16 +1611,17 @@ int main(int argc, char **argv)
                 next(); i = 0;
                 while (tk != ')') {
                     ty = INT;
-                    if (tk == Int) next();
-                    else if (tk == Char) { next(); ty = CHAR; }
-                    else if (tk == Struct) {
+                    switch (tk) {
+                    case Int: next(); break;
+                    case Char: next(); ty = CHAR; break;
+                    case Struct:
                         next(); 
                         if (tk != Id) {
                             printf("%d: bad struct declaration\n", line);
                             return -1;
                         }
                         ty = id->stype;
-                        next();
+                        next(); break;
                     }
                     while (tk == Mul) { next(); ty = ty + PTR; }
                     if (tk != Id) {
@@ -1657,14 +1650,16 @@ int main(int argc, char **argv)
                 loc = ++i;
                 next();
                 while (tk == Int || tk == Char || tk == Struct) {
-                    if (tk == Int) bt = INT;
-                    else if (tk == Char) bt = CHAR;
-                    else {
+                    switch (tk) {
+                    case Int: bt = INT; break;
+                    case Char: bt = CHAR; break;
+                    default:
                         next();
                         if (tk != Id) {
-                            printf("%d: bad struct declaration\n", line); return -1;
+                            printf("%d: bad struct declaration\n", line);
+                            return -1;
                         }
-                        bt = id->stype;
+                        bt = id->stype; break;
                     }
                     next();
                     while (tk != ';') {
