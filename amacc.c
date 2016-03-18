@@ -832,15 +832,18 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
     return tje;
 }
 
+enum {
+    _PROT_EXEC = 4, _PROT_READ = 1, _PROT_WRITE = 2,
+    _MAP_PRIVATE = 2, _MAP_ANON = 32
+};
 int jit(int poolsz, int *start, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
     int *je, *tje, *_start,  retval, *jitmap, *res;
 
     // setup JIT memory
-    // PROT_EXEC | PROT_READ | PROT_WRITE = 7
-    // MAP_PRIVATE | MAP_ANON = 0x22
-    jitmem = mmap(0, poolsz, 7, 0x22, -1, 0);
+    jitmem = mmap(0, poolsz, _PROT_EXEC | _PROT_READ | _PROT_WRITE,
+                  _MAP_PRIVATE | _MAP_ANON, -1, 0);
     if (!jitmem) {
         printf("could not mmap(%d) jit executable memory\n", poolsz);
         return -1;
@@ -1402,6 +1405,7 @@ int elf32(int poolsz, int *start)
     return 0;
 }
 
+enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
     int fd, bt, mbt, ty, poolsz;
@@ -1418,8 +1422,7 @@ int main(int argc, char **argv)
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
-	// O_CREAT|O_WRONLY = 65, 0775 = 509
-        if ((elf_fd = open(*argv, 65, 509)) < 0) {
+        if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
             printf("could not open(%s)\n", *argv); return -1;
         }
         ++argv;
