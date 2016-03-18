@@ -23,9 +23,9 @@ check: $(BIN) $(TEST_OBJ)
 	@$(ARM_EXEC) ./amacc amacc.c tests/hello.c
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN)
-	@echo "[********* test  $<******* ]"
+	@echo "[*** verify $< <JIT>***]"
 	@$(ARM_EXEC) ./amacc $< 2
-	@echo "[********* test  $< elf*** ]"
+	@echo "[*** verify $< <ELF>***]"
 	@mkdir -p $(OBJ_DIR)
 	@$(ARM_EXEC) ./amacc -o $(OBJ_DIR)/$(notdir $(basename $<)) $<
 	@$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2
