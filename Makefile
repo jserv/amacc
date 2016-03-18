@@ -40,4 +40,5 @@ $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/amacc
 	@/bin/echo -e "$(PASS_COLOR)$< pass$(NO_COLOR)\n"
 
 clean:
-	$(RM) $(BIN) $(OBJ_DIR)/*
+	$(RM) $(BIN) $(OBJ_DIR)/* \
+              out-1 out-2
