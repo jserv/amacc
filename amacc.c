@@ -1428,7 +1428,7 @@ int main(int argc, char **argv)
         ++argv;
     }
     if (argc < 1) {
-        printf("usage: amacc [-s] [-d] [-o object] file ...\n"); return -1;
+        printf("usage: amacc [-s] [-v] [-o object] file ...\n"); return -1;
     }
 
     if ((fd = open(*argv, 0)) < 0) {
