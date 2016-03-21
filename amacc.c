@@ -1085,10 +1085,6 @@ int elf32(int poolsz, int *start)
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
     if (!je) return 1;
     if (je >= jitmap) die("jitmem too small");
-    tje = code + 4 * 4; // before tmp_code=tje, 4 instruction * 4 byte
-    tje = 0xeb000000 |
-          (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
-           0x00ffffff);
 
     // elf32_hdr
     *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
@@ -1329,7 +1325,7 @@ int elf32(int poolsz, int *start)
              tmp_code = tmp_code + 4;  // push    {r0}
     *(int *) tmp_code = 0xe52d1004;
              tmp_code = tmp_code + 4;  // push    {r1}
-    *(int *) tmp_code =  (int) tje;
+             tje = tmp_code;
              tmp_code = tmp_code + 4;  // bl      jitmain
     *(int *) tmp_code = 0xe3a07001;
              tmp_code = tmp_code + 4;  // mov     r7, #1
@@ -1339,6 +1335,9 @@ int elf32(int poolsz, int *start)
     if (!je)
         return 1;
     if (je >= jitmap) die("jitmem too small");
+    *(int *) tje = 0xeb000000 |
+          (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
+           0x00ffffff);
     memcpy(code_addr, code,  je - code);
 
     gen_SH(o, SHT_NULL, 0, 0, 0, 0,
