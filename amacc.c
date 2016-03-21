@@ -29,7 +29,7 @@ int src;             // print source and assembly flag
 int verbose;         // print executed instructions
 int elf;             // print ELF format
 int elf_fd;
-int rodata_align_off;
+int rwdata_align_off;
 
 // identifier
 struct ident_s {
@@ -164,7 +164,7 @@ void next()
                 if (tk == '"') *data++ = ival;
             }
             ++p;
-            //  if .text too big rodata v_addr will overlap it, add that to stay away from .text
+            //  if .text too big rwdata v_addr will overlap it, add that to stay away from .text
             if (tk == '"') ival = (int) pp; else tk = Num;
             return;
         case '=': if (*p == '=') { ++p; tk = Eq; } else tk = Assign; return;
@@ -1051,14 +1051,14 @@ int elf32(int poolsz, int *start)
 
     int code_size, rel_size, rel_off;
     char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
-    int plt_size, plt_off, pt_dyn_size, rodata_off;
+    int plt_size, plt_off, pt_dyn_size, rwdata_off;
     int shstrtab_off, shstrtab_size;
     char *func_str, *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
     int func_str_size, dynstr_off, dynlink_sym_size, dynstr_size;
     int dynsym_off, dynsym_size, gap, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
-    int got_size, rodata_size, sh_dynstr_idx, sh_dynsym_idx;
+    int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
     int code_size_align;
 
     code = malloc(poolsz);
@@ -1084,7 +1084,7 @@ int elf32(int poolsz, int *start)
     tmp_code = tmp_code + jitcode_off * 4;
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
     if (!je) return 1;
-    if (je >= jitmap) die("jitmem too small");
+    if ((int*) je >= jitmap) die("jitmem too small");
 
     // elf32_hdr
     *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
@@ -1160,13 +1160,13 @@ int elf32(int poolsz, int *start)
     to = to + PHDR_SIZE;
 
     // offset and v_addr must align for 0xFFF(or 0xFFFF?)
-    rodata_off = (pt_dyn_off + 0x1000) | ((int) _data & 0xfff);
+    rwdata_off = (pt_dyn_off + 0x1000) | ((int) _data & 0xfff);
     // PT_LOAD for others data
-    // FIXME: .text and .rodata will be at least 3 * 256 * 1024 =
+    // FIXME: .text and .rwdata will be at least 3 * 256 * 1024 =
     // 3 * 2^18 bytes = 0xc0000 offset
     // so now AMaCC can only generate code which code size is less than
     // about 786K
-    gen_PT(to, PT_LOAD, rodata_off, (int)_data, 
+    gen_PT(to, PT_LOAD, rwdata_off, (int)_data, 
            _data_end - _data, PF_X | PF_R | PF_W, 1);
     to = to + PHDR_SIZE;
 
@@ -1176,7 +1176,7 @@ int elf32(int poolsz, int *start)
     shstrtab_size = 99;
     memcpy(shstrtab_addr,
             "\0.shstrtab\0.text\0.data\0.dynamic\0.strtab\0.symtab\0.dynstr"
-            "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rodata\0"
+            "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rwdata\0"
             , shstrtab_size);
     data = data + shstrtab_size;
 
@@ -1290,11 +1290,11 @@ int elf32(int poolsz, int *start)
         // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
     }
 
-    //  .rodata
-    rodata_size = _data_end - _data;
-    o = o + (rodata_off - (pt_dyn_off + 0x1000)); // rodata_off has align x bytes
-    memcpy(o, _data, rodata_size);
-    o = o + rodata_size;
+    //  .rwdata
+    rwdata_size = _data_end - _data;
+    o = o + (rwdata_off - (pt_dyn_off + 0x1000)); // rwdata_off has align x bytes
+    memcpy(o, _data, rwdata_size);
+    o = o + rwdata_size;
     *(int *) e_shoff = (int)(o - buf);
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
@@ -1334,7 +1334,7 @@ int elf32(int poolsz, int *start)
     je = (char *) codegen((int *) tmp_code, jitmap, 1);
     if (!je)
         return 1;
-    if (je >= jitmap) die("jitmem too small");
+    if ((int *) je >= jitmap) die("jitmem too small");
     *(int *) tje = 0xeb000000 |
           (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
            0x00ffffff);
@@ -1394,8 +1394,8 @@ int elf32(int poolsz, int *start)
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
     o = o + SHDR_SIZE;
 
-    // sh_rodata_idx
-    gen_SH(o, SHT_PROGBITS, 91, rodata_off, (int)_data, rodata_size,
+    // sh_rwdata_idx
+    gen_SH(o, SHT_PROGBITS, 91, rwdata_off, (int)_data, rwdata_size,
            0, 0, SHF_ALLOC, 0, 1);
     o = o + SHDR_SIZE;
 
