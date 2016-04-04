@@ -1626,10 +1626,6 @@ int main(int argc, char **argv)
                         printf("%d: duplicate parameter definition\n", line);
                         return -1;
                     }
-                    if (id->class == Loc) {
-                        printf("%d: duplicate parameter definition\n", line);
-                        return -1;
-                    }
                     id->hclass = id->class; id->class = Loc;
                     id->htype  = id->type;  id->type = ty;
                     id->hval   = id->val;   id->val = i++;
