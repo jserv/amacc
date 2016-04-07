@@ -26,6 +26,7 @@ check: $(BIN) $(TEST_OBJ)
 	@$(ARM_EXEC) ./amacc amacc.c tests/hello.c
 
 $(OBJ_DIR)/amacc: $(BIN)
+	@mkdir -p $(OBJ_DIR)
 	@$(ARM_EXEC) ./$^ -o $(OBJ_DIR)/amacc amacc.c
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/amacc
