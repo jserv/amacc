@@ -1,5 +1,6 @@
 CROSS_COMPILE ?= arm-linux-gnueabihf-
 CFLAGS = -O0 -Wall
+MKDIR_P = mkdir -p
 OBJ_DIR = elf
 TEST_DIR = tests
 TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
@@ -11,7 +12,10 @@ BIN = amacc
 
 ARM_EXEC = qemu-arm -L /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
 
-all: $(BIN)
+all: $(OBJ_DIR) $(BIN)
+
+$(OBJ_DIR):
+	$(MKDIR_P) $(OBJ_DIR)
 
 amacc: amacc.c
 	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -o amacc $? -g -ldl
@@ -25,7 +29,7 @@ check: $(BIN) $(TEST_OBJ)
 	@echo "[ nested   ]"
 	@$(ARM_EXEC) ./amacc amacc.c tests/hello.c
 
-$(OBJ_DIR)/$(amacc): $(BIN)
+$(OBJ_DIR)/amacc: $(BIN)
 	@$(ARM_EXEC) ./$^ -o $(OBJ_DIR)/amacc amacc.c
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/amacc
@@ -42,3 +46,4 @@ $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/amacc
 clean:
 	$(RM) $(BIN) $(OBJ_DIR)/* \
               out-1 out-2
+	@rm -rf $(OBJ_DIR)
