@@ -603,6 +603,16 @@ void stmt()
 
 void die(char *msg) { printf("codegen: %s\n", msg); exit(2); }
 
+int reloc_imm(int offset)
+{
+    return ((((offset) - 8) >> 2) & 0x00ffffff);
+}
+
+int reloc_bl(int offset)
+{
+    return 0xeb000000 | reloc_imm(offset);
+}
+
 int *codegen(int *jitmem, int *jitmap)
 {
     int *pc;
@@ -839,9 +849,8 @@ int *codegen(int *jitmem, int *jitmap)
                 break;
             }
             tmp = *pc++;
-            *je = *je |
-                  (((jitmap[(tmp - (int) text) >> 2] - (int) je - 8) >> 2) &
-                   0x00ffffff);
+            *je = (*je |
+                   reloc_imm(jitmap[(tmp - (int)text) >> 2] - (int)je));
         }
         else if (i < LEV) { ++pc; }
     }
@@ -852,6 +861,7 @@ enum {
     _PROT_EXEC = 4, _PROT_READ = 1, _PROT_WRITE = 2,
     _MAP_PRIVATE = 2, _MAP_ANON = 32
 };
+
 int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
@@ -883,10 +893,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
     if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
-    *tje = 0xeb000000 |
-           (((jitmap[((int) main- (int) text) >> 2] -
-              (int) tje - 8) >> 2) &
-            0x00ffffff);
+    *tje = reloc_bl(jitmap[((int)main- (int)text) >> 2] - (int)tje);
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
@@ -1369,9 +1376,7 @@ int elf32(int poolsz, int *main)
     if (!je)
         return 1;
     if ((int *) je >= jitmap) die("jitmem too small");
-    *(int *) tje = 0xeb000000 |
-          (((jitmap[((int) main - (int) text) >> 2] - (int) tje - 8) >> 2) &
-           0x00ffffff);
+    *(int *) tje = reloc_bl(jitmap[((int)main - (int)text) >> 2] - (int)tje);
     memcpy(code_addr, code,  je - code);
 
     gen_SH(o, SHT_NULL, 0, 0, 0, 0,
