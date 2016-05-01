@@ -1496,13 +1496,13 @@ int main(int argc, char **argv)
           "LI   LC   SI   SC   PSH  "
           "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
           "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY "
-          "DSYM BSCH MMAP CLCA EXIT";
+          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY MMAP "
+          "DSYM BSCH CLCA EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
-        "open read write close printf malloc memset memcmp memcpy mmap dlsym "
-        "bsearch __clear_cache exit void main";
+        "open read write close printf malloc memset memcmp memcpy mmap "
+        "dlsym bsearch __clear_cache exit void main";
 
     i = Break;
     while (i <= While) { // add keywords to symbol table
