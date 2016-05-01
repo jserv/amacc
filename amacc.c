@@ -77,6 +77,21 @@ enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 // ELF generation
 char **plt_func_addr;
 
+char* append_strtab(char **strtab, char *str)
+{
+    int nbytes;
+    char *res;
+    nbytes = 0;
+    while (str[nbytes] != '\0') {
+        ++nbytes;
+    }
+    ++nbytes;
+    res = *strtab;
+    memcpy(res, str, nbytes);
+    *strtab = res + nbytes;
+    return res;
+}
+
 void next()
 {
     char *pp;
@@ -1174,12 +1189,22 @@ int elf32(int poolsz, int *start)
     // .shstrtab (embedded in PT_LOAD of data)
     shstrtab_addr = data;
     shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
-    shstrtab_size = 99;
-    memcpy(shstrtab_addr,
-            "\0.shstrtab\0.text\0.data\0.dynamic\0.strtab\0.symtab\0.dynstr"
-            "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rwdata\0"
-            , shstrtab_size);
-    data = data + shstrtab_size;
+    shstrtab_size = 0;
+    append_strtab(&data, "");
+    append_strtab(&data, ".shstrtab");
+    append_strtab(&data, ".text");
+    append_strtab(&data, ".data");
+    append_strtab(&data, ".dynamic");
+    append_strtab(&data, ".strtab");
+    append_strtab(&data, ".symtab");
+    append_strtab(&data, ".dynstr");
+    append_strtab(&data, ".dynsym");
+    append_strtab(&data, ".interp");
+    append_strtab(&data, ".rel.plt");
+    append_strtab(&data, ".plt");
+    append_strtab(&data, ".got");
+    append_strtab(&data, ".rwdata");
+    shstrtab_size = data - shstrtab_addr;
 
     func_str = "\0open\0read\0write\0close\0"
                "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
