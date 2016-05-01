@@ -145,7 +145,7 @@ void next()
                 while (*p != 0 && *p != '\n') ++p;
             } else {
                 // Div is not supported
-	        return;
+                return;
             }
             break;
         case '\'':
@@ -287,7 +287,7 @@ void expr(int lev)
         next(); expr(Inc);
         if (ty > INT) ty = ty - PTR;
         else fatal("bad dereference");
-	if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
+        if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
         break;
     case And:
         next(); expr(Inc);
@@ -784,12 +784,13 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
                 tmp = *--il;
                 if ((int) je > tmp + 4096 + 8) die("can't reach the pool");
                 iv--; if (iv[0] == iv[1]) je--;
-                if (tmp & 1)
-                    *(int *) (tmp - 1) = 0xe59ff000 | ((int) je - tmp - 7);
+                if (tmp & 1) {
                     // ldr pc, [pc, #..]
-                else
+                    *(int *) (tmp - 1) = 0xe59ff000 | ((int) je - tmp - 7);
+                } else {
+                    // ldr r0, [pc, #..]
                     *(int *) tmp = 0xe59f0000 | ((int) je - tmp - 8);
-  	            // ldr r0, [pc, #..]
+                }
                 *je++ = *iv;
             }
             if (genpool == 2) { // jump past the pool
@@ -1273,9 +1274,9 @@ int elf32(int poolsz, int *start)
         // movt ip addr_to_got
         *(int *) to = 0xe300c000 | (0xfff & (int) (got_func_slot[i])) |
                       (0xf0000 & ((int) (got_func_slot[i]) << 4));
-	to = to + 4;
+        to = to + 4;
         // movw ip addr_to_got
-  	*(int *) to = 0xe340c000 |
+        *(int *) to = 0xe340c000 |
                       (0xfff & ((int) (got_func_slot[i]) >> 16)) |
                       (0xf0000 & ((int) (got_func_slot[i]) >> 12));
         to = to + 4;
