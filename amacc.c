@@ -852,7 +852,7 @@ enum {
     _PROT_EXEC = 4, _PROT_READ = 1, _PROT_WRITE = 2,
     _MAP_PRIVATE = 2, _MAP_ANON = 32
 };
-int jit(int poolsz, int *start, int argc, char **argv)
+int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
     int *je, *tje, *_start,  retval, *jitmap, *res;
@@ -884,7 +884,7 @@ int jit(int poolsz, int *start, int argc, char **argv)
     if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
     *tje = 0xeb000000 |
-           (((jitmap[((int) start - (int) text) >> 2] -
+           (((jitmap[((int) main- (int) text) >> 2] -
               (int) tje - 8) >> 2) &
             0x00ffffff);
 
@@ -1061,7 +1061,7 @@ int append_func_sym(char **data, int name)
 
 enum { ALIGN = 4096 };
 
-int elf32(int poolsz, int *start)
+int elf32(int poolsz, int *main)
 {
     char *o, *buf, *code, *entry, *je, *tje;
     char *to, *phdr, *dseg;
@@ -1370,7 +1370,7 @@ int elf32(int poolsz, int *start)
         return 1;
     if ((int *) je >= jitmap) die("jitmem too small");
     *(int *) tje = 0xeb000000 |
-          (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
+          (((jitmap[((int) main - (int) text) >> 2] - (int) tje - 8) >> 2) &
            0x00ffffff);
     memcpy(code_addr, code,  je - code);
 
