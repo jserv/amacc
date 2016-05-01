@@ -588,7 +588,7 @@ void stmt()
 
 void die(char *msg) { printf("codegen: %s\n", msg); exit(2); }
 
-int *codegen(int *jitmem, int *jitmap, int reloc)
+int *codegen(int *jitmem, int *jitmap)
 {
     int *pc;
     int i, tmp, genpool;
@@ -866,7 +866,7 @@ int jit(int poolsz, int *start, int argc, char **argv)
     *je++ = 0xe5850000;       // str     r0, [r5]
     *je++ = 0xe28dd008;       // add     sp, sp, #8
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
-    if (!(je = codegen(je, jitmap, 0))) return 1;
+    if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
     *tje = 0xeb000000 |
            (((jitmap[((int) start - (int) text) >> 2] -
@@ -1083,7 +1083,7 @@ int elf32(int poolsz, int *start)
     tmp_code = code;
     jitcode_off = 7;  // 7 instruction (tmp_code)
     tmp_code = tmp_code + jitcode_off * 4;
-    je = (char *) codegen((int *) tmp_code, jitmap, 1);
+    je = (char *) codegen((int *) tmp_code, jitmap);
     if (!je) return 1;
     if ((int*) je >= jitmap) die("jitmem too small");
 
@@ -1332,7 +1332,7 @@ int elf32(int poolsz, int *start)
              tmp_code = tmp_code + 4;  // mov     r7, #1
     *(int *) tmp_code = 0xef000000;
              tmp_code = tmp_code + 4;  // svc 0
-    je = (char *) codegen((int *) tmp_code, jitmap, 1);
+    je = (char *) codegen((int *) tmp_code, jitmap);
     if (!je)
         return 1;
     if ((int *) je >= jitmap) die("jitmem too small");
