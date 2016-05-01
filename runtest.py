@@ -4,6 +4,7 @@
 import unittest
 import subprocess as sp
 import os
+import sys
 
 qemuCmd = "qemu-arm -L /usr/arm-linux-gnueabihf".split()
 amacc = "./amacc"
@@ -39,10 +40,13 @@ if __name__ == '__main__':
     if not os.access(gccdir, os.F_OK):
         os.mkdir(gccdir)
 
+    namePattern = ""
+    if len(sys.argv) > 1:
+        namePattern = sys.argv[1]
+
     for dirpath, _, filenames in os.walk("tests"):
-        for f in filenames:
+        for f in filter(lambda name: namePattern in name, filenames):
             testfile = os.path.abspath(os.path.join(dirpath, f))
             test_func = testGenerator(testfile)
-            setattr(TestAmacc, 'test_%s' % (f), test_func)
-
-    unittest.main()
+            setattr(TestAmacc, 'test_%s' % (os.path.splitext(f)[0]), test_func)
+    unittest.main(argv=[sys.argv[0]])
