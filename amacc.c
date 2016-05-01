@@ -1051,13 +1051,21 @@ int gen_sym(char *ptr, int name, unsigned char info,
     return sym_idx++;
 }
 
+int append_func_sym(char **data, int name)
+{
+    int idx;
+    idx = gen_sym(*data, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    *data = *data + SYM_SIZE;
+    return idx;
+}
+
 enum { ALIGN = 4096 };
 
 int elf32(int poolsz, int *start)
 {
     char *o, *buf, *code, *entry, *je, *tje;
     char *to, *phdr, *dseg;
-    char *pt_dyn, *libc, *ldso, *linker, *sym;
+    char *pt_dyn, *libc, *ldso, *linker;
     int pt_dyn_off, linker_off, code_off, i;
     int *jitmap;
     char *tmp_code;
@@ -1069,11 +1077,12 @@ int elf32(int poolsz, int *start)
     char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
     int plt_size, plt_off, pt_dyn_size, rwdata_off;
     int shstrtab_off, shstrtab_size;
-    char *func_str, *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
-    int func_str_size, dynstr_off, dynlink_sym_size, dynstr_size;
+    char *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
+    int dynstr_off, dynstr_size;
     int dynsym_off, dynsym_size, gap, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
+    int *func_names;
     int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
     int code_size_align;
 
@@ -1206,56 +1215,55 @@ int elf32(int poolsz, int *start)
     append_strtab(&data, ".rwdata");
     shstrtab_size = data - shstrtab_addr;
 
-    func_str = "\0open\0read\0write\0close\0"
-               "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
-               "dlsym\0bsearch\0__clear_cache\0exit\0";
-    func_str_size = 96;
-
     // .dynstr (embedded in PT_LOAD of data)
     dynstr_addr = data;
     dynstr_off = shstrtab_off + shstrtab_size;
-    libc = data = data +  1; memcpy(data, "libc.so.6", 10);
-    ldso = data = data + 10; memcpy(data, "libdl.so.2", 11);
-    data = data + 11;
-    sym = data;
-    dynlink_sym_size = func_str_size;
-    memcpy(sym, func_str, dynlink_sym_size);
-    dynstr_size = 22 + dynlink_sym_size;
-    data = data + dynlink_sym_size;
+    append_strtab(&data, "");
+    libc = append_strtab(&data, "libc.so.6");
+    ldso = append_strtab(&data, "libdl.so.2");
+
+    func_names = (int *)malloc(sizeof(int) * (EXIT + 1));
+    if (!func_names) {
+        die("could not malloc func_names table\n");
+    }
+
+    func_names[OPEN] = append_strtab(&data, "open") - dynstr_addr;
+    func_names[READ] = append_strtab(&data, "read") - dynstr_addr;
+    func_names[WRIT] = append_strtab(&data, "write") - dynstr_addr;
+    func_names[CLOS] = append_strtab(&data, "close") - dynstr_addr;
+    func_names[PRTF] = append_strtab(&data, "printf") - dynstr_addr;
+    func_names[MALC] = append_strtab(&data, "malloc") - dynstr_addr;
+    func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
+    func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
+    func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
+    func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
+    func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
+    func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
+    func_names[CLCA] = append_strtab(&data, "__clear_cache") - dynstr_addr;
+    func_names[EXIT] = append_strtab(&data, "exit") - dynstr_addr;
+
+    dynstr_size = data - dynstr_addr;
 
     // .dynsym (embedded in PT_LOAD of data)
     dynsym_addr = data;
     dynsym_off = dynstr_off + dynstr_size;
     memset(data, 0, SYM_SIZE);
     data = data + SYM_SIZE;
-    gen_sym(data, 23, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 28, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 33, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 39, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 45, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 52, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 59, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 66, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 73, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 80, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 85, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 91, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 99, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 113, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
+
+    append_func_sym(&data, func_names[OPEN]);
+    append_func_sym(&data, func_names[READ]);
+    append_func_sym(&data, func_names[WRIT]);
+    append_func_sym(&data, func_names[CLOS]);
+    append_func_sym(&data, func_names[PRTF]);
+    append_func_sym(&data, func_names[MALC]);
+    append_func_sym(&data, func_names[MSET]);
+    append_func_sym(&data, func_names[MCMP]);
+    append_func_sym(&data, func_names[MCPY]);
+    append_func_sym(&data, func_names[MMAP]);
+    append_func_sym(&data, func_names[DSYM]);
+    append_func_sym(&data, func_names[BSCH]);
+    append_func_sym(&data, func_names[CLCA]);
+    append_func_sym(&data, func_names[EXIT]);
 
     dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
     _gap = data;
