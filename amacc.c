@@ -68,7 +68,8 @@ enum {
 enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,EXIT
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,STRT,
+    EXIT
 };
 
 // types
@@ -76,6 +77,21 @@ enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 
 // ELF generation
 char **plt_func_addr;
+
+char* append_strtab(char **strtab, char *str)
+{
+    int nbytes;
+    char *res;
+    nbytes = 0;
+    while (str[nbytes] != '\0') {
+        ++nbytes;
+    }
+    ++nbytes;
+    res = *strtab;
+    memcpy(res, str, nbytes);
+    *strtab = res + nbytes;
+    return res;
+}
 
 void next()
 {
@@ -145,7 +161,7 @@ void next()
                 while (*p != 0 && *p != '\n') ++p;
             } else {
                 // Div is not supported
-	        return;
+                return;
             }
             break;
         case '\'':
@@ -287,7 +303,7 @@ void expr(int lev)
         next(); expr(Inc);
         if (ty > INT) ty = ty - PTR;
         else fatal("bad dereference");
-	if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
+        if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
         break;
     case And:
         next(); expr(Inc);
@@ -588,7 +604,17 @@ void stmt()
 
 void die(char *msg) { printf("codegen: %s\n", msg); exit(2); }
 
-int *codegen(int *jitmem, int *jitmap, int reloc)
+int reloc_imm(int offset)
+{
+    return ((((offset) - 8) >> 2) & 0x00ffffff);
+}
+
+int reloc_bl(int offset)
+{
+    return 0xeb000000 | reloc_imm(offset);
+}
+
+int *codegen(int *jitmem, int *jitmap)
 {
     int *pc;
     int i, tmp, genpool;
@@ -747,8 +773,12 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
                 case BSCH:
                     tmp = (int) (elf ? plt_func_addr[11] : dlsym(0, "bsearch"));
                     break;
+                case STRT:
+                    tmp = (int) (elf ? plt_func_addr[13]
+                                     : dlsym(0, "__libc_start_main"));
+                    break;
                 case EXIT:
-                    tmp = (int) (elf ? plt_func_addr[13] : dlsym(0, "exit"));
+                    tmp = (int) (elf ? plt_func_addr[14] : dlsym(0, "exit"));
                     break;
                 default:
                     printf("unrecognized code %d\n", i);
@@ -784,12 +814,13 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
                 tmp = *--il;
                 if ((int) je > tmp + 4096 + 8) die("can't reach the pool");
                 iv--; if (iv[0] == iv[1]) je--;
-                if (tmp & 1)
-                    *(int *) (tmp - 1) = 0xe59ff000 | ((int) je - tmp - 7);
+                if (tmp & 1) {
                     // ldr pc, [pc, #..]
-                else
+                    *(int *) (tmp - 1) = 0xe59ff000 | ((int) je - tmp - 7);
+                } else {
+                    // ldr r0, [pc, #..]
                     *(int *) tmp = 0xe59f0000 | ((int) je - tmp - 8);
-  	            // ldr r0, [pc, #..]
+                }
                 *je++ = *iv;
             }
             if (genpool == 2) { // jump past the pool
@@ -823,9 +854,8 @@ int *codegen(int *jitmem, int *jitmap, int reloc)
                 break;
             }
             tmp = *pc++;
-            *je = *je |
-                  (((jitmap[(tmp - (int) text) >> 2] - (int) je - 8) >> 2) &
-                   0x00ffffff);
+            *je = (*je |
+                   reloc_imm(jitmap[(tmp - (int)text) >> 2] - (int)je));
         }
         else if (i < LEV) { ++pc; }
     }
@@ -836,7 +866,8 @@ enum {
     _PROT_EXEC = 4, _PROT_READ = 1, _PROT_WRITE = 2,
     _MAP_PRIVATE = 2, _MAP_ANON = 32
 };
-int jit(int poolsz, int *start, int argc, char **argv)
+
+int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
     int *je, *tje, *_start,  retval, *jitmap, *res;
@@ -865,12 +896,9 @@ int jit(int poolsz, int *start, int argc, char **argv)
     *je++ = 0xe5850000;       // str     r0, [r5]
     *je++ = 0xe28dd008;       // add     sp, sp, #8
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
-    if (!(je = codegen(je, jitmap, 0))) return 1;
+    if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
-    *tje = 0xeb000000 |
-           (((jitmap[((int) start - (int) text) >> 2] -
-              (int) tje - 8) >> 2) &
-            0x00ffffff);
+    *tje = reloc_bl(jitmap[((int)main- (int)text) >> 2] - (int)tje);
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
@@ -1035,29 +1063,37 @@ int gen_sym(char *ptr, int name, unsigned char info,
     return sym_idx++;
 }
 
+int append_func_sym(char **data, int name)
+{
+    int idx;
+    idx = gen_sym(*data, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    *data = *data + SYM_SIZE;
+    return idx;
+}
+
 enum { ALIGN = 4096 };
 
-int elf32(int poolsz, int *start)
+int elf32(int poolsz, int *main)
 {
-    char *o, *buf, *code, *entry, *je, *tje;
+    char *o, *buf, *code, *entry, *je;
     char *to, *phdr, *dseg;
-    char *pt_dyn, *libc, *ldso, *linker, *sym;
+    char *pt_dyn, *libc, *ldso, *linker;
     int pt_dyn_off, linker_off, code_off, i;
     int *jitmap;
-    char *tmp_code;
-    int jitcode_off;
+    int *stub_end;
     int FUNC_NUM;
     char *e_shoff;
 
-    int code_size, rel_size, rel_off;
+    int code_size, start_stub_size, rel_size, rel_off;
     char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
     int plt_size, plt_off, pt_dyn_size, rwdata_off;
     int shstrtab_off, shstrtab_size;
-    char *func_str, *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
-    int func_str_size, dynstr_off, dynlink_sym_size, dynstr_size;
+    char *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
+    int dynstr_off, dynstr_size;
     int dynsym_off, dynsym_size, gap, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
+    int *func_names;
     int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
     int code_size_align;
 
@@ -1079,10 +1115,52 @@ int elf32(int poolsz, int *start)
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o;
 
-    tmp_code = code;
-    jitcode_off = 7;  // 7 instruction (tmp_code)
-    tmp_code = tmp_code + jitcode_off * 4;
-    je = (char *) codegen((int *) tmp_code, jitmap, 1);
+    // Run __libc_start_main() and pass main trampoline.
+    //
+    // Note: The function prototype of __libc_start_main() is:
+    //
+    //     int __libc_start_main(int (*main)(int, char**, char**),
+    //                           int argc, char **argv,
+    //                           int (*init)(int, char**, char**),
+    //                           void (*fini)(void),
+    //                           void (*rtld_fini)(void),
+    //                           void *stack_end);
+    //
+    // Usually, we should pass __libc_csu_init as init and __libc_csu_fini
+    // as fini; however, we will need a linker to link the non-shared part
+    // of libc.  It sounds too complex.  To keep this compiler simple,
+    // let's simply pass NULL pointer.
+    stub_end = (int *)code;
+
+    *stub_end++ = 0xe3a0b000;  // mov   fp, #0  @ initialize frame pointer
+    *stub_end++ = 0xe3a0e000;  // mov   lr, #0  @ initialize link register
+    *stub_end++ = 0xe49d1004;  // pop   {r1}    @ get argc
+    *stub_end++ = 0xe1a0200d;  // mov   r2, sp  @ get argv
+    *stub_end++ = 0xe52d2004;  // push  {r2}    @ setup stack end
+    *stub_end++ = 0xe52d0004;  // push  {r0}    @ setup rtld_fini
+    *stub_end++ = 0xe3a0c000;  // mov   ip, #0  @ FIXME: __libc_csu_fini()
+    *stub_end++ = 0xe52dc004;  // push  {ip}    @ setup fini
+    *stub_end++ = 0xe28f0010;  // add   r0, pc, #16  @ load main trampoline
+    *stub_end++ = 0xe3a03000;  // mov   r3, #0  @ FIXME: __libc_csu_init()
+    *stub_end++ = 0xebfffffe;  // bl    __libc_start_main  @ Need relocation
+
+    // Return 127 if __libc_start_main() returns (which should not.)
+    *stub_end++ = 0xe3a0007f;  // mov   r0, #127
+    *stub_end++ = 0xe3a07001;  // mov   r7, #1
+    *stub_end++ = 0xef000000;  // svc   0x00000000
+
+    // main() trampoline: convert ARM AAPCS calling convention to ours.
+    *stub_end++ = 0xe92d5ff0;  // push  {r4-r12, lr}
+    *stub_end++ = 0xe52d0004;  // push  {r0}
+    *stub_end++ = 0xe52d1004;  // push  {r1}
+    *stub_end++ = 0xebfffffe;  // bl    0 <main>  @ Need relocation
+    *stub_end++ = 0xe28dd008;  // add   sp, sp, #8
+    *stub_end++ = 0xe8bd9ff0;  // pop   {r4-r12, pc}
+
+    start_stub_size = (char *)stub_end - code;
+
+    // Compile and generate the code.
+    je = (char *) codegen((int *)(code + start_stub_size), jitmap);
     if (!je) return 1;
     if ((int*) je >= jitmap) die("jitmem too small");
 
@@ -1173,63 +1251,74 @@ int elf32(int poolsz, int *start)
     // .shstrtab (embedded in PT_LOAD of data)
     shstrtab_addr = data;
     shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
-    shstrtab_size = 99;
-    memcpy(shstrtab_addr,
-            "\0.shstrtab\0.text\0.data\0.dynamic\0.strtab\0.symtab\0.dynstr"
-            "\0.dynsym\0.interp\0.rel.plt\0.plt\0.got\0.rwdata\0"
-            , shstrtab_size);
-    data = data + shstrtab_size;
-
-    func_str = "\0open\0read\0write\0close\0"
-               "printf\0malloc\0memset\0memcmp\0memcpy\0mmap\0"
-               "dlsym\0bsearch\0__clear_cache\0exit\0";
-    func_str_size = 96;
+    shstrtab_size = 0;
+    append_strtab(&data, "");
+    append_strtab(&data, ".shstrtab");
+    append_strtab(&data, ".text");
+    append_strtab(&data, ".data");
+    append_strtab(&data, ".dynamic");
+    append_strtab(&data, ".strtab");
+    append_strtab(&data, ".symtab");
+    append_strtab(&data, ".dynstr");
+    append_strtab(&data, ".dynsym");
+    append_strtab(&data, ".interp");
+    append_strtab(&data, ".rel.plt");
+    append_strtab(&data, ".plt");
+    append_strtab(&data, ".got");
+    append_strtab(&data, ".rwdata");
+    shstrtab_size = data - shstrtab_addr;
 
     // .dynstr (embedded in PT_LOAD of data)
     dynstr_addr = data;
     dynstr_off = shstrtab_off + shstrtab_size;
-    libc = data = data +  1; memcpy(data, "libc.so.6", 10);
-    ldso = data = data + 10; memcpy(data, "libdl.so.2", 11);
-    data = data + 11;
-    sym = data;
-    dynlink_sym_size = func_str_size;
-    memcpy(sym, func_str, dynlink_sym_size);
-    dynstr_size = 22 + dynlink_sym_size;
-    data = data + dynlink_sym_size;
+    append_strtab(&data, "");
+    libc = append_strtab(&data, "libc.so.6");
+    ldso = append_strtab(&data, "libdl.so.2");
+
+    func_names = (int *)malloc(sizeof(int) * (EXIT + 1));
+    if (!func_names) {
+        die("could not malloc func_names table\n");
+    }
+
+    func_names[OPEN] = append_strtab(&data, "open") - dynstr_addr;
+    func_names[READ] = append_strtab(&data, "read") - dynstr_addr;
+    func_names[WRIT] = append_strtab(&data, "write") - dynstr_addr;
+    func_names[CLOS] = append_strtab(&data, "close") - dynstr_addr;
+    func_names[PRTF] = append_strtab(&data, "printf") - dynstr_addr;
+    func_names[MALC] = append_strtab(&data, "malloc") - dynstr_addr;
+    func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
+    func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
+    func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
+    func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
+    func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
+    func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
+    func_names[CLCA] = append_strtab(&data, "__clear_cache") - dynstr_addr;
+    func_names[STRT] = append_strtab(&data, "__libc_start_main") - dynstr_addr;
+    func_names[EXIT] = append_strtab(&data, "exit") - dynstr_addr;
+
+    dynstr_size = data - dynstr_addr;
 
     // .dynsym (embedded in PT_LOAD of data)
     dynsym_addr = data;
     dynsym_off = dynstr_off + dynstr_size;
     memset(data, 0, SYM_SIZE);
     data = data + SYM_SIZE;
-    gen_sym(data, 23, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 28, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 33, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 39, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 45, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 52, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 59, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 66, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 73, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 80, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 85, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 91, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 99, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
-    gen_sym(data, 113, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    data = data + SYM_SIZE;
+
+    append_func_sym(&data, func_names[OPEN]);
+    append_func_sym(&data, func_names[READ]);
+    append_func_sym(&data, func_names[WRIT]);
+    append_func_sym(&data, func_names[CLOS]);
+    append_func_sym(&data, func_names[PRTF]);
+    append_func_sym(&data, func_names[MALC]);
+    append_func_sym(&data, func_names[MSET]);
+    append_func_sym(&data, func_names[MCMP]);
+    append_func_sym(&data, func_names[MCPY]);
+    append_func_sym(&data, func_names[MMAP]);
+    append_func_sym(&data, func_names[DSYM]);
+    append_func_sym(&data, func_names[BSCH]);
+    append_func_sym(&data, func_names[CLCA]);
+    append_func_sym(&data, func_names[STRT]);
+    append_func_sym(&data, func_names[EXIT]);
 
     dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
     _gap = data;
@@ -1273,9 +1362,9 @@ int elf32(int poolsz, int *start)
         // movt ip addr_to_got
         *(int *) to = 0xe300c000 | (0xfff & (int) (got_func_slot[i])) |
                       (0xf0000 & ((int) (got_func_slot[i]) << 4));
-	to = to + 4;
+        to = to + 4;
         // movw ip addr_to_got
-  	*(int *) to = 0xe340c000 |
+        *(int *) to = 0xe340c000 |
                       (0xfff & ((int) (got_func_slot[i]) >> 16)) |
                       (0xf0000 & ((int) (got_func_slot[i]) >> 12));
         to = to + 4;
@@ -1316,28 +1405,17 @@ int elf32(int poolsz, int *start)
 
     // we generate code again bacause address of .plt function slots
     // must be confirmed
-    tmp_code = code;
-    *(int *) tmp_code = 0xe1a00001;
-             tmp_code = tmp_code + 4;  // mov     r0, r1 ; argc
-    *(int *) tmp_code = 0xe1a01002;
-             tmp_code = tmp_code + 4;  // mov     r1, r2 ; argv
-    *(int *) tmp_code = 0xe52d0004;
-             tmp_code = tmp_code + 4;  // push    {r0}
-    *(int *) tmp_code = 0xe52d1004;
-             tmp_code = tmp_code + 4;  // push    {r1}
-             tje = tmp_code;
-             tmp_code = tmp_code + 4;  // bl      jitmain
-    *(int *) tmp_code = 0xe3a07001;
-             tmp_code = tmp_code + 4;  // mov     r7, #1
-    *(int *) tmp_code = 0xef000000;
-             tmp_code = tmp_code + 4;  // svc 0
-    je = (char *) codegen((int *) tmp_code, jitmap, 1);
+    je = (char *) codegen((int *)(code + start_stub_size), jitmap);
     if (!je)
         return 1;
     if ((int *) je >= jitmap) die("jitmem too small");
-    *(int *) tje = 0xeb000000 |
-          (((jitmap[((int) start - (int) text) >> 2] - (int) tje - 8) >> 2) &
-           0x00ffffff);
+
+    // relocate _start() stub.
+    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[13] - code_addr - 0x28);
+    *((int *)(code + 0x44)) =
+        reloc_bl(jitmap[((int)main - (int)text) >> 2] - (int)code - 0x44);
+
+    // copy the generated binary.
     memcpy(code_addr, code,  je - code);
 
     gen_SH(o, SHT_NULL, 0, 0, 0, 0,
@@ -1462,13 +1540,13 @@ int main(int argc, char **argv)
           "LI   LC   SI   SC   PSH  "
           "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
           "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY "
-          "DSYM BSCH MMAP CLCA EXIT";
+          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY MMAP "
+          "DSYM BSCH CLCA STRT EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
-        "open read write close printf malloc memset memcmp memcpy mmap dlsym "
-        "bsearch __clear_cache exit void main";
+        "open read write close printf malloc memset memcmp memcpy mmap "
+        "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
     while (i <= While) { // add keywords to symbol table
