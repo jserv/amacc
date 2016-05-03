@@ -466,7 +466,7 @@ void expr(int lev)
 void stmt()
 {
     int *a, *b, *d;
-    int *x, *y, *z;
+    int *x;
     int i;
 
     switch (tk) {
@@ -545,6 +545,9 @@ void stmt()
         else fatal("semicolon expected");
         return;
     case For:
+        // For loop is implemented as:
+        // Init -> Cond -> Bz to end -> Jmp to Body
+        // After -> Jmp to Cond -> Body -> Jmp to After
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
@@ -555,11 +558,12 @@ void stmt()
         }
         if (tk == ';') next();
         else fatal("semicolon expected");
-        a = e + 1;
+        a = e + 1; // Points to entry of for cond
         expr(Assign);
         if (tk == ';') next();
         else fatal("semicolon expected");
         *++e = BZ; b = ++e;
+        *++e = JMP; d = ++e; // Jump to entry of for loop body
         x = e + 1; // Points to entry of for loop afterthought
         expr(Assign);
         while (tk == ',') {
@@ -568,24 +572,11 @@ void stmt()
         }
         if (tk == ')') next();
         else fatal("close paren expected");
-        y = e + 1; // Points to entry of for loop body
-        stmt();
-        z = e + 1; // Points to entry of jmp command
         *++e = JMP; *++e = (int) a;
+        *d = (int)(e+1); // Modify address of jump
+        stmt();
+        *++e = JMP; *++e = (int) x;
         *b = (int) (e + 1);
-
-        // Swaps body chunk and afterthought chunk
-        //
-        // We parse it as:
-        // Init -> Cond -> Bz -> After -> Body -> Jmp
-        //
-        // But we want it to be:
-        // Init -> Cond -> Bz -> Body -> After -> Jmp
-        memcpy((void *) ((int) e + 4), x, (int) y - (int) x);
-        memcpy(x, y, (int) z - (int) y);
-        memcpy((void *) ((int) x + (int) z - (int) y),
-               (void *) ((int) e + 4), (int)y - (int) x);
-        memset((void *) ((int) e + 4), 0, (int)y - (int) x);
         return;
     case '{':
         next();
