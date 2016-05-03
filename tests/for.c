@@ -2,12 +2,20 @@
 
 int main(int argc, char **argv)
 {
-        int i, j;
+    int i, j;
 
-        j = 10;
+    j = 10;
 
-        for (i = 0, printf("let's loop\n"); i < j; i++, printf("loops again\n"))
-                printf("loop %d\n", i);
+    for (i = 0, printf("let's loop\n"); i < j; i++, printf("loops again\n"))
+        printf("loop %d\n", i);
 
-        return 0;
+    printf("nested loop\n");
+    for (i = 1; i < 10; i++) {
+        for (j = 1; j < 10; j++) {
+            printf("%d * %d = %d\t", i, j, i*j);
+        }
+        printf("\n");
+    }
+
+    return 0;
 }
