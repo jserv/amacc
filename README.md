@@ -37,4 +37,5 @@ hello, world
 
 Acknowledgements
 ----------------
-AMaCC is inspired by [c4](https://github.com/rswier/c4).
+AMaCC is based on the infrastructure of [c4](https://github.com/rswier/c4).
+[Hacker News discussions](https://news.ycombinator.com/item?id=11411124).
