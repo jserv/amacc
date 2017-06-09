@@ -408,7 +408,7 @@ void expr(int lev)
             sz = t >= PTR2 ? sizeof(int) :
                              t >= PTR ? tsize[t - PTR] : 1;
             if (t == ty && sz > 1) {
-                switch(sz){
+                switch(sz) {
                 case 4: *++e = SUB; *++e = PSH; *++e = IMM; *++e = 2; *++e = SHR; break;
                 default: *++e = SUB; *++e = PSH; *++e = IMM; *++e = sz; *++e = SUB; break;
                 }
