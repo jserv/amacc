@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 int main()
 {
     printf("16000 == 16000 : %d\n", 16000 == 16000);

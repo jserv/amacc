@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 int main(int argc, char **argv)
 {
     switch (argc) {
@@ -6,6 +8,6 @@ int main(int argc, char **argv)
     default:
         printf("More than 1 argument\n");
         break;
-    }                                                                                                                       
+    }
     return 0;
 }
