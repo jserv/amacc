@@ -732,47 +732,47 @@ int *codegen(int *jitmem, int *jitmap)
             else if (i >= OPEN) {
                 switch (i) {
                 case OPEN:
-                    tmp = (int) (elf ? plt_func_addr[0] : dlsym(0, "open"));
+                    tmp = (int) (elf ? plt_func_addr[OPEN - OPEN] : dlsym(0, "open"));
                     break;
                 case READ:
-                    tmp = (int) (elf ? plt_func_addr[1] : dlsym(0, "read"));
+                    tmp = (int) (elf ? plt_func_addr[READ - OPEN] : dlsym(0, "read"));
                     break;
                 case WRIT:
-                    tmp = (int) (elf ? plt_func_addr[2] : dlsym(0, "write"));
+                    tmp = (int) (elf ? plt_func_addr[WRIT - OPEN] : dlsym(0, "write"));
                     break;
                 case CLOS:
-                    tmp = (int) (elf ? plt_func_addr[3] : dlsym(0, "close"));
+                    tmp = (int) (elf ? plt_func_addr[CLOS - OPEN] : dlsym(0, "close"));
                     break;
                 case PRTF:
-                    tmp = (int) (elf ? plt_func_addr[4] : dlsym(0, "printf"));
+                    tmp = (int) (elf ? plt_func_addr[PRTF - OPEN] : dlsym(0, "printf"));
                     break;
                 case MALC:
-                    tmp = (int) (elf ? plt_func_addr[5] : dlsym(0, "malloc"));
+                    tmp = (int) (elf ? plt_func_addr[MALC - OPEN] : dlsym(0, "malloc"));
                     break;
                 case MSET:
-                    tmp = (int) (elf ? plt_func_addr[6] : dlsym(0, "memset"));
+                    tmp = (int) (elf ? plt_func_addr[MSET - OPEN] : dlsym(0, "memset"));
                     break;
                 case MCMP:
-                    tmp = (int) (elf ? plt_func_addr[7] : dlsym(0, "memcmp"));
+                    tmp = (int) (elf ? plt_func_addr[MCMP - OPEN] : dlsym(0, "memcmp"));
                     break;
                 case MCPY:
-                    tmp = (int) (elf ? plt_func_addr[8] : dlsym(0, "memcpy"));
+                    tmp = (int) (elf ? plt_func_addr[MCPY - OPEN] : dlsym(0, "memcpy"));
                     break;
                 case MMAP:
-                    tmp = (int) (elf ? plt_func_addr[9] : dlsym(0, "mmap"));
+                    tmp = (int) (elf ? plt_func_addr[MMAP - OPEN] : dlsym(0, "mmap"));
                     break;
                 case DSYM:
-                    tmp = (int) (elf ? plt_func_addr[10] : dlsym(0, "dlsym"));
+                    tmp = (int) (elf ? plt_func_addr[DSYM - OPEN] : dlsym(0, "dlsym"));
                     break;
                 case BSCH:
-                    tmp = (int) (elf ? plt_func_addr[11] : dlsym(0, "bsearch"));
+                    tmp = (int) (elf ? plt_func_addr[BSCH - OPEN] : dlsym(0, "bsearch"));
                     break;
                 case STRT:
-                    tmp = (int) (elf ? plt_func_addr[13]
+                    tmp = (int) (elf ? plt_func_addr[STRT - OPEN]
                                      : dlsym(0, "__libc_start_main"));
                     break;
                 case EXIT:
-                    tmp = (int) (elf ? plt_func_addr[14] : dlsym(0, "exit"));
+                    tmp = (int) (elf ? plt_func_addr[EXIT - OPEN] : dlsym(0, "exit"));
                     break;
                 default:
                     printf("unrecognized code %d\n", i);
@@ -1405,7 +1405,7 @@ int elf32(int poolsz, int *main)
     if ((int *) je >= jitmap) die("jitmem too small");
 
     // relocate _start() stub.
-    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[13] - code_addr - 0x28);
+    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
     *((int *)(code + 0x44)) =
         reloc_bl(jitmap[((int)main - (int)text) >> 2] - (int)code - 0x44);
 
