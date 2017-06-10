@@ -68,8 +68,8 @@ enum {
 enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,STRT,
-    EXIT
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
+    STRT,EXIT
 };
 
 // types
@@ -758,6 +758,9 @@ int *codegen(int *jitmem, int *jitmap)
                 case MCPY:
                     tmp = (int) (elf ? plt_func_addr[MCPY - OPEN] : dlsym(0, "memcpy"));
                     break;
+                case SCMP:
+                    tmp = (int) (elf ? plt_func_addr[SCMP - OPEN] : dlsym(0, "strcmp"));
+                    break;
                 case MMAP:
                     tmp = (int) (elf ? plt_func_addr[MMAP - OPEN] : dlsym(0, "mmap"));
                     break;
@@ -1283,6 +1286,7 @@ int elf32(int poolsz, int *main)
     func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
     func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
     func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
+    func_names[SCMP] = append_strtab(&data, "strcmp") - dynstr_addr;
     func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
     func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
     func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
@@ -1307,6 +1311,7 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[MSET]);
     append_func_sym(&data, func_names[MCMP]);
     append_func_sym(&data, func_names[MCPY]);
+    append_func_sym(&data, func_names[SCMP]);
     append_func_sym(&data, func_names[MMAP]);
     append_func_sym(&data, func_names[DSYM]);
     append_func_sym(&data, func_names[BSCH]);
@@ -1534,12 +1539,12 @@ int main(int argc, char **argv)
           "LI   LC   SI   SC   PSH  "
           "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
           "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY MMAP "
+          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY SCMP MMAP "
           "DSYM BSCH CLCA STRT EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
-        "open read write close printf malloc memset memcmp memcpy mmap "
+        "open read write close printf malloc memset memcmp memcpy strcmp mmap "
         "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
