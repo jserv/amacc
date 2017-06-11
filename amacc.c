@@ -1506,10 +1506,13 @@ int main(int argc, char **argv)
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
+        if (argc < 1) {
+            printf("no output file argument\n"); return -1;
+        }
         if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
             printf("could not open(%s)\n", *argv); return -1;
         }
-        ++argv;
+        --argc; ++argv;
     }
     if (argc < 1) {
         printf("usage: amacc [-s] [-v] [-o object] file ...\n"); return -1;
