@@ -301,9 +301,17 @@ void expr(int lev)
         break;
     case Mul:
         next(); expr(Inc);
-        if (ty > INT) ty = ty - PTR;
+        if (ty >= PTR) ty = ty - PTR;
         else fatal("bad dereference");
-        if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
+        if (ty >= PTR) {
+            *++e = LI;
+        } else if (ty == INT) {
+            *++e = LI;
+        } else if (ty == CHAR) {
+            *++e = LC;
+        } else {
+            fatal("unexpected type");
+        }
         break;
     case And:
         next(); expr(Inc);
