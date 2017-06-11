@@ -27,6 +27,7 @@ int loc;             // local variable offset
 int line;            // current line number
 int src;             // print source and assembly flag
 int verbose;         // print executed instructions
+int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
 int rwdata_align_off;
@@ -622,15 +623,11 @@ int *codegen(int *jitmem, int *jitmap)
     int i, tmp, genpool;
     int *je, *tje;    // current position in emitted native code
     int *immloc, *il, *iv, *imm0;
-    char neg_char;
-    int neg_int;
 
     immloc = il = malloc(1024 * 4);
     iv = malloc(1024 * 4);
     imm0 = 0;
     genpool = 0;
-    neg_char = 255;
-    neg_int = neg_char;
 
     // first pass: emit native code
     pc = text + 1; je = jitmem; line = 0;
@@ -683,7 +680,7 @@ int *codegen(int *jitmem, int *jitmap)
             *je++ = 0xe5900000;                  // ldr r0, [r0]
             break;
         case LC:
-            *je++ = 0xe5d00000; if (neg_int < 0)  *je++ = 0xe6af0070; // ldrb r0, [r0]; (sxtb r0, r0)
+            *je++ = 0xe5d00000; if (signed_char)  *je++ = 0xe6af0070; // ldrb r0, [r0]; (sxtb r0, r0)
             break;
         case SI:
             *je++ = 0xe49d1004; *je++ = 0xe5810000; // pop {r1}; str r0, [r1]
@@ -1503,6 +1500,9 @@ int main(int argc, char **argv)
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'v') {
         verbose = 1; --argc; ++argv;
+    }
+    if (argc > 0 && **argv == '-' && strcmp(*argv, "-fsigned-char") == 0) {
+        signed_char = 1; --argc; ++argv;
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
