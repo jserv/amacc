@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 int main()
 {
   int *s, *e, v;

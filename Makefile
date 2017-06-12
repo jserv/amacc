@@ -14,7 +14,7 @@ ARM_EXEC = qemu-arm -L /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
 all: $(BIN)
 
 amacc: amacc.c
-	$(CROSS_COMPILE)gcc $(CFLAGS) -fsigned-char -o amacc $? -g -ldl
+	$(CROSS_COMPILE)gcc $(CFLAGS) -o amacc $? -g -ldl
 
 check: $(BIN) $(TEST_OBJ)
 	@echo "[ JIT      ]"

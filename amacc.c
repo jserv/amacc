@@ -27,6 +27,7 @@ int loc;             // local variable offset
 int line;            // current line number
 int src;             // print source and assembly flag
 int verbose;         // print executed instructions
+int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
 int rwdata_align_off;
@@ -68,8 +69,8 @@ enum {
 enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,STRT,
-    EXIT
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
+    STRT,EXIT
 };
 
 // types
@@ -301,9 +302,17 @@ void expr(int lev)
         break;
     case Mul:
         next(); expr(Inc);
-        if (ty > INT) ty = ty - PTR;
+        if (ty >= PTR) ty = ty - PTR;
         else fatal("bad dereference");
-        if (ty <= INT || ty >= PTR) *++e = (ty == CHAR) ? LC : LI;
+        if (ty >= PTR) {
+            *++e = LI;
+        } else if (ty == INT) {
+            *++e = LI;
+        } else if (ty == CHAR) {
+            *++e = LC;
+        } else {
+            fatal("unexpected type");
+        }
         break;
     case And:
         next(); expr(Inc);
@@ -614,15 +623,11 @@ int *codegen(int *jitmem, int *jitmap)
     int i, tmp, genpool;
     int *je, *tje;    // current position in emitted native code
     int *immloc, *il, *iv, *imm0;
-    char neg_char;
-    int neg_int;
 
     immloc = il = malloc(1024 * 4);
     iv = malloc(1024 * 4);
     imm0 = 0;
     genpool = 0;
-    neg_char = 255;
-    neg_int = neg_char;
 
     // first pass: emit native code
     pc = text + 1; je = jitmem; line = 0;
@@ -675,7 +680,7 @@ int *codegen(int *jitmem, int *jitmap)
             *je++ = 0xe5900000;                  // ldr r0, [r0]
             break;
         case LC:
-            *je++ = 0xe5d00000; if (neg_int < 0)  *je++ = 0xe6af0070; // ldrb r0, [r0]; (sxtb r0, r0)
+            *je++ = 0xe5d00000; if (signed_char)  *je++ = 0xe6af0070; // ldrb r0, [r0]; (sxtb r0, r0)
             break;
         case SI:
             *je++ = 0xe49d1004; *je++ = 0xe5810000; // pop {r1}; str r0, [r1]
@@ -732,47 +737,50 @@ int *codegen(int *jitmem, int *jitmap)
             else if (i >= OPEN) {
                 switch (i) {
                 case OPEN:
-                    tmp = (int) (elf ? plt_func_addr[0] : dlsym(0, "open"));
+                    tmp = (int) (elf ? plt_func_addr[OPEN - OPEN] : dlsym(0, "open"));
                     break;
                 case READ:
-                    tmp = (int) (elf ? plt_func_addr[1] : dlsym(0, "read"));
+                    tmp = (int) (elf ? plt_func_addr[READ - OPEN] : dlsym(0, "read"));
                     break;
                 case WRIT:
-                    tmp = (int) (elf ? plt_func_addr[2] : dlsym(0, "write"));
+                    tmp = (int) (elf ? plt_func_addr[WRIT - OPEN] : dlsym(0, "write"));
                     break;
                 case CLOS:
-                    tmp = (int) (elf ? plt_func_addr[3] : dlsym(0, "close"));
+                    tmp = (int) (elf ? plt_func_addr[CLOS - OPEN] : dlsym(0, "close"));
                     break;
                 case PRTF:
-                    tmp = (int) (elf ? plt_func_addr[4] : dlsym(0, "printf"));
+                    tmp = (int) (elf ? plt_func_addr[PRTF - OPEN] : dlsym(0, "printf"));
                     break;
                 case MALC:
-                    tmp = (int) (elf ? plt_func_addr[5] : dlsym(0, "malloc"));
+                    tmp = (int) (elf ? plt_func_addr[MALC - OPEN] : dlsym(0, "malloc"));
                     break;
                 case MSET:
-                    tmp = (int) (elf ? plt_func_addr[6] : dlsym(0, "memset"));
+                    tmp = (int) (elf ? plt_func_addr[MSET - OPEN] : dlsym(0, "memset"));
                     break;
                 case MCMP:
-                    tmp = (int) (elf ? plt_func_addr[7] : dlsym(0, "memcmp"));
+                    tmp = (int) (elf ? plt_func_addr[MCMP - OPEN] : dlsym(0, "memcmp"));
                     break;
                 case MCPY:
-                    tmp = (int) (elf ? plt_func_addr[8] : dlsym(0, "memcpy"));
+                    tmp = (int) (elf ? plt_func_addr[MCPY - OPEN] : dlsym(0, "memcpy"));
+                    break;
+                case SCMP:
+                    tmp = (int) (elf ? plt_func_addr[SCMP - OPEN] : dlsym(0, "strcmp"));
                     break;
                 case MMAP:
-                    tmp = (int) (elf ? plt_func_addr[9] : dlsym(0, "mmap"));
+                    tmp = (int) (elf ? plt_func_addr[MMAP - OPEN] : dlsym(0, "mmap"));
                     break;
                 case DSYM:
-                    tmp = (int) (elf ? plt_func_addr[10] : dlsym(0, "dlsym"));
+                    tmp = (int) (elf ? plt_func_addr[DSYM - OPEN] : dlsym(0, "dlsym"));
                     break;
                 case BSCH:
-                    tmp = (int) (elf ? plt_func_addr[11] : dlsym(0, "bsearch"));
+                    tmp = (int) (elf ? plt_func_addr[BSCH - OPEN] : dlsym(0, "bsearch"));
                     break;
                 case STRT:
-                    tmp = (int) (elf ? plt_func_addr[13]
+                    tmp = (int) (elf ? plt_func_addr[STRT - OPEN]
                                      : dlsym(0, "__libc_start_main"));
                     break;
                 case EXIT:
-                    tmp = (int) (elf ? plt_func_addr[14] : dlsym(0, "exit"));
+                    tmp = (int) (elf ? plt_func_addr[EXIT - OPEN] : dlsym(0, "exit"));
                     break;
                 default:
                     printf("unrecognized code %d\n", i);
@@ -1283,6 +1291,7 @@ int elf32(int poolsz, int *main)
     func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
     func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
     func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
+    func_names[SCMP] = append_strtab(&data, "strcmp") - dynstr_addr;
     func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
     func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
     func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
@@ -1307,6 +1316,7 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[MSET]);
     append_func_sym(&data, func_names[MCMP]);
     append_func_sym(&data, func_names[MCPY]);
+    append_func_sym(&data, func_names[SCMP]);
     append_func_sym(&data, func_names[MMAP]);
     append_func_sym(&data, func_names[DSYM]);
     append_func_sym(&data, func_names[BSCH]);
@@ -1405,7 +1415,7 @@ int elf32(int poolsz, int *main)
     if ((int *) je >= jitmap) die("jitmem too small");
 
     // relocate _start() stub.
-    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[13] - code_addr - 0x28);
+    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
     *((int *)(code + 0x44)) =
         reloc_bl(jitmap[((int)main - (int)text) >> 2] - (int)code - 0x44);
 
@@ -1491,12 +1501,18 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'v') {
         verbose = 1; --argc; ++argv;
     }
+    if (argc > 0 && **argv == '-' && strcmp(*argv, "-fsigned-char") == 0) {
+        signed_char = 1; --argc; ++argv;
+    }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
+        if (argc < 1) {
+            printf("no output file argument\n"); return -1;
+        }
         if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
             printf("could not open(%s)\n", *argv); return -1;
         }
-        ++argv;
+        --argc; ++argv;
     }
     if (argc < 1) {
         printf("usage: amacc [-s] [-v] [-o object] file ...\n"); return -1;
@@ -1534,12 +1550,12 @@ int main(int argc, char **argv)
           "LI   LC   SI   SC   PSH  "
           "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
           "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY MMAP "
+          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY SCMP MMAP "
           "DSYM BSCH CLCA STRT EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
-        "open read write close printf malloc memset memcmp memcpy mmap "
+        "open read write close printf malloc memset memcmp memcpy strcmp mmap "
         "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
