@@ -2,7 +2,7 @@ AMaCC = Another Mini ARM C Compiler
 
 Introduction
 ------------
-AMaCC is built from scratch, supoorting ARM architecture.
+AMaCC is built from scratch, supporting ARM architecture.
 There are 3 execution modes AMaCC implements:
 * Just-in-Time compiler for ARM backend
 * Generate valid Executable and Linkable Format (ELF) executables
