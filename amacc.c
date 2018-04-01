@@ -69,7 +69,8 @@ enum {
 enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,
+    MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
     STRT,EXIT
 };
 
@@ -754,6 +755,9 @@ int *codegen(int *jitmem, int *jitmap)
                 case MALC:
                     tmp = (int) (elf ? plt_func_addr[MALC - OPEN] : dlsym(0, "malloc"));
                     break;
+                case FREE:
+                    tmp = (int) (elf ? plt_func_addr[FREE - OPEN] : dlsym(0, "free"));
+                    break;
                 case MSET:
                     tmp = (int) (elf ? plt_func_addr[MSET - OPEN] : dlsym(0, "memset"));
                     break;
@@ -1288,6 +1292,7 @@ int elf32(int poolsz, int *main)
     func_names[CLOS] = append_strtab(&data, "close") - dynstr_addr;
     func_names[PRTF] = append_strtab(&data, "printf") - dynstr_addr;
     func_names[MALC] = append_strtab(&data, "malloc") - dynstr_addr;
+    func_names[FREE] = append_strtab(&data, "free") - dynstr_addr;
     func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
     func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
     func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
@@ -1313,6 +1318,7 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[CLOS]);
     append_func_sym(&data, func_names[PRTF]);
     append_func_sym(&data, func_names[MALC]);
+    append_func_sym(&data, func_names[FREE]);
     append_func_sym(&data, func_names[MSET]);
     append_func_sym(&data, func_names[MCMP]);
     append_func_sym(&data, func_names[MCPY]);
@@ -1550,12 +1556,14 @@ int main(int argc, char **argv)
           "LI   LC   SI   SC   PSH  "
           "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
           "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC MSET MCMP MCPY SCMP MMAP "
+          "OPEN READ WRIT CLOS PRTF MALC FREE "
+          "MSET MCMP MCPY SCMP MMAP "
           "DSYM BSCH CLCA STRT EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
-        "open read write close printf malloc memset memcmp memcpy strcmp mmap "
+        "open read write close printf malloc free "
+        "memset memcmp memcpy strcmp mmap "
         "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
