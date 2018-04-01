@@ -10,8 +10,8 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 
-char *p, *lp;         // current position in source code
-char *data, *_data;   // data/bss pointer
+char *freep, *p, *lp; // current position in source code
+char *freedata, *data, *_data;   // data/bss pointer
 char *ops;            // opcodes
 
 int *e, *le, *text;  // current position in emitted code
@@ -1495,7 +1495,7 @@ int elf32(int poolsz, int *main)
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
-    int fd, bt, mbt, ty, poolsz;
+    int fd, ret, bt, mbt, ty, poolsz;
     struct ident_s *idmain;
     struct member_s *m;
     int i;
@@ -1535,7 +1535,7 @@ int main(int argc, char **argv)
     if (!(sym = malloc(poolsz))) {
         printf("could not malloc(%d) symbol area\n", poolsz); return -1;
     }
-    if (!(_data = data = malloc(poolsz))) {
+    if (!(freedata = _data = data = malloc(poolsz))) {
         printf("could not malloc(%d) data area\n", poolsz); return -1;
     }
     if (!(tsize = malloc(PTR * sizeof(int)))) {
@@ -1578,7 +1578,7 @@ int main(int argc, char **argv)
     next(); id->tk = Char; // handle void type
     next(); idmain = id; // keep track of main
 
-    if (!(lp = p = malloc(poolsz))) {
+    if (!(freep = lp = p = malloc(poolsz))) {
         printf("could not malloc(%d) source area\n", poolsz); return -1;
     }
     if ((i = read(fd, p, poolsz-1)) <= 0) {
@@ -1791,8 +1791,14 @@ int main(int argc, char **argv)
     }
 
     if (elf)
-        return elf32(poolsz, (int *) idmain->val);
-    return jit(poolsz, (int *) idmain->val, argc, argv);
+        ret = elf32(poolsz, (int *) idmain->val);
+    else
+        ret = jit(poolsz, (int *) idmain->val, argc, argv);
+    free(freep);
+    free(freedata);
+    free(text);
+    free(sym);
+    return ret;
 }
 
 // vim: set tabstop=4 shiftwidth=4 expandtab:
