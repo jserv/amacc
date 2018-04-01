@@ -1,4 +1,3 @@
-CROSS_COMPILE ?= arm-linux-gnueabihf-
 CFLAGS = -O0 -Wall -Wno-misleading-indentation
 OBJ_DIR = elf
 TEST_DIR = tests
@@ -9,12 +8,11 @@ NO_COLOR = \x1b[0m
 
 BIN = amacc
 
-ARM_EXEC = qemu-arm -L /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
-
+include mk/arm.mk
 all: $(BIN)
 
 amacc: amacc.c
-	$(CROSS_COMPILE)gcc $(CFLAGS) -o amacc $? -g -ldl
+	$(ARM_CC) $(CFLAGS) -o $@ $< -g -ldl
 
 check: $(BIN) $(TEST_OBJ)
 	@echo "[ JIT      ]"
