@@ -1,5 +1,5 @@
 CROSS_COMPILE ?= arm-linux-gnueabihf-
-CFLAGS = -O0 -Wall
+CFLAGS = -O0 -Wall -Wno-misleading-indentation
 OBJ_DIR = elf
 TEST_DIR = tests
 TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
