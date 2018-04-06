@@ -1077,7 +1077,7 @@ int append_func_sym(char **data, int name)
     return idx;
 }
 
-enum { ALIGN = 4096 };
+enum { PAGE_SIZE = 0x1000 };
 
 int elf32(int poolsz, int *main)
 {
@@ -1090,25 +1090,24 @@ int elf32(int poolsz, int *main)
     int FUNC_NUM;
     char *e_shoff;
 
-    int code_size, start_stub_size, rel_size, rel_off;
+    int code_size, start_stub_size, rel_size, rel_off, dseg_size, load_bias;
     char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
     int plt_size, plt_off, pt_dyn_size, rwdata_off;
-    int shstrtab_off, shstrtab_size;
-    char *dynstr_addr, *dynsym_addr, *_gap, *got_addr;
+    int shstrtab_off, shstrtab_size, linker_size;
+    char *dynstr_addr, *dynsym_addr, *got_addr;
     int dynstr_off, dynstr_size;
-    int dynsym_off, dynsym_size, gap, got_off;
+    int dynsym_off, dynsym_size, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
     int *func_names;
     int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
-    int code_size_align;
 
     code = malloc(poolsz);
     buf = malloc(poolsz);
     jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
-    o = buf = (char *) (((int) buf + ALIGN - 1)  & -ALIGN);
-    code =    (char *) (((int) code + ALIGN - 1) & -ALIGN);
+    o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
+    code =    (char *) (((int) code + PAGE_SIZE - 1) & -PAGE_SIZE);
 
     PT_idx = 0;
     SH_idx = 0;
@@ -1180,83 +1179,57 @@ int elf32(int poolsz, int *main)
     entry = o; o = o + 4; // e_entry
     *(int *) o = 52; o = o + 4; // e_phoff
     e_shoff = o; o = o + 4; // e_shoff
-    *(int *) o = 0x5000402;           o = o + 4; // e_flags
+    *(int *) o = 0x5000400;           o = o + 4; // e_flags
     *o++ = 52; *o++ = 0;
-    *o++ = 32; *o++ = 0; *o++ = 5; *o++ = 0; // e_phentsize & e_phnum
-    *o++ = 40; *o++ = 0; *o++ = 12; *o++ = 0; // e_shentsize & e_shnum
+    *o++ = 32; *o++ = 0; *o++ = 4; *o++ = 0; // e_phentsize & e_phnum
+    *o++ = 40; *o++ = 0; *o++ = 11; *o++ = 0; // e_shentsize & e_shnum
     *o++ =  1; *o++ = 0;
 
     phdr = o; o = o + PHDR_SIZE * 4; // e_phentsize * e_phnum for phdr size
-    o = (char *) (((int) o + ALIGN - 1)  & -ALIGN); // to 0x1000
-    code_off = o - buf; // 0x1000
+    code_off = o - buf;
     // must add a value >= 4. sometimes first codegen size is not equal
     // to second codegen
-    code_size = je - code + 128;
+    code_size = je - code + 4;
+    code_addr = o;
+    o = o + code_size;
     rel_size = 8 * FUNC_NUM;
     rel_off = code_off + code_size;
-    rel_addr = o + code_size;
+    rel_addr = code_addr + code_size;
+    o = o + rel_size;
 
     plt_size = 20 + 12 * FUNC_NUM;
     plt_off = rel_off + rel_size;
     plt_addr = rel_addr + rel_size;
+    o = o + plt_size;
 
-    code_addr = o;
-    o++;
-    code_size_align = (((int) code_size + ALIGN - 1)  & -ALIGN);
-    o = (char *)(((int)(o + code_size) + ALIGN - 1)  & -ALIGN); // to 0x2000
-    memcpy(code_addr, code,  0x1000);
+    memcpy(code_addr, code,  code_size);
     *(int *) entry = (int) code_addr;
 
     // data
     pt_dyn_size = 14 * 8 + 16;
-    dseg = o; o = o + 4096; // 0x3000
     _data_end = data;
-    data = (char *) (((int) data + ALIGN - 1) & -ALIGN); // force data address
-                                                         // align to offset
-    pt_dyn = data; pt_dyn_off = dseg - buf; data = data + pt_dyn_size;
+    // load_bias uses to align offset and v_addr, the elf loader
+    // needs PAGE_SIZE align to do mmap()
+    load_bias = PAGE_SIZE + ((int) _data & (PAGE_SIZE - 1))
+        - ((o - buf) & (PAGE_SIZE - 1));
+    o = o + load_bias;
+    dseg = o;
+    rwdata_off = dseg - buf;
+    rwdata_size = _data_end - _data;
+    o = o + rwdata_size;
+
+    pt_dyn = data; pt_dyn_off = rwdata_off + rwdata_size;
+    data = data + pt_dyn_size;
+    o = o + pt_dyn_size;
+
     linker = data; memcpy(linker, "/lib/ld-linux-armhf.so.3", 25);
-    linker_off = pt_dyn_off + pt_dyn_size; data = data + 25;
-
-    // the first 4k in this address space is for elf header, especially
-    // elf_phdr because ld.so must be able to see it
-    // PT_LOAD for code
-    to = phdr;
-    // code_idx
-    gen_PT(to, PT_LOAD, 0, (int) buf, code_size_align + 0x1000,
-           PF_X | PF_R, 0x1000);
-    to = to+ PHDR_SIZE;
-    code_size_align = code_size_align - 0x1000;
-    // PT_LOAD for data
-    // data_idx
-    gen_PT(to, PT_LOAD, pt_dyn_off, (int) pt_dyn + code_size_align, 4096,
-           PF_W | PF_R, 0x1000);
-    to = to + PHDR_SIZE;
-
-    // PT_INTERP
-    // interp_idx
-    gen_PT(to, PT_INTERP, linker_off, (int) linker + code_size_align, 
-           25 , PF_R, 0x1);
-    to = to + PHDR_SIZE;
-
-    // PT_DYNAMIC
-    gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn + code_size_align, 
-           pt_dyn_size , PF_R | PF_W, 4);
-    to = to + PHDR_SIZE;
-
-    // offset and v_addr must align for 0xFFF(or 0xFFFF?)
-    rwdata_off = (pt_dyn_off + 0x1000) | ((int) _data & 0xfff);
-    // PT_LOAD for others data
-    // FIXME: .text and .rwdata will be at least 3 * 256 * 1024 =
-    // 3 * 2^18 bytes = 0xc0000 offset
-    // so now AMaCC can only generate code which code size is less than
-    // about 786K
-    gen_PT(to, PT_LOAD, rwdata_off, (int)_data, 
-           _data_end - _data, PF_X | PF_R | PF_W, 1);
-    to = to + PHDR_SIZE;
+    linker_size = 25;
+    linker_off = pt_dyn_off + pt_dyn_size; data = data + linker_size;
+    o = o + linker_size;
 
     // .shstrtab (embedded in PT_LOAD of data)
     shstrtab_addr = data;
-    shstrtab_off = (int)(data - pt_dyn) + (int)(dseg - buf);
+    shstrtab_off = linker_off + linker_size;
     shstrtab_size = 0;
     append_strtab(&data, "");
     append_strtab(&data, ".shstrtab");
@@ -1273,6 +1246,7 @@ int elf32(int poolsz, int *main)
     append_strtab(&data, ".got");
     append_strtab(&data, ".rwdata");
     shstrtab_size = data - shstrtab_addr;
+    o = o + shstrtab_size;
 
     // .dynstr (embedded in PT_LOAD of data)
     dynstr_addr = data;
@@ -1281,7 +1255,7 @@ int elf32(int poolsz, int *main)
     libc = append_strtab(&data, "libc.so.6");
     ldso = append_strtab(&data, "libdl.so.2");
 
-    func_names = (int *)malloc(sizeof(int) * (EXIT + 1));
+    func_names = (int *) malloc(sizeof(int) * (EXIT + 1));
     if (!func_names) {
         die("could not malloc func_names table\n");
     }
@@ -1305,6 +1279,7 @@ int elf32(int poolsz, int *main)
     func_names[EXIT] = append_strtab(&data, "exit") - dynstr_addr;
 
     dynstr_size = data - dynstr_addr;
+    o = o + dynstr_size;
 
     // .dynsym (embedded in PT_LOAD of data)
     dynsym_addr = data;
@@ -1331,26 +1306,26 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[EXIT]);
 
     dynsym_size = SYM_SIZE * (FUNC_NUM + 1);
-    _gap = data;
-    data = (char *) (((int) data + 15) & -16);
-    gap = (int) data - (int) _gap;
+    o = o + dynsym_size;
     // .got
     got_addr = data;
-    got_off = dynsym_off + dynsym_size + gap;
+    got_off = dynsym_off + dynsym_size;
     *(int *) data = (int) pt_dyn; data = data + 4;
     data = data + 4;  // reserved 2 and 3 entry for linker
-    to_got_movw = data + code_size_align;
-    to_got_movt = data + code_size_align;  // the address manupulates dynamic
-                                           // linking, plt must jump here 
+    to_got_movw = data;
+    to_got_movt = data;  // the address manupulates dynamic
+                         // linking, plt must jump here.
     data = data + 4;  // reserved 2 and 3 entry for linker
     // .got function slot
     got_func_slot = malloc(FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++) {
-        got_func_slot[i] = data + code_size_align;
+        got_func_slot[i] = data;
         *(int *) data = (int) plt_addr; data = data + 4;
     }
     data = data + 4;  // end with 0x0
     got_size = (int) data - (int) got_addr;
+    o = o + got_size;
+    dseg_size = o - dseg;
 
     // .plt 
     to = plt_addr;
@@ -1389,23 +1364,41 @@ int elf32(int poolsz, int *main)
         // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
     }
 
-    //  .rwdata
-    rwdata_size = _data_end - _data;
-    o = o + (rwdata_off - (pt_dyn_off + 0x1000)); // rwdata_off has align x bytes
-    memcpy(o, _data, rwdata_size);
-    o = o + rwdata_size;
+    // PT_LOAD for code
+    to = phdr;
+    // code_idx
+    gen_PT(to, PT_LOAD, 0, (int) buf, code_size + 52 + PHDR_SIZE * 5 + rel_size + plt_size,
+           PF_X | PF_R, PAGE_SIZE);
+    to = to + PHDR_SIZE;
+
+    // PT_LOAD for data
+    // data_idx
+    gen_PT(to, PT_LOAD, rwdata_off, (int) _data, dseg_size,
+           PF_W | PF_R, PAGE_SIZE);
+    to = to + PHDR_SIZE;
+
+    // PT_INTERP
+    // interp_idx
+    gen_PT(to, PT_INTERP, linker_off, (int) linker,
+           25 , PF_R, 0x1);
+    to = to + PHDR_SIZE;
+
+    // PT_DYNAMIC
+    gen_PT(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn,
+           pt_dyn_size , PF_R | PF_W, 4);
+    to = to + PHDR_SIZE;
+
     *(int *) e_shoff = (int)(o - buf);
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
-    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr +
-                                                 code_size_align; to = to + 4;
+    *(int *) to =  5; to = to + 4; *(int *) to = (int) dynstr_addr; to = to + 4;
     *(int *) to = 10; to = to + 4; *(int *) to = dynstr_size; to = to + 4;
-    *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr + code_size_align; to = to + 4;
+    *(int *) to =  6; to = to + 4; *(int *) to = (int) dynsym_addr; to = to + 4;
     *(int *) to = 11; to = to + 4; *(int *) to = 16; to = to + 4;
     *(int *) to = 17; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
     *(int *) to = 18; to = to + 4; *(int *) to = rel_size; to = to + 4;
     *(int *) to = 19; to = to + 4; *(int *) to = 8; to = to + 4;
-    *(int *) to =  3; to = to + 4; *(int *) to = (int) got_addr + code_size_align; to = to + 4;
+    *(int *) to =  3; to = to + 4; *(int *) to = (int) got_addr; to = to + 4;
     *(int *) to =  2; to = to + 4; *(int *) to = rel_size; to = to + 4;
     *(int *) to = 20; to = to + 4; *(int *) to = 17; to = to + 4;
     *(int *) to = 23; to = to + 4; *(int *) to = (int) rel_addr; to = to + 4;
@@ -1415,7 +1408,7 @@ int elf32(int poolsz, int *main)
 
     // we generate code again bacause address of .plt function slots
     // must be confirmed
-    je = (char *) codegen((int *)(code + start_stub_size), jitmap);
+    je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je)
         return 1;
     if ((int *) je >= jitmap) die("jitmem too small");
@@ -1423,7 +1416,7 @@ int elf32(int poolsz, int *main)
     // relocate _start() stub.
     *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
     *((int *)(code + 0x44)) =
-        reloc_bl(jitmap[((int)main - (int)text) >> 2] - (int)code - 0x44);
+        reloc_bl(jitmap[((int) main - (int) text) >> 2] - (int) code - 0x44);
 
     // copy the generated binary.
     memcpy(code_addr, code,  je - code);
@@ -1443,27 +1436,27 @@ int elf32(int poolsz, int *main)
     o = o + SHDR_SIZE;
 
     // sh_data_idx
-    gen_SH(o, SHT_PROGBITS, 17, pt_dyn_off, (int) pt_dyn + code_size_align, 0x1000,
+    gen_SH(o, SHT_PROGBITS, 17, rwdata_off, (int) _data, dseg_size,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o = o + SHDR_SIZE;
 
     sh_dynstr_idx =
-    gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr + code_size_align, dynstr_size,
+    gen_SH(o, SHT_STRTAB, 48, dynstr_off, (int) dynstr_addr, dynstr_size,
            0, 0, SHF_ALLOC, 1, 0);
     o = o + SHDR_SIZE;
     
     sh_dynsym_idx =
-    gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr + code_size_align, dynsym_size,
+    gen_SH(o, SHT_DYNSYM, 56, dynsym_off, (int) dynsym_addr, dynsym_size,
           sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
     o = o + SHDR_SIZE;
     
     // sh_dynamic_idx
-    gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn + code_size_align, pt_dyn_size,
+    gen_SH(o, SHT_DYNAMIC, 23, pt_dyn_off, (int) pt_dyn, pt_dyn_size,
            sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o = o + SHDR_SIZE;
 
     // sh_interp_idx
-    gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker + code_size_align, 25,
+    gen_SH(o, SHT_PROGBITS, 64, linker_off, (int) linker, 25,
            0, 0, SHF_ALLOC, 1, 0);
     o = o + SHDR_SIZE;
 
@@ -1478,16 +1471,12 @@ int elf32(int poolsz, int *main)
     o = o + SHDR_SIZE;
 
     // sh_got_idx
-    gen_SH(o, SHT_PROGBITS, 86, got_off, (int)got_addr + code_size_align, got_size,
+    gen_SH(o, SHT_PROGBITS, 86, got_off, (int) got_addr, got_size,
            0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
     o = o + SHDR_SIZE;
 
-    // sh_rwdata_idx
-    gen_SH(o, SHT_PROGBITS, 91, rwdata_off, (int)_data, rwdata_size,
-           0, 0, SHF_ALLOC, 0, 1);
-    o = o + SHDR_SIZE;
-
-    memcpy(dseg, pt_dyn, 0x1000);
+    // Copy .data to part of (o - buf)
+    memcpy(dseg, _data, dseg_size);
     write(elf_fd, buf, o - buf);
     return 0;
 }
