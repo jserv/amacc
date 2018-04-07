@@ -1095,7 +1095,7 @@ enum {
 int elf32(int poolsz, int *main)
 {
     char *o, *buf, *code, *entry, *je;
-    char *to, *phdr, *dseg;
+    char *to, *phdr, *dseg, *freebuf, *freecode;
     char *pt_dyn, *libc, *ldso, *interp, *interp_str;
     int pt_dyn_off, interp_off, code_off, i;
     int *jitmap;
@@ -1115,8 +1115,8 @@ int elf32(int poolsz, int *main)
     int *func_names, *shdr_names;
     int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
 
-    code = malloc(poolsz);
-    buf = malloc(poolsz);
+    code = freecode = malloc(poolsz);
+    buf = freebuf = malloc(poolsz);
     jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
     o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
@@ -1129,7 +1129,7 @@ int elf32(int poolsz, int *main)
     // We must assign the plt_func_addr[x] a non-zero value, otherwise
     // the length of the code after codegen will be wrong
     FUNC_NUM = EXIT - OPEN + 1;
-    plt_func_addr = malloc(FUNC_NUM);
+    plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o;
 
@@ -1205,7 +1205,7 @@ int elf32(int poolsz, int *main)
     code_off = o - buf;
     // code_size must add a value >= 4. Sometimes the size of codegen() is
     // not equal to second codegen because .plt is uninitial.
-    code_size = je - code + 4;
+    code_size = je - code + 32;
     code_addr = o;
     o = o + code_size;
 
@@ -1348,7 +1348,7 @@ int elf32(int poolsz, int *main)
     to_got_movt = data;  // linking, plt must jump here.
     data = data + 4;  // reserved 2 and 3 entry for interp
     // .got function slot
-    got_func_slot = malloc(FUNC_NUM);
+    got_func_slot = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++) {
         got_func_slot[i] = data;
         *(int *) data = (int) plt_addr; data = data + 4;
@@ -1510,6 +1510,13 @@ int elf32(int poolsz, int *main)
     // Copy .data to a part of (o - buf) where _data located.
     memcpy(dseg, _data, dseg_size);
     write(elf_fd, buf, o - buf);
+
+    free(func_names);
+    free(shdr_names);
+    free(freebuf);
+    free(freecode);
+    free(plt_func_addr);
+    free(got_func_slot);
     return 0;
 }
 
