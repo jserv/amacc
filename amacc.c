@@ -1126,12 +1126,14 @@ int elf32(int poolsz, int *main)
     shdr_idx = 0;
     sym_idx = 0;
 
-    // We must assign the plt_func_addr[x] a non-zero value, otherwise
-    // the length of the code after codegen will be wrong
+    // We must assign the plt_func_addr[x] a non-zero value, and also,
+    // plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
+    // (4 instruction * 4 bytes), so the first codegen and second codegen
+    // have consistent code_size.
     FUNC_NUM = EXIT - OPEN + 1;
     plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
-        plt_func_addr[i] = o;
+        plt_func_addr[i] = o + i * 16;
 
     // Run __libc_start_main() and pass main trampoline.
     //
@@ -1203,9 +1205,7 @@ int elf32(int poolsz, int *main)
 
     // .text
     code_off = o - buf;
-    // code_size must add a value >= 4. Sometimes the size of codegen() is
-    // not equal to second codegen because .plt is uninitial.
-    code_size = je - code + 32;
+    code_size = je - code;
     code_addr = o;
     o = o + code_size;
 
