@@ -895,7 +895,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
     if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
-    *tje = reloc_bl(jitmap[((int) main- (int) text) >> 2] - (int) tje);
+    *tje = reloc_bl(jitmap[((int) main - (int) text) >> 2] - (int) tje);
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
@@ -1632,10 +1632,7 @@ int main(int argc, char **argv)
                     next();
                     if (tk == Assign) {
                         next();
-                        if (tk != Num) {
-                            printf("%d: bad enum initializer\n", line);
-                            return -1;
-                        }
+                        if (tk != Num) fatal("bad enum initializer");
                         i = ival;
                         next();
                     }
@@ -1656,10 +1653,7 @@ int main(int argc, char **argv)
             }
             if (tk == '{') {
                 next();
-                if (members[bt]) {
-                    printf("%d: duplicate structure definition\n", line);
-                    return -1;
-                }
+                if (members[bt]) fatal("duplicate structure definition");
                 i = 0;
                 while (tk != '}') {
                     mbt = INT;
@@ -1668,20 +1662,14 @@ int main(int argc, char **argv)
                     case Char: next(); mbt = CHAR; break;
                     case Struct:
                         next(); 
-                        if (tk != Id) {
-                            printf("%d: bad struct declaration\n", line);
-                            return -1;
-                        }
+                        if (tk != Id) fatal("bad struct declaration");
                         mbt = id->stype;
                         next(); break;
                     }
                     while (tk != ';') {
                         ty = mbt;
                         while (tk == Mul) { next(); ty = ty + PTR; }
-                        if (tk != Id) {
-                            printf("%d: bad struct member definition\n", line);
-                            return -1;
-                        }
+                        if (tk != Id) fatal("bad struct member definition");
                         m = malloc(sizeof(struct member_s));
                         m->id = id;
                         m->offset = i;
@@ -1703,12 +1691,8 @@ int main(int argc, char **argv)
         while (tk != ';' && tk != '}') {
             ty = bt;
             while (tk == Mul) { next(); ty = ty + PTR; }
-            if (tk != Id) {
-                printf("%d: bad global declaration\n", line); return -1;
-            }
-            if (id->class) {
-                printf("%d: duplicate global definition\n", line); return -1;
-            }
+            if (tk != Id) fatal("bad global declaration");
+            if (id->class) fatal("duplicate global definition");
             next();
             id->type = ty;
             if (tk == '(') { // function
@@ -1722,22 +1706,13 @@ int main(int argc, char **argv)
                     case Char: next(); ty = CHAR; break;
                     case Struct:
                         next(); 
-                        if (tk != Id) {
-                            printf("%d: bad struct declaration\n", line);
-                            return -1;
-                        }
+                        if (tk != Id) fatal("bad struct declaration");
                         ty = id->stype;
                         next(); break;
                     }
                     while (tk == Mul) { next(); ty = ty + PTR; }
-                    if (tk != Id) {
-                        printf("%d: bad parameter declaration\n", line);
-                        return -1;
-                    }
-                    if (id->class == Loc) {
-                        printf("%d: duplicate parameter definition\n", line);
-                        return -1;
-                    }
+                    if (tk != Id) fatal("bad parameter declaration");
+                    if (id->class == Loc) fatal("duplicate parameter definition");
                     id->hclass = id->class; id->class = Loc;
                     id->htype  = id->type;  id->type = ty;
                     id->hval   = id->val;   id->val = i++;
@@ -1745,10 +1720,7 @@ int main(int argc, char **argv)
                     if (tk == ',') next();
                 }
                 next();
-                if (tk != '{') {
-                    printf("%d: bad function definition\n", line);
-                    return -1;
-                }
+                if (tk != '{') fatal("bad function definition");
                 loc = ++i;
                 next();
                 while (tk == Int || tk == Char || tk == Struct) {
@@ -1757,24 +1729,15 @@ int main(int argc, char **argv)
                     case Char: bt = CHAR; break;
                     default:
                         next();
-                        if (tk != Id) {
-                            printf("%d: bad struct declaration\n", line);
-                            return -1;
-                        }
+                        if (tk != Id) fatal("bad struct declaration");
                         bt = id->stype; break;
                     }
                     next();
                     while (tk != ';') {
                         ty = bt;
                         while (tk == Mul) { next(); ty = ty + PTR; }
-                        if (tk != Id) {
-                            printf("%d: bad local declaration\n", line);
-                            return -1;
-                        }
-                        if (id->class == Loc) {
-                            printf("%d: duplicate local definition\n", line);
-                            return -1;
-                        }
+                        if (tk != Id) fatal("bad local declaration");
+                        if (id->class == Loc) fatal("duplicate local definition");
                         id->hclass = id->class; id->class = Loc;
                         id->htype  = id->type;  id->type = ty;
                         id->hval   = id->val;   id->val = ++i;
