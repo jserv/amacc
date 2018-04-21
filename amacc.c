@@ -80,7 +80,7 @@ enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 // ELF generation
 char **plt_func_addr;
 
-char* append_strtab(char **strtab, char *str)
+char *append_strtab(char **strtab, char *str)
 {
     int nbytes;
     char *res;
@@ -221,13 +221,12 @@ void expr(int lev)
     case '"':
         *++e = IMM; *++e = ival; next();
         while (tk == '"') next();
-        data = (char *)(((int) data + sizeof(int)) & (-sizeof(int)));
+        data = (char *) (((int) data + sizeof(int)) & (-sizeof(int)));
         ty = PTR;
         break;
     case Sizeof:
         next();
-        if (tk == '(')
-            next();
+        if (tk == '(') next();
         else fatal("open paren expected in sizeof");
         ty = INT;
         switch (tk) {
@@ -239,8 +238,7 @@ void expr(int lev)
             ty = id->stype; next(); break;
         }
         while (tk == Mul) { next(); ty = ty + PTR; }
-        if (tk == ')')
-            next();
+        if (tk == ')') next();
         else fatal("close paren expected in sizeof");
         *++e = IMM; *++e = ty >= PTR ? sizeof(int) : tsize[ty];
         ty = INT;
@@ -505,8 +503,8 @@ void stmt()
         else fatal("close paren expected");
         *++e = BZ; b = ++e;
         stmt();
-        *++e = JMP; *++e = (int)a;
-        *b = (int)(e + 1);
+        *++e = JMP; *++e = (int) a;
+        *b = (int) (e + 1);
         return;
     case Switch:
         next();
@@ -518,13 +516,13 @@ void stmt()
         a = cas; *++e = JMP; cas = ++e;
         b = brks; d = def; brks = def = 0;
         stmt();
-        *cas = def ? (int)def : (int)(e + 1); cas = a;
-        while (brks) { a = (int *)*brks; *brks = (int)(e + 1); brks = a; }
+        *cas = def ? (int) def : (int) (e + 1); cas = a;
+        while (brks) { a = (int *) *brks; *brks = (int) (e + 1); brks = a; }
         brks = b; def = d;
         return;
     case Case:
         *++e = JMP; ++e;
-        *e = (int)(e + 7); *++e = PSH; i = *cas; *cas = (int)e;
+        *e = (int) (e + 7); *++e = PSH; i = *cas; *cas = (int) e;
         next();
         expr(Or);
         if (e[-1] != IMM) fatal("bad case immediate");
@@ -561,10 +559,7 @@ void stmt()
         if (tk == '(') next();
         else fatal("open paren expected");
         expr(Assign);
-        while (tk == ',') {
-            next();
-            expr(Assign);
-        }
+        while (tk == ',') { next(); expr(Assign); }
         if (tk == ';') next();
         else fatal("semicolon expected");
         a = e + 1; // Points to entry of for cond
@@ -575,14 +570,11 @@ void stmt()
         *++e = JMP; d = ++e; // Jump to entry of for loop body
         x = e + 1; // Points to entry of for loop afterthought
         expr(Assign);
-        while (tk == ',') {
-            next();
-            expr(Assign);
-        }
+        while (tk == ',') { next(); expr(Assign); }
         if (tk == ')') next();
         else fatal("close paren expected");
         *++e = JMP; *++e = (int) a;
-        *d = (int)(e+1); // Modify address of jump
+        *d = (int) (e + 1); // Modify address of jump
         stmt();
         *++e = JMP; *++e = (int) x;
         *b = (int) (e + 1);
@@ -650,7 +642,7 @@ int *codegen(int *jitmem, int *jitmap)
             tmp = *pc++;
             if (0 <= tmp && tmp < 256)
                 *je++ = 0xe3a00000 + tmp;        // mov r0, #(tmp)
-            else { if (!imm0) imm0 = je; *il++ = (int)(je++); *iv++ = tmp;}
+            else { if (!imm0) imm0 = je; *il++ = (int) (je++); *iv++ = tmp;}
             break;
         case JSR:
         case JMP:
@@ -779,8 +771,8 @@ int *codegen(int *jitmem, int *jitmap)
                     tmp = (int) (elf ? plt_func_addr[STRL - OPEN] : dlsym(0, "strlen"));
                     break;
                 case STRT:
-                    tmp = (int) (elf ? plt_func_addr[STRT - OPEN]
-                                     : dlsym(0, "__libc_start_main"));
+                    tmp = (int) (elf ? plt_func_addr[STRT - OPEN] :
+                                       dlsym(0, "__libc_start_main"));
                     break;
                 case EXIT:
                     tmp = (int) (elf ? plt_func_addr[EXIT - OPEN] : dlsym(0, "exit"));
@@ -812,8 +804,8 @@ int *codegen(int *jitmem, int *jitmap)
             }
         }
         if (genpool) {
-            if (verbose) printf("POOL %d %d %d\n", genpool,
-                                                   il - immloc, je - imm0);
+            if (verbose) printf("POOL %d %d %d\n",
+                                genpool, il - immloc, je - imm0);
             *iv = 0;
             while (il > immloc) {
                 tmp = *--il;
@@ -860,7 +852,7 @@ int *codegen(int *jitmem, int *jitmap)
             }
             tmp = *pc++;
             *je = (*je |
-                   reloc_imm(jitmap[(tmp - (int)text) >> 2] - (int)je));
+                   reloc_imm(jitmap[(tmp - (int) text) >> 2] - (int) je));
         }
         else if (i < LEV) { ++pc; }
     }
@@ -903,7 +895,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
     *je++ = 0xe8bd9ff0;       // pop     {r4-r12, pc}
     if (!(je = codegen(je, jitmap))) return 1;
     if (je >= jitmap) die("jitmem too small");
-    *tje = reloc_bl(jitmap[((int)main- (int)text) >> 2] - (int)tje);
+    *tje = reloc_bl(jitmap[((int) main- (int) text) >> 2] - (int) tje);
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
@@ -1024,7 +1016,7 @@ enum {
 int phdr_idx, shdr_idx, sym_idx;
 
 int gen_phdr(char *ptr, int type, int offset, int addr, int size,
-           int flag, int align)
+             int flag, int align)
 {
     struct Elf32_Phdr *phdr;
     phdr = (struct Elf32_Phdr *) ptr;
@@ -1040,8 +1032,8 @@ int gen_phdr(char *ptr, int type, int offset, int addr, int size,
 }
 
 int gen_shdr(char *ptr, int type, int name, int offset, int addr,
-           int size, int link, int info,
-           int flag, int align, int entsize)
+             int size, int link, int info,
+             int flag, int align, int entsize)
 {
     struct Elf32_Shdr *shdr;
     shdr = (struct Elf32_Shdr *) ptr;
@@ -1259,9 +1251,7 @@ int elf32(int poolsz, int *main)
     shstrtab_size = 0;
 
     shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
-    if (!shdr_names) {
-        die("Could not malloc shdr_names table\n");
-    }
+    if (!shdr_names) die("Could not malloc shdr_names table\n");
 
     shdr_names[SNONE] = append_strtab(&data, "") - shstrtab_addr;
     shdr_names[SSTAB] = append_strtab(&data, ".shstrtab") - shstrtab_addr;
@@ -1285,9 +1275,7 @@ int elf32(int poolsz, int *main)
     ldso = append_strtab(&data, "libdl.so.2");
 
     func_names = (int *) malloc(sizeof(int) * (EXIT + 1));
-    if (!func_names) {
-        die("Could not malloc func_names table\n");
-    }
+    if (!func_names) die("Could not malloc func_names table\n");
 
     func_names[OPEN] = append_strtab(&data, "open") - dynstr_addr;
     func_names[READ] = append_strtab(&data, "read") - dynstr_addr;
@@ -1725,7 +1713,7 @@ int main(int argc, char **argv)
             id->type = ty;
             if (tk == '(') { // function
                 id->class = Fun;
-                id->val = (int)(e + 1);
+                id->val = (int) (e + 1);
                 next(); i = 0;
                 while (tk != ')') {
                     ty = INT;
