@@ -141,9 +141,11 @@ void next()
             if (src) {
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
-                while (le < e) {
-                    printf("%8.4s", &ops[*++le * 5]);
-                    if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
+                if(verbose){
+                    while (le < e) {
+                        printf("%8.4s", &ops[*++le * 5]);
+                        if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
+                    }
                 }
             }
             ++line;
