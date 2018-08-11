@@ -59,10 +59,11 @@ enum {
     Num = 128, Fun, Sys, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
-    Assign, Cond,
-    Lor, Lan, Or, Xor, And,
-    Eq, Ne, Lt, Gt, Le, Ge,
-    Shl, Shr, Add, Sub, Mul, Inc, Dec, Dot, Arrow, Brak
+    Assign, Cond, // operator: ?, =
+    Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
+    Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
+    Shl, Shr, Add, Sub, Mul, // operator: <<, >>, +, -, *
+    Inc, Dec, Dot, Arrow, Brak // operator: ++, --, ., ->, [
 };
 
 // opcodes
@@ -91,9 +92,15 @@ char *append_strtab(char **strtab, char *str)
     return res;
 }
 
+// parse next token
+// 1. store data into id and then set the id to current lexcial form
+// 2. set tk to appropriate type
 void next()
 {
     char *pp;
+    // using loop to ignore whitespace characters, but characters that
+    // cannot be recognized by the lexical analyzer are considered blank
+    // characters, such as '@', '$'
     while ((tk = *p)) {
         ++p;
         if ((tk >= 'a' && tk <= 'z') || (tk >= 'A' && tk <= 'Z') ||
@@ -101,9 +108,11 @@ void next()
             pp = p - 1;
             while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
                    (*p >= '0' && *p <= '9') || (*p == '_'))
-                tk = tk * 147 + *p++;
+                tk = tk * 147 + *p++; // 147 is the magic number generating hash value
             tk = (tk << 6) + (p - pp);
             id = sym;
+            // hash value is used for fast comparison. Since it is inaccurate,
+            // we have to validate the memory content as well.
             while (id->tk) {
                 if (tk == id->hash &&
                     !memcmp(id->name, pp, p - pp)) {
@@ -117,11 +126,14 @@ void next()
             tk = id->tk = Id;
             return;
         }
+	// first byte is a number, and it is considered a numerical value
         else if (tk >= '0' && tk <= '9') {
             if ((ival = tk - '0')) {
                 while (*p >= '0' && *p <= '9')
                     ival = ival * 10 + *p++ - '0';
             }
+            // first digit is 0 and it starts with 'x', and it is considered
+            // to be a hexadecimal number
             else if (*p == 'x' || *p == 'X') {
                 while ((tk = *++p) &&
                        ((tk >= '0' && tk <= '9') ||
@@ -129,11 +141,11 @@ void next()
                         (tk >= 'A' && tk <= 'F')))
                     ival = ival * 16 + (tk & 15) + (tk >= 'A' ? 9 : 0);
             }
-            else {
+            else { // considered octal
                 while (*p >= '0' && *p <= '7')
                     ival = ival * 8 + *p++ - '0';
             }
-            tk = Num;
+            tk = Num; // token is numeric, return
             return;
         }
         switch (tk) {
@@ -155,14 +167,14 @@ void next()
             break;
         case '/':
             if (*p == '/') { // comment
-        case '#':
+        case '#': // skip #include statement
                 while (*p != 0 && *p != '\n') ++p;
             } else {
-                // Div is not supported
+                // FIXME: Div is not supported
                 return;
             }
             break;
-        case '\'':
+        case '\'': // quotes start with character (string)
         case '"':
             pp = data;
             while (*p != 0 && *p != tk) {
@@ -175,6 +187,8 @@ void next()
                     case 'r': ival = '\r';
                     }
                 }
+                // if it is double quotes, it is considered as a string,
+                // copying characters to data
                 if (tk == '"') *data++ = ival;
             }
             ++p;
@@ -209,6 +223,10 @@ void next()
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
+// expression parsing
+// lev represents an operator
+// because each operator `token` is arranged in order of priority, so
+// large `lev` indicates a high priority
 void expr(int lev)
 {
     int t, *b, sz;
@@ -217,9 +235,11 @@ void expr(int lev)
 
     switch (tk) {
     case 0: fatal("unexpected eof in expression");
+    // directly take an immediate value as the expression value
     case Num: *++e = IMM; *++e = ival; next(); ty = INT; break;
-    case '"':
+    case '"': // string
         *++e = IMM; *++e = ival; next();
+        // continuous `"` handles C-style multiline text such as `"abc" "def"`
         while (tk == '"') next();
         data = (char *) (((int) data + sizeof(int)) & (-sizeof(int)));
         ty = PTR;
@@ -237,6 +257,7 @@ void expr(int lev)
             if (tk != Id) fatal("bad struct type");
             ty = id->stype; next(); break;
         }
+        // multi-level pointers, plus `PTR` for each level
         while (tk == Mul) { next(); ty = ty + PTR; }
         if (tk == ')') next();
         else fatal("close paren expected in sizeof");
@@ -245,22 +266,26 @@ void expr(int lev)
         break;
     case Id:
         d = id; next();
+        // function call
         if (tk == '(') {
             next();
             t = 0;
+            // the parameters
             while (tk != ')') {
                 expr(Assign); *++e = PSH; ++t;
                 if (tk == ',') next();
             }
             next();
-            switch (d->class) {
-            case Sys: *++e = d->val; break;
+            switch (d->class) { // d stores function name
+            case Sys: *++e = d->val; break; // system calls, such as "malloc"
             case Fun: *++e = JSR; *++e = d->val; break;
             default: fatal("bad function call");
             }
+            // because the stack pass parameters, adjust the stack
             if (t) { *++e = ADJ; *++e = t; }
             ty = d->type;
         }
+        // enumeration, only enums have ->class == Num
         else if (d->class == Num) { *++e = IMM; *++e = d->val; ty = INT; }
         else {
             switch (d->class) {
@@ -283,6 +308,7 @@ void expr(int lev)
                 if (tk != Id) fatal("bad struct type");
                 t = id->stype; next(); break;
             }
+            // t: pointer
             while (tk == Mul) { next(); t = t + PTR; }
             if (tk == ')') next();
             else fatal("bad cast");
@@ -295,8 +321,8 @@ void expr(int lev)
             else fatal("close paren expected");
         }
         break;
-    case Mul:
-        next(); expr(Inc);
+    case Mul: // pointer dereference
+        next(); expr(Inc); // high priority
         if (ty >= PTR) ty = ty - PTR;
         else fatal("bad dereference");
         if (ty >= PTR) {
@@ -309,16 +335,18 @@ void expr(int lev)
             fatal("unexpected type");
         }
         break;
-    case And:
+    case And: // "&", take the address operation
+        // when "token" is a variable, it takes the address first and
+        // then LI/LC, so `--e` becomes the address of "a"
         next(); expr(Inc);
         if (*e == LC || *e == LI) --e;
         ty = ty + PTR;
         break;
-    case '!':
+    case '!': // "!x" is equivalent to "x == 0"
         next(); expr(Inc);
         *++e = PSH; *++e = IMM; *++e = 0; *++e = EQ; ty = INT;
         break;
-    case '~':
+    case '~': // "~x" is equivalent to "x ^ -1"
         next(); expr(Inc);
         *++e = PSH; *++e = IMM; *++e = -1; *++e = XOR; ty = INT;
         break;
@@ -327,18 +355,23 @@ void expr(int lev)
         break;
     case Sub:
         next(); *++e = IMM;
-        if (tk == Num) { *++e = -ival; next(); }
+        if (tk == Num) { *++e = -ival; next(); } // value, taking negative
         else { *++e = -1; *++e = PSH; expr(Inc); *++e = MUL; }
         ty = INT;
         break;
+    // processing ++x and --x
+    // x-- and x++ is handled later
     case Inc:
     case Dec:
         t = tk; next(); expr(Inc);
         switch (*e) {
+        // push address to stack (used by SC/SI below), then take the number
         case LC: *e = PSH; *++e = LC; break;
         case LI: *e = PSH; *++e = LI; break;
         default: fatal("bad lvalue in pre-increment");
         }
+        // pushing the value
+        // the pointer is added or subtracted, otherwise it is added or subtracted by 1
         *++e = PSH;
         *++e = IMM;
         *++e = ty >= PTR2 ? sizeof(int) :
@@ -349,7 +382,8 @@ void expr(int lev)
     default: fatal("bad expression");
     }
 
-    while (tk >= lev) { // top down operator precedence
+    // "precedence climbing" or "Top Down Operator Precedence" method
+    while (tk >= lev) {
         t = ty;
         switch (tk) {
         case Assign:
@@ -470,6 +504,7 @@ void expr(int lev)
     }
 }
 
+// statement parsing (syntax analysis, except for declarations)
 void stmt()
 {
     int *a, *b, *d;
@@ -484,27 +519,30 @@ void stmt()
         expr(Assign);
         if (tk == ')') next();
         else fatal("close paren expected");
-        *++e = BZ; b = ++e;
-        stmt();
+        *++e = BZ; b = ++e; // BZ: branch if zero, branch address pointer
+        stmt(); // parse body of "if"
         if (tk == Else) {
-            *b = (int)(e + 3); *++e = JMP; b = ++e;
+            // (e + 3) points to "else" starting position
+            *b = (int) (e + 3); *++e = JMP; b = ++e; // "JMP" to target
             next();
-            stmt();
+            stmt(); // parse body of "else"
         }
-        *b = (int)(e + 1);
+        *b = (int) (e + 1);
         return;
     case While:
         next();
-        a = e + 1;
+        a = e + 1; // start address of "while" body
         if (tk == '(') next();
         else fatal("open paren expected");
         expr(Assign);
         if (tk == ')') next();
         else fatal("close paren expected");
         *++e = BZ; b = ++e;
-        stmt();
+        stmt(); // parse body of "while"
+        // unconditional jump to the start of "while" statement
+        // (including the code for the loop condition), to implement the loop
         *++e = JMP; *++e = (int) a;
-        *b = (int) (e + 1);
+        *b = (int) (e + 1); // // "BZ" jump target (end of cycle)
         return;
     case Switch:
         next();
@@ -546,7 +584,7 @@ void stmt()
         return;
     case Return:
         next();
-        if (tk != ';') expr(Assign);
+        if (tk != ';') expr(Assign); // calculate the return value
         *++e = LEV;
         if (tk == ';') next();
         else fatal("semicolon expected");
@@ -568,7 +606,7 @@ void stmt()
         else fatal("semicolon expected");
         *++e = BZ; b = ++e;
         *++e = JMP; d = ++e; // Jump to entry of for loop body
-        x = e + 1; // Points to entry of for loop afterthought
+        x = e + 1; // Point to entry of for loop afterthought
         expr(Assign);
         while (tk == ',') { next(); expr(Assign); }
         if (tk == ')') next();
@@ -588,6 +626,7 @@ void stmt()
         next();
         return;
     default:
+        // general statements are considered assignment statements/expressions
         expr(Assign);
         if (tk == ';') next();
         else fatal("semicolon expected");
@@ -1142,7 +1181,7 @@ int elf32(int poolsz, int *main)
     // as fini; however, we will need a interp to link the non-shared part
     // of libc.  It sounds too complex.  To keep this compiler simple,
     // let's simply pass NULL pointer.
-    stub_end = (int *)code;
+    stub_end = (int *) code;
 
     *stub_end++ = 0xe3a0b000;  // mov   fp, #0  @ initialize frame pointer
     *stub_end++ = 0xe3a0e000;  // mov   lr, #0  @ initialize link register
@@ -1608,6 +1647,7 @@ int main(int argc, char **argv)
     tsize[tnew++] = sizeof(int);
     // parse declarations
     line = 1;
+    // real C parser begins here
     next();
     while (tk) {
         bt = INT; // basetype
@@ -1688,16 +1728,20 @@ int main(int argc, char **argv)
             }
             break;
         }
+        // parse statemanet such as 'int a, b, c;'
+        // "enum" finishes by "tk == ';'", so the code below will be skipped
         while (tk != ';' && tk != '}') {
             ty = bt;
+            // if the beginning of * is a pointer type, then type plus `PTR`
+            // indicates what kind of pointer
             while (tk == Mul) { next(); ty = ty + PTR; }
             if (tk != Id) fatal("bad global declaration");
             if (id->class) fatal("duplicate global definition");
             next();
             id->type = ty;
             if (tk == '(') { // function
-                id->class = Fun;
-                id->val = (int) (e + 1);
+                id->class = Fun; // type is functional
+                id->val = (int) (e + 1); // function Pointer? offset/address in bytecode
                 next(); i = 0;
                 while (tk != ')') {
                     ty = INT;
@@ -1712,6 +1756,7 @@ int main(int argc, char **argv)
                     }
                     while (tk == Mul) { next(); ty = ty + PTR; }
                     if (tk != Id) fatal("bad parameter declaration");
+                    // function arguments are local variables
                     if (id->class == Loc) fatal("duplicate parameter definition");
                     id->hclass = id->class; id->class = Loc;
                     id->htype  = id->type;  id->type = ty;
@@ -1746,9 +1791,11 @@ int main(int argc, char **argv)
                     }
                     next();
                 }
+                // e represents the address which will store pc
+                // (i - loc) indicates memory size to alocate
                 *++e = ENT; *++e = i - loc;
                 while (tk != '}') stmt();
-                *++e = LEV;
+                *++e = LEV; // function return
                 id = sym; // unwind symbol table locals
                 while (id->tk) {
                     if (id->class == Loc) {
@@ -1760,8 +1807,8 @@ int main(int argc, char **argv)
                 }
             }
             else {
-                id->class = Glo;
-                id->val = (int) data;
+                id->class = Glo; // global variables
+                id->val = (int) data; // assign memory to global variables in data section
                 data = data + sizeof(int);
             }
             if (tk == ',') next();
