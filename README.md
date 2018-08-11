@@ -19,6 +19,7 @@ Prerequisites
 -------------
 * Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
     - linaro-toolchain-binaries (little-endian)
+    - Select `arm-linux-gnueabihf` (32-bit Armv7-a, hard-float, little-endian)
 
 * Install QEMU for ARM user emulation
 ```
