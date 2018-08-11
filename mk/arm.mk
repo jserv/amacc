@@ -19,9 +19,9 @@ endif
 
 # FIXME: check ld-linux.so as well
 ARM_LD_LINUX_PATH := $(shell dirname "$(shell which $(ARM_CC))")/..
-ARM_LD_LINUX_PATH := $(shell cd $(ARM_LD_LINUX_PATH) && pwd)
+ARM_LD_LINUX_PATH := $(shell cd $(ARM_LD_LINUX_PATH) 2>/dev/null && pwd)
 ARM_LD_LINUX_PATH := $(ARM_LD_LINUX_PATH)/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')/libc
-ARM_LD_LINUX_PATH := $(shell cd $(ARM_LD_LINUX_PATH) && pwd)
+ARM_LD_LINUX_PATH := $(shell cd $(ARM_LD_LINUX_PATH) 2>/dev/null && pwd)
 ifndef ARM_LD_LINUX_PATH
 ARM_LD_LINUX_PATH = /usr/$(shell echo $(CROSS_COMPILE) | sed s'/.$$//')
 ARM_LD_LINUX_PATH := $(shell cd $(ARM_LD_LINUX_PATH) 2>/dev/null && pwd)
