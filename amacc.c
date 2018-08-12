@@ -881,6 +881,7 @@ int *codegen(int *jitmem, int *jitmap)
         }
         else if (i < LEV) { ++pc; }
     }
+    free(iv);
     return tje;
 }
 
@@ -1452,8 +1453,11 @@ int elf32(int poolsz, int *main)
     // Generate code again bacause address of .plt function slots must
     // be confirmed before codegen() to make sure the code is correct.
     je = (char *) codegen((int *) (code + start_stub_size), jitmap);
-    if (!je)
+    if (!je) {
+        free(func_names);
+        free(shdr_names);
         return 1;
+    }
     if ((int *) je >= jitmap) die("jitmem too small");
 
     // Relocate _start() stub.
