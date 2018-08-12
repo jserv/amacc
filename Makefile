@@ -31,6 +31,8 @@ check: $(EXEC) $(TEST_OBJ)
 	$(Q)$(ARM_EXEC) $(OBJ_DIR)/hello
 	$(VECHO) "[ nested   ]\n"
 	$(Q)$(ARM_EXEC) ./$(BIN) $(BIN).c tests/hello.c
+	$(VECHO) "[ Compatibility with GCC ]\n"
+	$(Q)python runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
 	$(VECHO) "  SelfCC\t\t$@\n"

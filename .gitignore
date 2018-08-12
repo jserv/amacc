@@ -1,3 +1,4 @@
 amacc
+amacc-native
 elf/
-gccelf/
+out-gcc/
