@@ -5,39 +5,48 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_OBJ = $(TEST_SRC:.c=.o)
 
 BIN = amacc
+EXEC = $(BIN) $(BIN)-native
 
 include mk/arm.mk
 include mk/common.mk
-all: $(BIN)
+all: $(EXEC)
 
-amacc: amacc.c
+$(BIN): $(BIN).c
 	$(VECHO) "  CC+LD\t\t$@\n"
 	$(Q)$(ARM_CC) $(CFLAGS) -o $@ $< -g -ldl
 
-check: $(BIN) $(TEST_OBJ)
+$(BIN)-native: $(BIN).c
+	$(VECHO) "  CC+LD\t\t$@\n"
+	$(Q)$(CC) $(CFLAGS) -o $@ $< \
+	    -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format \
+	    -ldl
+
+check: $(EXEC) $(TEST_OBJ)
+	$(VECHO) "[ C to IR  ]\n"
+	$(Q)./$(BIN)-native -s tests/arginc.c | diff tests/arginc.list -
 	$(VECHO) "[ JIT      ]\n"
-	$(Q)$(ARM_EXEC) ./amacc tests/hello.c
+	$(Q)$(ARM_EXEC) ./$(BIN) tests/hello.c
 	$(VECHO) "[ compiled ]\n"
-	$(Q)$(ARM_EXEC) ./amacc -o $(OBJ_DIR)/hello tests/hello.c
+	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/hello tests/hello.c
 	$(Q)$(ARM_EXEC) $(OBJ_DIR)/hello
 	$(VECHO) "[ nested   ]\n"
-	$(Q)$(ARM_EXEC) ./amacc amacc.c tests/hello.c
+	$(Q)$(ARM_EXEC) ./$(BIN) $(BIN).c tests/hello.c
 
-$(OBJ_DIR)/amacc: $(BIN)
+$(OBJ_DIR)/$(BIN): $(BIN)
 	$(VECHO) "  SelfCC\t\t$@\n"
-	$(Q)$(ARM_EXEC) ./$^ -o $@ amacc.c
+	$(Q)$(ARM_EXEC) ./$^ -o $@ $(BIN).c
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
-$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/amacc
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
 	$(VECHO) "[*** verify $< <JIT>********]\n"
 	$(Q)$(ARM_EXEC) ./$(BIN) $< 2
 	$(VECHO) "[*** verify $< <ELF>********]\n"
 	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/$(notdir $(basename $<)) $<
 	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2
 	$(VECHO) "[*** verify $< <ELF-self>***]\n"
-	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/amacc $< 2
+	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2
 	$(VECHO) "$(PASS_COLOR)$< pass$(NO_COLOR)\n"
 
 clean:
-	$(RM) $(BIN) $(OBJ_DIR)/* \
+	$(RM) $(EXEC) $(OBJ_DIR)/* \
               out-1 out-2
