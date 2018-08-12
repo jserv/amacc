@@ -22,16 +22,23 @@ $(BIN)-native: $(BIN).c
 	    -ldl
 
 check: $(EXEC) $(TEST_OBJ)
-	$(VECHO) "[ C to IR  ]\n"
-	$(Q)./$(BIN)-native -s tests/arginc.c | diff tests/arginc.list -
-	$(VECHO) "[ JIT      ]\n"
-	$(Q)$(ARM_EXEC) ./$(BIN) tests/hello.c
-	$(VECHO) "[ compiled ]\n"
+	$(VECHO) "[ C to IR translation          ]"
+	$(Q)./$(BIN)-native -s tests/arginc.c | diff tests/arginc.list - \
+	    && $(call pass)
+	$(VECHO) "[ JIT compilation + execution  ]"
+	$(Q)if [ "$(shell $(ARM_EXEC) ./$(BIN) tests/hello.c)" = "hello, world" ]; then \
+	$(call pass); \
+	fi
+	$(VECHO) "[ ELF generation               ]"
 	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/hello tests/hello.c
-	$(Q)$(ARM_EXEC) $(OBJ_DIR)/hello
-	$(VECHO) "[ nested   ]\n"
-	$(Q)$(ARM_EXEC) ./$(BIN) $(BIN).c tests/hello.c
-	$(VECHO) "[ Compatibility with GCC ]\n"
+	$(Q)if [ "$(shell $(ARM_EXEC) $(OBJ_DIR)/hello)" = "hello, world" ]; then \
+	$(call pass); \
+	fi
+	$(VECHO) "[ nested/self compilation      ]"
+	$(Q)if [ "$(shell $(ARM_EXEC) ./$(BIN) $(BIN).c tests/hello.c)" = "hello, world" ]; then \
+	$(call pass); \
+	fi
+	$(VECHO) "[ Compatibility with GCC/Arm   ]\n"
 	$(Q)python runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
@@ -40,14 +47,14 @@ $(OBJ_DIR)/$(BIN): $(BIN)
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
-	$(VECHO) "[*** verify $< <JIT>********]\n"
-	$(Q)$(ARM_EXEC) ./$(BIN) $< 2
-	$(VECHO) "[*** verify $< <ELF>********]\n"
-	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/$(notdir $(basename $<)) $<
-	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2
-	$(VECHO) "[*** verify $< <ELF-self>***]\n"
-	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2
-	$(VECHO) "$(PASS_COLOR)$< pass$(NO_COLOR)\n"
+	$(VECHO) "[*** verify $< <JIT> *******]\n"
+	$(Q)$(ARM_EXEC) ./$(BIN) $< 2 $(REDIR)
+	$(VECHO) "[*** verify $< <ELF> *******]\n"
+	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/$(notdir $(basename $<)) $< $(REDIR)
+	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2 $(REDIR)
+	$(VECHO) "[*** verify $< <ELF-self> **]\n"
+	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2 $(REDIR)
+	$(Q)$(call pass,$<)
 
 clean:
 	$(RM) $(EXEC) $(OBJ_DIR)/* \
