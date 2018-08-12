@@ -37,13 +37,13 @@ struct ident_s {
     int tk;
     int hash;
     char *name;
-    int class;
-    int type;
-    int val;
+    // fields starting with 'h' were designed to save and restore
+    // the global class/type/val in order to handle the case if a
+    // function declares a local with the same name as a global.
+    int class, hclass;
+    int type, htype;
+    int val, hval;
     int stype;
-    int hclass;
-    int htype;
-    int hval;
 } *id,  // currently parsed identifier
   *sym; // symbol table (simple list of identifiers)
 
@@ -600,7 +600,7 @@ void stmt()
         while (tk == ',') { next(); expr(Assign); }
         if (tk == ';') next();
         else fatal("semicolon expected");
-        a = e + 1; // Points to entry of for cond
+        a = e + 1; // Point to entry of for cond
         expr(Assign);
         if (tk == ';') next();
         else fatal("semicolon expected");
@@ -635,15 +635,8 @@ void stmt()
 
 void die(char *msg) { printf("codegen: %s\n", msg); exit(2); }
 
-int reloc_imm(int offset)
-{
-    return ((((offset) - 8) >> 2) & 0x00ffffff);
-}
-
-int reloc_bl(int offset)
-{
-    return 0xeb000000 | reloc_imm(offset);
-}
+int reloc_imm(int offset) { return ((((offset) - 8) >> 2) & 0x00ffffff); }
+int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
 {
@@ -1820,6 +1813,7 @@ int main(int argc, char **argv)
         ret = elf32(poolsz, (int *) idmain->val);
     else
         ret = jit(poolsz, (int *) idmain->val, argc, argv);
+
     free(freep);
     free(freedata);
     free(text);
