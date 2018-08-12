@@ -26,7 +26,6 @@ int ty;              // current expression type
 int loc;             // local variable offset
 int line;            // current line number
 int src;             // print source and assembly flag
-int verbose;         // print executed instructions
 int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
@@ -654,10 +653,6 @@ int *codegen(int *jitmem, int *jitmap)
     pc = text + 1; je = jitmem; line = 0;
     while (pc <= e) {
         i = *pc;
-        if (verbose) {
-            printf("%p -> %p: %8.4s", pc, je, &ops[i * 5]);
-            if (i <= ADJ) printf(" %d\n", pc[1]); else printf("\n");
-        }
         jitmap[((int) pc++ - (int) text) >> 2] = (int) je;
         switch (i) {
         case LEA:
@@ -836,8 +831,6 @@ int *codegen(int *jitmem, int *jitmap)
             }
         }
         if (genpool) {
-            if (verbose) printf("POOL %d %d %d\n",
-                                genpool, il - immloc, je - imm0);
             *iv = 0;
             while (il > immloc) {
                 tmp = *--il;
@@ -1552,9 +1545,6 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
         src = 1; --argc; ++argv;
     }
-    if (argc > 0 && **argv == '-' && (*argv)[1] == 'v') {
-        verbose = 1; --argc; ++argv;
-    }
     if (argc > 0 && **argv == '-' && strcmp(*argv, "-fsigned-char") == 0) {
         signed_char = 1; --argc; ++argv;
     }
@@ -1569,7 +1559,7 @@ int main(int argc, char **argv)
         --argc; ++argv;
     }
     if (argc < 1) {
-        printf("usage: amacc [-s] [-v] [-o object] file ...\n"); return -1;
+        printf("usage: amacc [-s] [-o object] file ...\n"); return -1;
     }
 
     if ((fd = open(*argv, 0)) < 0) {
