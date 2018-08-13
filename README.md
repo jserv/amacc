@@ -18,7 +18,7 @@ syntax:
 Prerequisites
 -------------
 * Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
-    - linaro-toolchain-binaries (little-endian)
+    - Check "Latest Linux Targeted Binary Toolchain Releases"
     - Select `arm-linux-gnueabihf` (32-bit Armv7-a, hard-float, little-endian)
 
 * Install QEMU for ARM user emulation
@@ -28,12 +28,12 @@ sudo apt-get install qemu-user
 
 Running AMaCC
 -------------
-Run 'make check' and you should see this:
+Run `make check` and you should see this:
 ```
-[ compiled ]
-hello, world
-[ nested ]
-hello, world
+[ C to IR translation          ] Passed
+[ JIT compilation + execution  ] Passed
+[ ELF generation               ] Passed
+[ nested/self compilation      ] Passed
 ```
 
 Acknowledgements
