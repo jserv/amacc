@@ -4,7 +4,7 @@ Introduction
 ------------
 AMaCC is built from scratch, supporting ARM architecture.
 There are 3 execution modes AMaCC implements:
-* Just-in-Time compiler for ARM backend
+* Just-in-Time compiler (JITC) for ARM backend
 * Generate valid Executable and Linkable Format (ELF) executables
 * Interpreter-only execution
 
@@ -17,12 +17,14 @@ syntax:
 
 Prerequisites
 -------------
+* Code generator in AMaCC relies on several GNU/Linux behaviors, and it
+  is necessary to have ARM/Linux installed in your build environment.
 * Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
     - Check "Latest Linux Targeted Binary Toolchain Releases"
     - Select `arm-linux-gnueabihf` (32-bit Armv7-a, hard-float, little-endian)
 
 * Install QEMU for ARM user emulation
-```
+```shell
 sudo apt-get install qemu-user
 ```
 
