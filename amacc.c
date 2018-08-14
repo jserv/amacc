@@ -96,6 +96,8 @@ char *append_strtab(char **strtab, char *str)
 void next()
 {
     char *pp;
+    int t;
+
     // using loop to ignore whitespace characters, but characters that
     // cannot be recognized by the lexical analyzer are considered blank
     // characters, such as '@', '$'
@@ -174,7 +176,16 @@ void next()
             if (*p == '/') { // comment
         case '#': // skip #include statement
                 while (*p != 0 && *p != '\n') ++p;
-            } else {
+            } else if (*p == '*') { // C-style multiline comments
+                ++p; t = 0;
+                while (*p != 0 && t == 0) {
+                    pp = p + 1;
+                    if (*p == '\n') line++;
+                    else if (*p == '*' && *pp == '/') t = 1;
+                    ++p;
+                }
+                ++p;
+	    } else {
                 // FIXME: Div is not supported
                 return;
             }
