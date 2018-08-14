@@ -54,7 +54,7 @@ struct member_s {
 
 // tokens and classes (operators last and in precedence order)
 enum {
-    Num = 128, Fun, Sys, Glo, Loc, Id,
+    Num = 128, Func, Syscall, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
     Assign, Cond, // operator: ?, =
@@ -293,8 +293,8 @@ void expr(int lev)
             }
             next();
             switch (d->class) { // d stores function name
-            case Sys: *++e = d->val; break; // system calls, such as "malloc"
-            case Fun: *++e = JSR; *++e = d->val; break;
+            case Syscall: *++e = d->val; break; // system calls, such as "malloc"
+            case Func: *++e = JSR; *++e = d->val; break;
             default: fatal("bad function call");
             }
             // because the stack pass parameters, adjust the stack
@@ -1611,6 +1611,7 @@ int main(int argc, char **argv)
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
 
+    // must match the sequence of enum
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
         "open read write close printf malloc free "
@@ -1624,7 +1625,7 @@ int main(int argc, char **argv)
 
     i = OPEN;
     while (i <= EXIT) { // add library to symbol table
-        next(); id->class = Sys; id->type = INT; id->val = i++;
+        next(); id->class = Syscall; id->type = INT; id->val = i++;
     }
     next(); id->tk = Char; // handle void type
     next(); idmain = id; // keep track of main
@@ -1736,7 +1737,7 @@ int main(int argc, char **argv)
             next();
             id->type = ty;
             if (tk == '(') { // function
-                id->class = Fun; // type is functional
+                id->class = Func; // type is functional
                 id->val = (int) (e + 1); // function Pointer? offset/address in bytecode
                 next(); i = 0;
                 while (tk != ')') {
