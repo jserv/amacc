@@ -12,7 +12,6 @@
 
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
-char *ops;            // opcodes
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
@@ -153,7 +152,14 @@ void next()
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    printf("%8.4s", &ops[*++le * 5]);
+                    printf("%8.4s",
+                           & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
+                             "LI   LC   SI   SC   PSH  "
+                             "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
+                             "SHL  SHR  ADD  SUB  MUL  "
+                             "OPEN READ WRIT CLOS PRTF MALC FREE "
+                             "MSET MCMP MCPY SCMP MMAP "
+                             "DSYM BSCH STRL CLCA STRT EXIT" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
             }
@@ -1593,14 +1599,6 @@ int main(int argc, char **argv)
 
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
-
-    ops = "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
-          "LI   LC   SI   SC   PSH  "
-          "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
-          "SHL  SHR  ADD  SUB  MUL  "
-          "OPEN READ WRIT CLOS PRTF MALC FREE "
-          "MSET MCMP MCPY SCMP MMAP "
-          "DSYM BSCH STRL CLCA STRT EXIT";
 
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
