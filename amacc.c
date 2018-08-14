@@ -1,4 +1,8 @@
-// Another Mini ARM C Compiler (AMaCC)
+/*
+ * AMaCC is capable of compiling (subset of) C source files into GNU/Linux
+ * executables or running via just-in-time compilation on 32-bit ARM
+ * processor-based platforms.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -177,12 +181,10 @@ void next()
         case '#': // skip #include statement
                 while (*p != 0 && *p != '\n') ++p;
             } else if (*p == '*') { // C-style multiline comments
-                ++p; t = 0;
-                while (*p != 0 && t == 0) {
+                for (++p, t = 0; (*p != 0) && (t == 0); ++p) {
                     pp = p + 1;
                     if (*p == '\n') line++;
                     else if (*p == '*' && *pp == '/') t = 1;
-                    ++p;
                 }
                 ++p;
 	    } else {
