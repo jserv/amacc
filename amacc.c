@@ -39,9 +39,10 @@ struct ident_s {
     int tk;
     int hash;
     char *name;
-    // fields starting with 'h' were designed to save and restore
-    // the global class/type/val in order to handle the case if a
-    // function declares a local with the same name as a global.
+    /* fields starting with 'h' were designed to save and restore
+     * the global class/type/val in order to handle the case if a
+     * function declares a local with the same name as a global.
+     */
     int class, hclass;
     int type, htype;
     int val, hval;
@@ -94,17 +95,19 @@ char *append_strtab(char **strtab, char *str)
     return res;
 }
 
-// parse next token
-// 1. store data into id and then set the id to current lexcial form
-// 2. set tk to appropriate type
+/* parse next token
+ * 1. store data into id and then set the id to current lexcial form
+ * 2. set tk to appropriate type
+ */
 void next()
 {
     char *pp;
     int t;
 
-    // using loop to ignore whitespace characters, but characters that
-    // cannot be recognized by the lexical analyzer are considered blank
-    // characters, such as '@', '$'
+    /* using loop to ignore whitespace characters, but characters that
+     * cannot be recognized by the lexical analyzer are considered blank
+     * characters, such as '@' and '$'.
+     */
     while ((tk = *p)) {
         ++p;
         if ((tk >= 'a' && tk <= 'z') || (tk >= 'A' && tk <= 'Z') ||
@@ -241,10 +244,11 @@ void next()
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
-// expression parsing
-// lev represents an operator
-// because each operator `token` is arranged in order of priority, so
-// large `lev` indicates a high priority
+/* expression parsing
+ * lev represents an operator
+ * because each operator `token` is arranged in order of priority, so
+ * large `lev` indicates a high priority.
+ */
 void expr(int lev)
 {
     int t, *b, sz;
@@ -354,8 +358,9 @@ void expr(int lev)
         }
         break;
     case And: // "&", take the address operation
-        // when "token" is a variable, it takes the address first and
-        // then LI/LC, so `--e` becomes the address of "a"
+        /* when "token" is a variable, it takes the address first and
+         * then LI/LC, so `--e` becomes the address of "a".
+	 */
         next(); expr(Inc);
         if (*e == LC || *e == LI) --e;
         ty = ty + PTR;
@@ -377,8 +382,7 @@ void expr(int lev)
         else { *++e = -1; *++e = PSH; expr(Inc); *++e = MUL; }
         ty = INT;
         break;
-    // processing ++x and --x
-    // x-- and x++ is handled later
+    // processing ++x and --x. x-- and x++ is handled later
     case Inc:
     case Dec:
         t = tk; next(); expr(Inc);
@@ -557,8 +561,9 @@ void stmt()
         else fatal("close paren expected");
         *++e = BZ; b = ++e;
         stmt(); // parse body of "while"
-        // unconditional jump to the start of "while" statement
-        // (including the code for the loop condition), to implement the loop
+        /* unconditional jump to the start of "while" statement
+         * (including the code for the loop condition), to implement the loop
+         */
         *++e = JMP; *++e = (int) a;
         *b = (int) (e + 1); // // "BZ" jump target (end of cycle)
         return;
@@ -608,9 +613,10 @@ void stmt()
         else fatal("semicolon expected");
         return;
     case For:
-        // For loop is implemented as:
-        // Init -> Cond -> Bz to end -> Jmp to Body
-        // After -> Jmp to Cond -> Body -> Jmp to After
+        /* For iteratiion is implemented as:
+         * Init -> Cond -> Bz to end -> Jmp to Body
+         * After -> Jmp to Cond -> Body -> Jmp to After
+         */
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
@@ -1002,10 +1008,10 @@ struct Elf32_Sym {
 
 enum {
     // Symbol bindings
-    STB_LOCAL = 0,   // Local symbol, not visible outside obj file
-                     //               containing def
-    STB_GLOBAL = 1,  // Global symbol, visible to all object files
-                     //                being combined
+    STB_LOCAL = 0,   /* Local symbol, not visible outside obj file
+                                      containing def */
+    STB_GLOBAL = 1,  /* Global symbol, visible to all object files
+                                     being combined */
 
     // Symbol types
     STT_NOTYPE  = 0,   // Symbol's type is not specified
@@ -1163,30 +1169,32 @@ int elf32(int poolsz, int *main)
     shdr_idx = 0;
     sym_idx = 0;
 
-    // We must assign the plt_func_addr[x] a non-zero value, and also,
-    // plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
-    // (4 instruction * 4 bytes), so the first codegen and second codegen
-    // have consistent code_size.
+    /* We must assign the plt_func_addr[x] a non-zero value, and also,
+     * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
+     * (4 instruction * 4 bytes), so the first codegen and second codegen
+     * have consistent code_size.
+     */
     FUNC_NUM = EXIT - OPEN + 1;
     plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o + i * 16;
 
-    // Run __libc_start_main() and pass main trampoline.
-    //
-    // Note: The function prototype of __libc_start_main() is:
-    //
-    //     int __libc_start_main(int (*main)(int, char**, char**),
-    //                           int argc, char **argv,
-    //                           int (*init)(int, char**, char**),
-    //                           void (*fini)(void),
-    //                           void (*rtld_fini)(void),
-    //                           void *stack_end);
-    //
-    // Usually, we should pass __libc_csu_init as init and __libc_csu_fini
-    // as fini; however, we will need a interp to link the non-shared part
-    // of libc.  It sounds too complex.  To keep this compiler simple,
-    // let's simply pass NULL pointer.
+    /* Run __libc_start_main() and pass main trampoline.
+     *
+     * Note: The function prototype of __libc_start_main() is:
+     *
+     *     int __libc_start_main(int (*main)(int, char**, char**),
+     *                           int argc, char **argv,
+     *                           int (*init)(int, char**, char**),
+     *                           void (*fini)(void),
+     *                           void (*rtld_fini)(void),
+     *                           void *stack_end);
+     *
+     * Usually, we should pass __libc_csu_init as init and __libc_csu_fini
+     * as fini; however, we will need a interp to link the non-shared part
+     * of libc.  It sounds too complex.  To keep this compiler simple,
+     * let's simply pass NULL pointer.
+     */
     stub_end = (int *) code;
 
     *stub_end++ = 0xe3a0b000;  // mov   fp, #0  @ initialize frame pointer
@@ -1469,8 +1477,9 @@ int elf32(int poolsz, int *main)
     *(int *) to =  1; to = to + 4; *(int *) to = ldso - dynstr_addr; to = to + 4;
     *(int *) to =  0; to = to + 8;
 
-    // Generate code again bacause address of .plt function slots must
-    // be confirmed before codegen() to make sure the code is correct.
+    /* Generate code again bacause address of .plt function slots must
+     * be confirmed before codegen() to make sure the code is correct.
+     */
     je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je) {
         free(func_names);
@@ -1727,8 +1736,9 @@ int main(int argc, char **argv)
             }
             break;
         }
-        // parse statemanet such as 'int a, b, c;'
-        // "enum" finishes by "tk == ';'", so the code below will be skipped
+        /* parse statemanet such as 'int a, b, c;'
+         * "enum" finishes by "tk == ';'", so the code below will be skipped
+         */
         while (tk != ';' && tk != '}') {
             ty = bt;
             // if the beginning of * is a pointer type, then type plus `PTR`
