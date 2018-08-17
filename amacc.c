@@ -74,7 +74,7 @@ enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,
-    MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
+    MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,
     STRT,EXIT
 };
 
@@ -173,7 +173,7 @@ void next()
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  "
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
-                             "MSET MCMP MCPY SCMP MMAP "
+                             "MSET MCMP MCPY MMAP "
                              "DSYM BSCH CLCA STRT EXIT" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
@@ -827,9 +827,6 @@ int *codegen(int *jitmem, int *jitmap)
                 case MCPY:
                     tmp = (int) (elf ? plt_func_addr[MCPY - OPEN] : dlsym(0, "memcpy"));
                     break;
-                case SCMP:
-                    tmp = (int) (elf ? plt_func_addr[SCMP - OPEN] : dlsym(0, "strcmp"));
-                    break;
                 case MMAP:
                     tmp = (int) (elf ? plt_func_addr[MMAP - OPEN] : dlsym(0, "mmap"));
                     break;
@@ -1357,7 +1354,6 @@ int elf32(int poolsz, int *main)
     func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
     func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
     func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
-    func_names[SCMP] = append_strtab(&data, "strcmp") - dynstr_addr;
     func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
     func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
     func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
@@ -1384,7 +1380,6 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[MSET]);
     append_func_sym(&data, func_names[MCMP]);
     append_func_sym(&data, func_names[MCPY]);
-    append_func_sym(&data, func_names[SCMP]);
     append_func_sym(&data, func_names[MMAP]);
     append_func_sym(&data, func_names[DSYM]);
     append_func_sym(&data, func_names[BSCH]);
@@ -1580,6 +1575,12 @@ int elf32(int poolsz, int *main)
     return 0;
 }
 
+int streq(char *p1, char *p2)
+{
+    while (*p1 && *p1 == *p2) { ++p1; ++p2; }
+    return (*p1 > *p2) == (*p2  > *p1);
+}
+
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
@@ -1592,7 +1593,7 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
         src = 1; --argc; ++argv;
     }
-    if (argc > 0 && **argv == '-' && strcmp(*argv, "-fsigned-char") == 0) {
+    if (argc > 0 && **argv == '-' && streq(*argv, "-fsigned-char")) {
         signed_char = 1; --argc; ++argv;
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
@@ -1643,7 +1644,7 @@ int main(int argc, char **argv)
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
         "open read write close printf malloc free "
-        "memset memcmp memcpy strcmp mmap "
+        "memset memcmp memcpy mmap "
         "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
