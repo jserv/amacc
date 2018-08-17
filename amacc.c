@@ -36,15 +36,15 @@ int rwdata_align_off;
 
 // identifier
 struct ident_s {
-    int tk;
+    int tk;          // type-id or keyword
     int hash;
     char *name;
     /* fields starting with 'h' were designed to save and restore
      * the global class/type/val in order to handle the case if a
      * function declares a local with the same name as a global.
      */
-    int class, hclass;
-    int type, htype;
+    int class, hclass; // FUNC, GLO (global var), LOC (local var), Syscall
+    int type, htype;   // data type such as char and int
     int val, hval;
     int stype;
 } *id,  // currently parsed identifier
@@ -133,6 +133,7 @@ void next()
             tk = id->tk = Id;
             return;
         }
+        /* Calculate the constant */
 	// first byte is a number, and it is considered a numerical value
         else if (tk >= '0' && tk <= '9') {
             if ((ival = tk - '0')) {
@@ -258,14 +259,20 @@ void expr(int lev)
     switch (tk) {
     case 0: fatal("unexpected eof in expression");
     // directly take an immediate value as the expression value
+    // IMM recorded in emit sequence
     case Num: *++e = IMM; *++e = ival; next(); ty = INT; break;
-    case '"': // string
+    case '"': // string, as a literal in data segment
         *++e = IMM; *++e = ival; next();
         // continuous `"` handles C-style multiline text such as `"abc" "def"`
         while (tk == '"') next();
         data = (char *) (((int) data + sizeof(int)) & (-sizeof(int)));
         ty = PTR;
         break;
+    /* SIZEOF_expr -> 'sizeof' '(' 'TYPE' ')'
+     * Only support "sizeof (int) (char) (int *) (char *)".
+     * FIXME: not support "sizeof (Id)".
+     * In second line will not get next token, match ')' will fail.
+     */
     case Sizeof:
         next();
         if (tk == '(') next();
@@ -310,6 +317,7 @@ void expr(int lev)
         // enumeration, only enums have ->class == Num
         else if (d->class == Num) { *++e = IMM; *++e = d->val; ty = INT; }
         else {
+            // Variable get offset
             switch (d->class) {
             case Loc: *++e = LEA; *++e = loc - d->val; break;
             case Glo: *++e = IMM; *++e = d->val; break;
@@ -319,6 +327,7 @@ void expr(int lev)
                 *++e = (ty == CHAR) ? LC : LI;
         }
         break;
+    // Type cast
     case '(':
         next();
         if (tk == Int || tk == Char || tk == Struct) {
@@ -534,6 +543,7 @@ void stmt()
     int i;
 
     switch (tk) {
+    // IF_stmt -> 'if' '(' expr ')' stmt ELSE_stmt
     case If:
         next();
         if (tk == '(') next();
@@ -543,6 +553,7 @@ void stmt()
         else fatal("close paren expected");
         *++e = BZ; b = ++e; // BZ: branch if zero, branch address pointer
         stmt(); // parse body of "if"
+        // ELSE_stmt -> 'else' stmt | NULL
         if (tk == Else) {
             // (e + 3) points to "else" starting position
             *b = (int) (e + 3); *++e = JMP; b = ++e; // "JMP" to target
@@ -551,6 +562,7 @@ void stmt()
         }
         *b = (int) (e + 1);
         return;
+    // WHILE_stmt -> 'while' '(' expr ')' stmt
     case While:
         next();
         a = e + 1; // start address of "while" body
@@ -605,6 +617,7 @@ void stmt()
         def = e + 1;
         stmt();
         return;
+    // RETURN_stmt -> 'return' expr ';' | 'return' ';'
     case Return:
         next();
         if (tk != ';') expr(Assign); // calculate the return value
@@ -641,11 +654,13 @@ void stmt()
         *++e = JMP; *++e = (int) x;
         *b = (int) (e + 1);
         return;
+    // stmt -> '{' stmt '}'
     case '{':
         next();
         while (tk != '}') stmt();
         next();
         return;
+    // stmt -> ';'
     case ';':
         next();
         return;
@@ -1622,7 +1637,9 @@ int main(int argc, char **argv)
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
 
-    // must match the sequence of enum
+    /* Resgister keywords and system calls to symbol stack
+     * must match the sequence of enum
+     */
     p = "break case char default else enum if int return "
         "sizeof struct switch for while "
         "open read write close printf malloc free "
@@ -1767,6 +1784,7 @@ int main(int argc, char **argv)
                     if (tk != Id) fatal("bad parameter declaration");
                     // function arguments are local variables
                     if (id->class == Loc) fatal("duplicate parameter definition");
+                    // Maintain argument in function, update to be a local variable
                     id->hclass = id->class; id->class = Loc;
                     id->htype  = id->type;  id->type = ty;
                     id->hval   = id->val;   id->val = i++;
@@ -1800,6 +1818,7 @@ int main(int argc, char **argv)
                     }
                     next();
                 }
+                // Not declare and must not be function, analyze inner block.
                 // e represents the address which will store pc
                 // (i - loc) indicates memory size to alocate
                 *++e = ENT; *++e = i - loc;
