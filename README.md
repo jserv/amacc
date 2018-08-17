@@ -41,4 +41,8 @@ Run `make check` and you should see this:
 Acknowledgements
 ----------------
 AMaCC is based on the infrastructure of [c4](https://github.com/rswier/c4).
-[Hacker News discussions](https://news.ycombinator.com/item?id=11411124).
+
+Related Materials
+-----------------
+* [Curated list of awesome resources on Compilers, Interpreters and Runtimes](http://aalhour.com/awesome-compilers/)
+* [Hacker News discussions](https://news.ycombinator.com/item?id=11411124)
