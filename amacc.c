@@ -74,7 +74,7 @@ enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,
-    MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,STRL,CLCA,
+    MSET,MCMP,MCPY,SCMP,MMAP,DSYM,BSCH,CLCA,
     STRT,EXIT
 };
 
@@ -86,11 +86,16 @@ char **plt_func_addr;
 
 char *append_strtab(char **strtab, char *str)
 {
+    char *s;
     int nbytes;
     char *res;
-    nbytes = strlen(str) + 1;
+    s = str;
+    while (*s && (*s != ' ')) /* ignore trailing space */
+        s++;
+    nbytes = s - str + 1;
     res = *strtab;
     memcpy(res, str, nbytes);
+    res[s - str] = 0; // null terminator
     *strtab = res + nbytes;
     return res;
 }
@@ -169,7 +174,7 @@ void next()
                              "SHL  SHR  ADD  SUB  MUL  "
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY SCMP MMAP "
-                             "DSYM BSCH STRL CLCA STRT EXIT" [*++le * 5]);
+                             "DSYM BSCH CLCA STRT EXIT" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
             }
@@ -834,9 +839,6 @@ int *codegen(int *jitmem, int *jitmap)
                 case BSCH:
                     tmp = (int) (elf ? plt_func_addr[BSCH - OPEN] : dlsym(0, "bsearch"));
                     break;
-                case STRL:
-                    tmp = (int) (elf ? plt_func_addr[STRL - OPEN] : dlsym(0, "strlen"));
-                    break;
                 case STRT:
                     tmp = (int) (elf ? plt_func_addr[STRT - OPEN] :
                                        dlsym(0, "__libc_start_main"));
@@ -1308,7 +1310,7 @@ int elf32(int poolsz, int *main)
 
     // .interp (embedded in PT_LOAD of data)
     interp_str = "/lib/ld-linux-armhf.so.3";
-    interp_str_size = strlen(interp_str) + 1;
+    interp_str_size = 25; // strlen(interp_str) + 1
     interp = data; memcpy(interp, interp_str, interp_str_size);
     interp_off = pt_dyn_off + pt_dyn_size; data = data + interp_str_size;
     o = o + interp_str_size;
@@ -1359,7 +1361,6 @@ int elf32(int poolsz, int *main)
     func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
     func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
     func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
-    func_names[STRL] = append_strtab(&data, "strlen") - dynstr_addr;
     func_names[CLCA] = append_strtab(&data, "__clear_cache") - dynstr_addr;
     func_names[STRT] = append_strtab(&data, "__libc_start_main") - dynstr_addr;
     func_names[EXIT] = append_strtab(&data, "exit") - dynstr_addr;
@@ -1387,7 +1388,6 @@ int elf32(int poolsz, int *main)
     append_func_sym(&data, func_names[MMAP]);
     append_func_sym(&data, func_names[DSYM]);
     append_func_sym(&data, func_names[BSCH]);
-    append_func_sym(&data, func_names[STRL]);
     append_func_sym(&data, func_names[CLCA]);
     append_func_sym(&data, func_names[STRT]);
     append_func_sym(&data, func_names[EXIT]);
@@ -1644,7 +1644,7 @@ int main(int argc, char **argv)
         "sizeof struct switch for while "
         "open read write close printf malloc free "
         "memset memcmp memcpy strcmp mmap "
-        "dlsym bsearch strlen __clear_cache __libc_start_main exit void main";
+        "dlsym bsearch __clear_cache __libc_start_main exit void main";
 
     i = Break;
     while (i <= While) { // add keywords to symbol table
