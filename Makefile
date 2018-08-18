@@ -38,7 +38,7 @@ check: $(EXEC) $(TEST_OBJ)
 	$(Q)if [ "$(shell $(ARM_EXEC) ./$(BIN) $(BIN).c tests/hello.c)" = "hello, world" ]; then \
 	$(call pass); \
 	fi
-	$(VECHO) "[ Compatibility with GCC/Arm   ]\n"
+	$(VECHO) "[ Compatibility with GCC/Arm   ] "
 	$(Q)python runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
