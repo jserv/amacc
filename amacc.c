@@ -357,7 +357,7 @@ void expr(int lev)
             else fatal("close paren expected");
         }
         break;
-    case Mul: // pointer dereference
+    case Mul: // "*", dereferencing the pointer operation
         next(); expr(Inc); // high priority
         if (ty >= PTR) ty = ty - PTR;
         else fatal("bad dereference");
@@ -374,7 +374,7 @@ void expr(int lev)
     case And: // "&", take the address operation
         /* when "token" is a variable, it takes the address first and
          * then LI/LC, so `--e` becomes the address of "a".
-	 */
+         */
         next(); expr(Inc);
         if (*e == LC || *e == LI) --e;
         ty = ty + PTR;
