@@ -270,11 +270,15 @@ void expr(int lev)
         *++e = IMM; *++e = ival; next();
         // continuous `"` handles C-style multiline text such as `"abc" "def"`
         while (tk == '"') next();
+        /* append the end of string character '\0', all the data is defaulted
+         * to 0, so just move data one position forward.
+         */
         data = (char *) (((int) data + sizeof(int)) & (-sizeof(int)));
         ty = PTR;
         break;
     /* SIZEOF_expr -> 'sizeof' '(' 'TYPE' ')'
-     * Only support "sizeof (int) (char) (int *) (char *)".
+     * sizeof is actually an unary operator.
+     * now only `sizeof(int)`, `sizeof(char)` and `sizeof(*...)` are supported.
      * FIXME: not support "sizeof (Id)".
      * In second line will not get next token, match ')' will fail.
      */
@@ -332,7 +336,7 @@ void expr(int lev)
                 *++e = (ty == CHAR) ? LC : LI;
         }
         break;
-    // Type cast
+    // Type cast or parenthesis
     case '(':
         next();
         if (tk == Int || tk == Char || tk == Struct) {
@@ -348,7 +352,7 @@ void expr(int lev)
             while (tk == Mul) { next(); t = t + PTR; }
             if (tk == ')') next();
             else fatal("bad cast");
-            expr(Inc);
+            expr(Inc); // cast has precedence as Inc(++)
             ty = t;
         }
         else {
@@ -358,7 +362,8 @@ void expr(int lev)
         }
         break;
     case Mul: // "*", dereferencing the pointer operation
-        next(); expr(Inc); // high priority
+        next();
+        expr(Inc); // dereference has the same precedence as Inc(++)
         if (ty >= PTR) ty = ty - PTR;
         else fatal("bad dereference");
         if (ty >= PTR) {
@@ -548,7 +553,15 @@ void stmt()
     int i;
 
     switch (tk) {
-    // IF_stmt -> 'if' '(' expr ')' stmt ELSE_stmt
+    /* if (...) <statement> [else <statement>]
+     *     if (...)           <cond>
+     *                        JZ a
+     *         <statement>    <statement>
+     *     else:              JMP b
+     * a:
+     *     <statement>        <statement>
+     * b:                     b:
+     */
     case If:
         next();
         if (tk == '(') next();
@@ -567,7 +580,14 @@ void stmt()
         }
         *b = (int) (e + 1);
         return;
-    // WHILE_stmt -> 'while' '(' expr ')' stmt
+    /* while (...) <statement>
+     * a:                     a:
+     *     while (<cond>)         <cond>
+     *                            JZ b
+     *         <statement>        <statement>
+     *                            JMP a
+     * b:                     b:
+     */
     case While:
         next();
         a = e + 1; // start address of "while" body
