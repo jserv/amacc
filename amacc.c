@@ -90,9 +90,7 @@ char *append_strtab(char **strtab, char *str)
     char *s;
     int nbytes;
     char *res;
-    s = str;
-    while (*s && (*s != ' ')) /* ignore trailing space */
-        s++;
+    for (s = str; *s && (*s != ' '); s++) ; /* ignore trailing space */
     nbytes = s - str + 1;
     res = *strtab;
     memcpy(res, str, nbytes);
@@ -735,7 +733,7 @@ int *codegen(int *jitmem, int *jitmap)
             tmp = *pc++;
             if (0 <= tmp && tmp < 256)
                 *je++ = 0xe3a00000 + tmp;        // mov r0, #(tmp)
-            else { if (!imm0) imm0 = je; *il++ = (int) (je++); *iv++ = tmp;}
+            else { if (!imm0) imm0 = je; *il++ = (int) (je++); *iv++ = tmp; }
             break;
         case JSR:
         case JMP:
@@ -1600,14 +1598,14 @@ int main(int argc, char **argv)
     scname[13] = "__libc_start_main"; scname[14] = "exit";
     scname[15] = "__clear_cache";
 
-    i = Break;
-    while (i <= While) { // add keywords to symbol table
-        next(); id->tk = i++;
+    // add keywords to symbol table
+    for (i = Break; i <= While; i++) {
+        next(); id->tk = i;
     }
 
-    i = OPEN;
-    while (i <= CLCA) { // add library to symbol table
-        next(); id->class = Syscall; id->type = INT; id->val = i++;
+    // add library to symbol table
+    for (i = OPEN; i <= CLCA; i++) {
+        next(); id->class = Syscall; id->type = INT; id->val = i;
     }
     next(); id->tk = Char; // handle void type
     next(); idmain = id; // keep track of main
