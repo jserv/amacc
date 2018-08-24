@@ -439,16 +439,16 @@ void expr(int lev)
             expr(Assign);
             if (tk == ':') next();
             else fatal("conditional missing colon");
-            *b = (int)(e + 3); *++e = JMP; b = ++e;
+            *b = (int) (e + 3); *++e = JMP; b = ++e;
             expr(Cond);
-            *b = (int)(e + 1);
+            *b = (int) (e + 1);
             break;
         case Lor:
             next(); *++e = BNZ; b = ++e;
-            expr(Lan); *b = (int)(e + 1); ty = INT;
+            expr(Lan); *b = (int) (e + 1); ty = INT;
             break;
         case Lan: next(); *++e = BZ; b = ++e;
-            expr(Or); *b = (int)(e + 1); ty = INT;
+            expr(Or); *b = (int) (e + 1); ty = INT;
             break;
         case Or:  next(); *++e = PSH;
             expr(Xor); *++e = OR;  ty = INT;
@@ -1007,8 +1007,7 @@ struct Elf32_Shdr {
                       //              index link
     int sh_info;      // [Elf32_Word] Section type-specific extra information
     int sh_addralign; // [Elf32_Word] Section address alignment
-    int sh_entsize;   // [Elf32_Word] Size of records contained within
-                      //              the section
+    int sh_entsize;   // [Elf32_Word] Size of records contained within section
 };
 
 enum {
