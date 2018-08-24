@@ -1158,7 +1158,7 @@ int elf32(int poolsz, int *main)
      * (4 instruction * 4 bytes), so the first codegen and second codegen
      * have consistent code_size.
      */
-    FUNC_NUM = CLCA - OPEN + 1;
+    FUNC_NUM = EXIT - OPEN + 1;
     plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o + i * 16;
@@ -1311,10 +1311,10 @@ int elf32(int poolsz, int *main)
     libc = append_strtab(&data, "libc.so.6");
     ldso = append_strtab(&data, "libdl.so.2");
 
-    func_names = (int *) malloc(sizeof(int) * (CLCA + 1));
+    func_names = (int *) malloc(sizeof(int) * (EXIT + 1));
     if (!func_names) die("Could not malloc func_names table\n");
 
-    for (i = OPEN; i <= CLCA; i++)
+    for (i = OPEN; i <= EXIT; i++)
         func_names[i] = append_strtab(&data, scname[i - OPEN]) - dynstr_addr;
 
     dynstr_size = data - dynstr_addr;
@@ -1326,7 +1326,7 @@ int elf32(int poolsz, int *main)
     memset(data, 0, SYM_ENT_SIZE);
     data = data + SYM_ENT_SIZE;
 
-    for (i = OPEN; i <= CLCA; i++)
+    for (i = OPEN; i <= EXIT; i++)
         append_func_sym(&data, func_names[i]);
 
     dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
