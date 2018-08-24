@@ -16,6 +16,7 @@
 
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
+char **scname; // entry to system call vector
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
@@ -74,8 +75,8 @@ enum {
     LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,
-    MSET,MCMP,MCPY,MMAP,DSYM,BSCH,CLCA,
-    STRT,EXIT
+    MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,EXIT,
+    CLCA
 };
 
 // types
@@ -174,7 +175,7 @@ void next()
                              "SHL  SHR  ADD  SUB  MUL  "
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
-                             "DSYM BSCH CLCA STRT EXIT" [*++le * 5]);
+                             "DSYM BSCH STRT EXIT CLCA" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
             }
@@ -815,58 +816,8 @@ int *codegen(int *jitmem, int *jitmap)
                 je = je + 2;
                 break;
             }
-            else if (i >= OPEN) {
-                switch (i) {
-                case OPEN:
-                    tmp = (int) (elf ? plt_func_addr[OPEN - OPEN] : dlsym(0, "open"));
-                    break;
-                case READ:
-                    tmp = (int) (elf ? plt_func_addr[READ - OPEN] : dlsym(0, "read"));
-                    break;
-                case WRIT:
-                    tmp = (int) (elf ? plt_func_addr[WRIT - OPEN] : dlsym(0, "write"));
-                    break;
-                case CLOS:
-                    tmp = (int) (elf ? plt_func_addr[CLOS - OPEN] : dlsym(0, "close"));
-                    break;
-                case PRTF:
-                    tmp = (int) (elf ? plt_func_addr[PRTF - OPEN] : dlsym(0, "printf"));
-                    break;
-                case MALC:
-                    tmp = (int) (elf ? plt_func_addr[MALC - OPEN] : dlsym(0, "malloc"));
-                    break;
-                case FREE:
-                    tmp = (int) (elf ? plt_func_addr[FREE - OPEN] : dlsym(0, "free"));
-                    break;
-                case MSET:
-                    tmp = (int) (elf ? plt_func_addr[MSET - OPEN] : dlsym(0, "memset"));
-                    break;
-                case MCMP:
-                    tmp = (int) (elf ? plt_func_addr[MCMP - OPEN] : dlsym(0, "memcmp"));
-                    break;
-                case MCPY:
-                    tmp = (int) (elf ? plt_func_addr[MCPY - OPEN] : dlsym(0, "memcpy"));
-                    break;
-                case MMAP:
-                    tmp = (int) (elf ? plt_func_addr[MMAP - OPEN] : dlsym(0, "mmap"));
-                    break;
-                case DSYM:
-                    tmp = (int) (elf ? plt_func_addr[DSYM - OPEN] : dlsym(0, "dlsym"));
-                    break;
-                case BSCH:
-                    tmp = (int) (elf ? plt_func_addr[BSCH - OPEN] : dlsym(0, "bsearch"));
-                    break;
-                case STRT:
-                    tmp = (int) (elf ? plt_func_addr[STRT - OPEN] :
-                                       dlsym(0, "__libc_start_main"));
-                    break;
-                case EXIT:
-                    tmp = (int) (elf ? plt_func_addr[EXIT - OPEN] : dlsym(0, "exit"));
-                    break;
-                default:
-                    printf("unrecognized code %d\n", i);
-                    return 0;
-                }
+            else if (i >= OPEN && i <= EXIT) {
+                tmp = (int) (elf ? plt_func_addr[i - OPEN] : dlsym(0, scname[i - OPEN]));
                 if (*pc++ != ADJ) die("no ADJ after native proc!");
                 i = *pc;
                 if (i > 10) die("no support for 10+ arguments!");
@@ -1207,7 +1158,7 @@ int elf32(int poolsz, int *main)
      * (4 instruction * 4 bytes), so the first codegen and second codegen
      * have consistent code_size.
      */
-    FUNC_NUM = EXIT - OPEN + 1;
+    FUNC_NUM = CLCA - OPEN + 1;
     plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o + i * 16;
@@ -1360,25 +1311,11 @@ int elf32(int poolsz, int *main)
     libc = append_strtab(&data, "libc.so.6");
     ldso = append_strtab(&data, "libdl.so.2");
 
-    func_names = (int *) malloc(sizeof(int) * (EXIT + 1));
+    func_names = (int *) malloc(sizeof(int) * (CLCA + 1));
     if (!func_names) die("Could not malloc func_names table\n");
 
-    func_names[OPEN] = append_strtab(&data, "open") - dynstr_addr;
-    func_names[READ] = append_strtab(&data, "read") - dynstr_addr;
-    func_names[WRIT] = append_strtab(&data, "write") - dynstr_addr;
-    func_names[CLOS] = append_strtab(&data, "close") - dynstr_addr;
-    func_names[PRTF] = append_strtab(&data, "printf") - dynstr_addr;
-    func_names[MALC] = append_strtab(&data, "malloc") - dynstr_addr;
-    func_names[FREE] = append_strtab(&data, "free") - dynstr_addr;
-    func_names[MSET] = append_strtab(&data, "memset") - dynstr_addr;
-    func_names[MCMP] = append_strtab(&data, "memcmp") - dynstr_addr;
-    func_names[MCPY] = append_strtab(&data, "memcpy") - dynstr_addr;
-    func_names[MMAP] = append_strtab(&data, "mmap") - dynstr_addr;
-    func_names[DSYM] = append_strtab(&data, "dlsym") - dynstr_addr;
-    func_names[BSCH] = append_strtab(&data, "bsearch") - dynstr_addr;
-    func_names[CLCA] = append_strtab(&data, "__clear_cache") - dynstr_addr;
-    func_names[STRT] = append_strtab(&data, "__libc_start_main") - dynstr_addr;
-    func_names[EXIT] = append_strtab(&data, "exit") - dynstr_addr;
+    for (i = OPEN; i <= CLCA; i++)
+        func_names[i] = append_strtab(&data, scname[i - OPEN]) - dynstr_addr;
 
     dynstr_size = data - dynstr_addr;
     o = o + dynstr_size;
@@ -1389,22 +1326,8 @@ int elf32(int poolsz, int *main)
     memset(data, 0, SYM_ENT_SIZE);
     data = data + SYM_ENT_SIZE;
 
-    append_func_sym(&data, func_names[OPEN]);
-    append_func_sym(&data, func_names[READ]);
-    append_func_sym(&data, func_names[WRIT]);
-    append_func_sym(&data, func_names[CLOS]);
-    append_func_sym(&data, func_names[PRTF]);
-    append_func_sym(&data, func_names[MALC]);
-    append_func_sym(&data, func_names[FREE]);
-    append_func_sym(&data, func_names[MSET]);
-    append_func_sym(&data, func_names[MCMP]);
-    append_func_sym(&data, func_names[MCPY]);
-    append_func_sym(&data, func_names[MMAP]);
-    append_func_sym(&data, func_names[DSYM]);
-    append_func_sym(&data, func_names[BSCH]);
-    append_func_sym(&data, func_names[CLCA]);
-    append_func_sym(&data, func_names[STRT]);
-    append_func_sym(&data, func_names[EXIT]);
+    for (i = OPEN; i <= CLCA; i++)
+        append_func_sym(&data, func_names[i]);
 
     dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
     o = o + dynsym_size;
@@ -1664,7 +1587,18 @@ int main(int argc, char **argv)
         "sizeof struct switch for while "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
-        "dlsym bsearch __clear_cache __libc_start_main exit void main";
+        "dlsym bsearch __libc_start_main exit __clear_cache void main";
+
+    // name vector to system call
+    // must match the sequence of supported calls
+    scname = malloc(16 * sizeof(char *));
+    scname[ 0] = "open";    scname[ 1] = "read";    scname[ 2] = "write";
+    scname[ 3] = "close";   scname[ 4] = "printf";
+    scname[ 5] = "malloc";  scname[ 6] = "free";
+    scname[ 7] = "memset";  scname[ 8] = "memcmp";  scname[ 9] = "memcpy";
+    scname[10] = "mmap";    scname[11] = "dlsym";   scname[12] = "bsearch";
+    scname[13] = "__libc_start_main"; scname[14] = "exit";
+    scname[15] = "__clear_cache";
 
     i = Break;
     while (i <= While) { // add keywords to symbol table
@@ -1672,7 +1606,7 @@ int main(int argc, char **argv)
     }
 
     i = OPEN;
-    while (i <= EXIT) { // add library to symbol table
+    while (i <= CLCA) { // add library to symbol table
         next(); id->class = Syscall; id->type = INT; id->val = i++;
     }
     next(); id->tk = Char; // handle void type
