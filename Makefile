@@ -42,7 +42,7 @@ check: $(EXEC) $(TEST_OBJ)
 	$(Q)python runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
-	$(VECHO) "  SelfCC\t\t$@\n"
+	$(VECHO) "  SelfCC\t$@\n"
 	$(Q)$(ARM_EXEC) ./$^ -o $@ $(BIN).c
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
