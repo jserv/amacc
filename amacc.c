@@ -121,16 +121,14 @@ void next()
                    (*p >= '0' && *p <= '9') || (*p == '_'))
                 tk = tk * 147 + *p++; // 147 is the magic number generating hash value
             tk = (tk << 6) + (p - pp);
-            id = sym;
             // hash value is used for fast comparison. Since it is inaccurate,
             // we have to validate the memory content as well.
-            while (id->tk) {
+            for (id = sym; id->tk; id++) {
                 if (tk == id->hash &&
                     !memcmp(id->name, pp, p - pp)) {
                     tk = id->tk;
                     return;
                 }
-                id = id + 1;
             }
             id->name = pp;
             id->hash = tk;
@@ -371,9 +369,7 @@ void expr(int lev)
             *++e = LI;
         } else if (ty == CHAR) {
             *++e = LC;
-        } else {
-            fatal("unexpected type");
-        }
+        } else fatal("unexpected type");
         break;
     case And: // "&", take the address operation
         /* when "token" is a variable, it takes the address first and
@@ -601,7 +597,7 @@ void stmt()
          * (including the code for the loop condition), to implement the loop
          */
         *++e = JMP; *++e = (int) a;
-        *b = (int) (e + 1); // // "BZ" jump target (end of cycle)
+        *b = (int) (e + 1); // "BZ" jump target (end of cycle)
         return;
     case Switch:
         next();
@@ -670,8 +666,7 @@ void stmt()
         x = e + 1; // Point to entry of for loop afterthought
         expr(Assign);
         while (tk == ',') { next(); expr(Assign); }
-        if (tk == ')') next();
-        else fatal("close paren expected");
+        if (tk == ')') next(); else fatal("close paren expected");
         *++e = JMP; *++e = (int) a;
         *d = (int) (e + 1); // Modify address of jump
         stmt();
@@ -691,8 +686,7 @@ void stmt()
     default:
         // general statements are considered assignment statements/expressions
         expr(Assign);
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk == ';') next(); else fatal("semicolon expected");
     }
 }
 
@@ -824,7 +818,7 @@ int *codegen(int *jitmem, int *jitmap)
                 if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
                 *je++ = 0xe28fe000;                          // add lr, pc, #0
                 if (!imm0) imm0 = je;
-                *il++ = (int)je++ + 1;
+                *il++ = (int) je++ + 1;
                 *iv++ = tmp;
                 if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
                 break;
@@ -1213,7 +1207,7 @@ int elf32(int poolsz, int *main)
     // Compile and generate the code.
     je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je) return 1;
-    if ((int*) je >= jitmap) die("jitmem too small");
+    if ((int *) je >= jitmap) die("jitmem too small");
 
     // elf32_hdr
     *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
