@@ -194,7 +194,7 @@ enum {
     LT  , /* 19 */  GT  , /* 20 */  LE  , /* 21 */ GE  , /* 22 */
     SHL , /* 23 */  SHR , /* 24 */
     ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */
-    /* ALU instructions
+    /* arithmetic instructions
      * Each operator has two arguments: the first one is stored on the top
      * of the stack while the second is stored in general register.
      * After the calculation is done, the argument on the stack will be poped
@@ -333,11 +333,11 @@ void next()
             while (*p != 0 && *p != tk) {
                 if ((ival = *p++) == '\\') {
                     switch (ival = *p++) {
-                    case 'n': ival = '\n'; break;
-                    case 't': ival = '\t'; break;
-                    case 'v': ival = '\v'; break;
-                    case 'f': ival = '\f'; break;
-                    case 'r': ival = '\r';
+                    case 'n': ival = '\n'; break; // new line
+                    case 't': ival = '\t'; break; // horizontal tab
+                    case 'v': ival = '\v'; break; // vertical tab
+                    case 'f': ival = '\f'; break; // form feed
+                    case 'r': ival = '\r'; break; // carriage return
                     }
                 }
                 // if it is double quotes, it is considered as a string,
