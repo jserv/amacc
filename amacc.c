@@ -16,7 +16,7 @@
 
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
-char **scname; // entry to system call vector
+char **scnames; // system call names
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
@@ -815,7 +815,7 @@ int *codegen(int *jitmem, int *jitmap)
                 break;
             }
             else if (i >= OPEN && i <= EXIT) {
-                tmp = (int) (elf ? plt_func_addr[i - OPEN] : dlsym(0, scname[i - OPEN]));
+                tmp = (int) (elf ? plt_func_addr[i - OPEN] : dlsym(0, scnames[i - OPEN]));
                 if (*pc++ != ADJ) die("no ADJ after native proc!");
                 i = *pc;
                 if (i > 10) die("no support for 10+ arguments!");
@@ -1141,7 +1141,7 @@ int elf32(int poolsz, int *main)
     int dynsym_off, dynsym_size, got_off;
     char *to_got_movw, *to_got_movt;
     char **got_func_slot;
-    int *func_names, *shdr_names;
+    int *func_entries, *shdr_names;
     int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
 
     code = freecode = malloc(poolsz);
@@ -1313,11 +1313,11 @@ int elf32(int poolsz, int *main)
     libc = append_strtab(&data, "libc.so.6");
     ldso = append_strtab(&data, "libdl.so.2");
 
-    func_names = (int *) malloc(sizeof(int) * (EXIT + 1));
-    if (!func_names) die("Could not malloc func_names table\n");
+    func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
+    if (!func_entries) die("Could not malloc func_entries table\n");
 
     for (i = OPEN; i <= EXIT; i++)
-        func_names[i] = append_strtab(&data, scname[i - OPEN]) - dynstr_addr;
+        func_entries[i] = append_strtab(&data, scnames[i - OPEN]) - dynstr_addr;
 
     dynstr_size = data - dynstr_addr;
     o = o + dynstr_size;
@@ -1329,7 +1329,7 @@ int elf32(int poolsz, int *main)
     data = data + SYM_ENT_SIZE;
 
     for (i = OPEN; i <= EXIT; i++)
-        append_func_sym(&data, func_names[i]);
+        append_func_sym(&data, func_entries[i]);
 
     dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
     o = o + dynsym_size;
@@ -1436,7 +1436,7 @@ int elf32(int poolsz, int *main)
      */
     je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je) {
-        free(func_names);
+        free(func_entries);
         free(shdr_names);
         return 1;
     }
@@ -1510,7 +1510,7 @@ int elf32(int poolsz, int *main)
     memcpy(dseg, _data, dseg_size);
     write(elf_fd, buf, o - buf);
 
-    free(func_names);
+    free(func_entries);
     free(shdr_names);
     free(freebuf);
     free(freecode);
@@ -1593,14 +1593,14 @@ int main(int argc, char **argv)
 
     // name vector to system call
     // must match the sequence of supported calls
-    scname = malloc(16 * sizeof(char *));
-    scname[ 0] = "open";    scname[ 1] = "read";    scname[ 2] = "write";
-    scname[ 3] = "close";   scname[ 4] = "printf";
-    scname[ 5] = "malloc";  scname[ 6] = "free";
-    scname[ 7] = "memset";  scname[ 8] = "memcmp";  scname[ 9] = "memcpy";
-    scname[10] = "mmap";    scname[11] = "dlsym";   scname[12] = "bsearch";
-    scname[13] = "__libc_start_main"; scname[14] = "exit";
-    scname[15] = "__clear_cache";
+    scnames = malloc(16 * sizeof(char *));
+    scnames[ 0] = "open";    scnames[ 1] = "read";    scnames[ 2] = "write";
+    scnames[ 3] = "close";   scnames[ 4] = "printf";
+    scnames[ 5] = "malloc";  scnames[ 6] = "free";
+    scnames[ 7] = "memset";  scnames[ 8] = "memcmp";  scnames[ 9] = "memcpy";
+    scnames[10] = "mmap";    scnames[11] = "dlsym";   scnames[12] = "bsearch";
+    scnames[13] = "__libc_start_main"; scnames[14] = "exit";
+    scnames[15] = "__clear_cache";
 
     // add keywords to symbol table
     for (i = Break; i <= While; i++) {
