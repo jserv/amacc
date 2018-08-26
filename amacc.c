@@ -829,7 +829,11 @@ int *codegen(int *jitmem, int *jitmap)
                 if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
                 break;
             }
-            else { printf("code generation failed for %d!\n", i); return 0; }
+            else {
+                printf("code generation failed for %d!\n", i);
+                free(iv);
+                return 0;
+            }
         }
 
         if (imm0) {
