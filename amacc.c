@@ -71,12 +71,141 @@ enum {
 };
 
 // opcodes
+/* The instruction set is designed for building intermediate representation.
+ * Expression 10 + 20 will be translated into the following instructions:
+ *     i = 0;
+ *     text[i++] = IMM;
+ *     text[i++] = 10;
+ *     text[i++] = PSH;
+ *     text[i++] = IMM;
+ *     text[i++] = 20;
+ *     text[i++] = ADD;
+ *     text[i++] = PSH;
+ *     text[i++] = EXIT;
+ *     pc = text;
+ */
 enum {
-    LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
-    OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,
-    MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,EXIT,
-    CLCA
+    LEA , /*  0 */
+    /* LEA addressed the problem how to fetch arguments inside sub-function.
+     * Let's check out what a calling frame looks like before learning how
+     * to fetch arguments (Note that arguments are pushed in its calling
+     * order):
+     *
+     *     sub_function(arg1, arg2, arg3);
+     *
+     *     |    ....       | high address
+     *     +---------------+
+     *     | arg: 1        |    new_bp + 4
+     *     +---------------+
+     *     | arg: 2        |    new_bp + 3
+     *     +---------------+
+     *     | arg: 3        |    new_bp + 2
+     *     +---------------+
+     *     |return address |    new_bp + 1
+     *     +---------------+
+     *     | old BP        | <- new BP
+     *     +---------------+
+     *     | local var 1   |    new_bp - 1
+     *     +---------------+
+     *     | local var 2   |    new_bp - 2
+     *     +---------------+
+     *     |    ....       |  low address
+     *
+     * If we need to refer to arg1, we need to fetch new_bp + 4, which can not
+     * be achieved by restricted ADD instruction. Thus another special
+     * instrcution is introduced to do this: LEA <offset>.
+     * The following pseudocode illustrates how LEA works.
+     *     if (op == LEA) { ax = (int) (bp + *pc++); } // load address for arguments
+     * Together with JSR, ENT, ADJ, LEV, and LEA instruction, we are able to make
+     * function calls.
+     */
+
+    IMM , /*  1 */
+    /* IMM <num> to put immediate <num> into general register */
+
+    JMP , /*  2 */
+    /* JMP <addr> will unconditionally set the value PC register to <addr> */
+    /* The following pseudocode illustrates how JMP works:
+     *     if (op == JMP) { pc = (int *) *pc; } // jump to the address
+     * Note that PC points to the NEXT instruction to be executed. Thus *pc
+     * stores the argument of JMP instruction, i.e. the <addr>.
+     */
+
+    JSR , /*  3 */
+    /* A function is a block of code, which may be far from the instruction
+     * we are currently executing. That is reason why JMP instruction exists,
+     * jumping into starting point of a function. JSR is introduced to perform
+     * some bookkeeping: store the current execution position so that the
+     * program can resume after function call returns.
+     *
+     * JSR <addr> to invoke the function whose starting point is <addr> and
+     * LEV to fetch the bookkeeping information to resume previous execution.
+     */
+
+    BZ  , /*  4 : conditional jump if general register is zero */
+    BNZ , /*  5 : conditional jump if general register is not zero */
+
+    ENT , /*  6 */
+    /* ENT <size> is called when we are about to enter the function call to
+     * "make a new calling frame". It will store the current PC value onto
+     * the stack, and save some space(<size> bytes) to store the local
+     * variables for function.
+     */
+
+    ADJ , /*  7 */
+    /* ADJ <size> is to adjust the stack, to "remove arguments from frame"
+     * The following pseudocode illustrates how ADJ works:
+     *     if (op == ADJ) { sp += *pc++; } // add esp, <size>
+     */
+
+    LEV , /*  8 */
+    /* LEV fetches bookkeeping info to resume previous execution.
+     * There is no POP instruction in our design, and the following pseudocode
+     * illustrates how LEV works:
+     *     if (op == LEV) { sp = bp; bp = (int *) *sp++;
+     *                      pc = (int *)*sp++; } // restore call frame and PC
+     */
+
+    LI  , /*  9 */
+    /* LI loads an integer into general register from a given memory
+     * address which is stored in general register before execution.
+     */
+
+    LC  , /* 10 */
+    /* LC loads a character into general register from a given memory
+     * address which is stored in general register before execution.
+     */
+
+    SI  , /* 11 */
+    /* SI stores the integer in general register into the memory whose
+     * address is stored on the top of the stack.
+     */
+
+    SC  , /* 12 */
+    /* SC stores the character in general register into the memory whose
+     * address is stored on the top of the stack.
+     */
+
+    PSH , /* 13 */
+    /* PSH pushes the value in general register onto the stack */
+
+    OR  , /* 14 */  XOR , /* 15 */  AND , /* 16 */
+    EQ  , /* 17 */  NE  , /* 18 */
+    LT  , /* 19 */  GT  , /* 20 */  LE  , /* 21 */ GE  , /* 22 */
+    SHL , /* 23 */  SHR , /* 24 */
+    ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */
+    /* ALU instructions
+     * Each operator has two arguments: the first one is stored on the top
+     * of the stack while the second is stored in general register.
+     * After the calculation is done, the argument on the stack will be poped
+     * out and the result will be stored in general register.
+     * So you are not able to fetch the first argument from the stack after
+     * the calculation.
+     */
+
+    /* system call shortcuts */
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,EXIT,
+    CLCA /* clear cache, used by JIT compilation */
 };
 
 // types
