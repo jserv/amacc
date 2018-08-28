@@ -63,7 +63,8 @@ enum {
     Num = 128, Func, Syscall, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
-    Assign, Cond, // operator: ?, =
+    Assign, AddAssign, SubAssign, MulAssign, // operator =, +=, -=, *=
+    Cond, // operator: ?
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
     Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
     Shl, Shr, Add, Sub, Mul, // operator: <<, >>, +, -, *
@@ -349,9 +350,12 @@ void next()
             if (tk == '"') ival = (int) pp; else tk = Num;
             return;
         case '=': if (*p == '=') { ++p; tk = Eq; } else tk = Assign; return;
-        case '+': if (*p == '+') { ++p; tk = Inc; } else tk = Add; return;
+        case '+': if (*p == '+') { ++p; tk = Inc; }
+                  else if (*p == '=') { ++p; tk = AddAssign; }
+                  else tk = Add; return;
         case '-': if (*p == '-') { ++p; tk = Dec; }
                   else if (*p == '>') { ++p; tk = Arrow; }
+                  else if (*p == '=') { ++p; tk = SubAssign; }
                   else tk = Sub; return;
         case '!': if (*p == '=') { ++p; tk = Ne; } return;
         case '<': if (*p == '=') { ++p; tk = Le; }
@@ -365,7 +369,8 @@ void next()
         case '&': if (*p == '&') { ++p; tk = Lan; }
                   else tk = And; return;
         case '^': tk = Xor; return;
-        case '*': tk = Mul; return;
+        case '*': if (*p == '=') { ++p; tk = MulAssign; }
+                  else tk = Mul; return;
         case '[': tk = Brak; return;
         case '?': tk = Cond; return;
         case '.': tk = Dot; return;
