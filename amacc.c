@@ -63,7 +63,9 @@ enum {
     Num = 128, Func, Syscall, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
-    Assign, Cond, // operator: ?, =
+    Assign, AddAssign, SubAssign, MulAssign, // operator =, +=, -=, *=
+                                             // keep Assign as highest priority operator here
+    Cond, // operator: ?
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
     Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
     Shl, Shr, Add, Sub, Mul, // operator: <<, >>, +, -, *
@@ -349,9 +351,12 @@ void next()
             if (tk == '"') ival = (int) pp; else tk = Num;
             return;
         case '=': if (*p == '=') { ++p; tk = Eq; } else tk = Assign; return;
-        case '+': if (*p == '+') { ++p; tk = Inc; } else tk = Add; return;
+        case '+': if (*p == '+') { ++p; tk = Inc; }
+                  else if (*p == '=') { ++p; tk = AddAssign; }
+                  else tk = Add; return;
         case '-': if (*p == '-') { ++p; tk = Dec; }
                   else if (*p == '>') { ++p; tk = Arrow; }
+                  else if (*p == '=') { ++p; tk = SubAssign; }
                   else tk = Sub; return;
         case '!': if (*p == '=') { ++p; tk = Ne; } return;
         case '<': if (*p == '=') { ++p; tk = Le; }
@@ -365,7 +370,8 @@ void next()
         case '&': if (*p == '&') { ++p; tk = Lan; }
                   else tk = And; return;
         case '^': tk = Xor; return;
-        case '*': tk = Mul; return;
+        case '*': if (*p == '=') { ++p; tk = MulAssign; }
+                  else tk = Mul; return;
         case '[': tk = Brak; return;
         case '?': tk = Cond; return;
         case '.': tk = Dot; return;
@@ -383,6 +389,7 @@ char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
  */
 void expr(int lev)
 {
+    int lastcmd;
     int t, *b, sz;
     struct ident_s *d;
     struct member_s *m;
@@ -556,6 +563,30 @@ void expr(int lev)
             if (*e == LC || *e == LI) *e = PSH;
             else fatal("bad lvalue in assignment");
             expr(Assign); *++e = ((ty = t) == CHAR) ? SC : SI;
+            break;
+        case AddAssign: // right assoc
+            next();
+            lastcmd = *e;
+            if (*e == LC || *e == LI) {
+                *e = PSH; *++e = lastcmd; *++e = PSH;
+            } else fatal("bad lvalue in add assignment");
+            expr(AddAssign); *++e = ADD; ty = INT; *++e = SI;
+            break;
+        case SubAssign: // right assoc
+            next();
+            lastcmd = *e;
+            if (*e == LC || *e == LI) {
+                *e = PSH; *++e = lastcmd; *++e = PSH;
+            } else fatal("bad lvalue in sub assignment");
+            expr(SubAssign); *++e = SUB; ty = INT; *++e = SI;
+            break;
+        case MulAssign: // right assoc
+            next();
+            lastcmd = *e;
+            if (*e == LC || *e == LI) {
+                *e = PSH; *++e = lastcmd; *++e = PSH;
+            } else fatal("bad lvalue in mul assignment");
+            expr(MulAssign); *++e = MUL; ty = INT; *++e = SI;
             break;
         case Cond:
             next();
