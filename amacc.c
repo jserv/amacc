@@ -389,7 +389,7 @@ char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
  */
 void expr(int lev)
 {
-    int lastcmd;
+    int lastcmd, otk;
     int t, *b, sz;
     struct ident_s *d;
     struct member_s *m;
@@ -564,29 +564,16 @@ void expr(int lev)
             else fatal("bad lvalue in assignment");
             expr(Assign); *++e = ((ty = t) == CHAR) ? SC : SI;
             break;
-        case AddAssign: // right assoc
+        case AddAssign: // right associated
+        case SubAssign:
+        case MulAssign:
+            otk = tk;
             next();
             lastcmd = *e;
             if (*e == LC || *e == LI) {
                 *e = PSH; *++e = lastcmd; *++e = PSH;
-            } else fatal("bad lvalue in add assignment");
-            expr(AddAssign); *++e = ADD; ty = INT; *++e = SI;
-            break;
-        case SubAssign: // right assoc
-            next();
-            lastcmd = *e;
-            if (*e == LC || *e == LI) {
-                *e = PSH; *++e = lastcmd; *++e = PSH;
-            } else fatal("bad lvalue in sub assignment");
-            expr(SubAssign); *++e = SUB; ty = INT; *++e = SI;
-            break;
-        case MulAssign: // right assoc
-            next();
-            lastcmd = *e;
-            if (*e == LC || *e == LI) {
-                *e = PSH; *++e = lastcmd; *++e = PSH;
-            } else fatal("bad lvalue in mul assignment");
-            expr(MulAssign); *++e = MUL; ty = INT; *++e = SI;
+            } else fatal("bad lvalue in compound assignment");
+            expr(otk); *++e = ADD + (otk - AddAssign); ty = INT; *++e = SI;
             break;
         case Cond:
             next();
