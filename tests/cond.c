@@ -4,8 +4,7 @@ int main(int argc, char **argv)
 {
     if (argc == 1) {
         printf("more arguments are required\n");
-    }
-    else {
+    } else {
         printf("argc = %d\n", argc);
     }
     return 0;

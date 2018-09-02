@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     p = &bar;
 
     // FIXME: 32-bit only
-    if (*(int *)((void *)p + sizeof(struct foo) - 4) != bar.x)
+    if (*(int *) ((void *) p + sizeof(struct foo) - 4) != bar.x)
         return -1;
 
     printf("%d\n", sizeof(struct foo));

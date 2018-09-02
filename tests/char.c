@@ -3,20 +3,21 @@
 
 int mcmp(char *a, char *b, int n)
 {
-	int ret;
-	while (n--) {
-		ret = *a++ - *b++;
-		if (ret)
-			return ret;
-	}
-	return 0;
+    int ret;
+    while (n--) {
+        ret = *a++ - *b++;
+        if (ret)
+            return ret;
+    }
+    return 0;
 }
 
 int mcpy(char *a, char *b, int n)
 {
-	char *dst;
-	dst = a;
-	while (n--) *a++ = *b++;
+    char *dst;
+    dst = a;
+    while (n--)
+        *a++ = *b++;
 }
 
 int main()
