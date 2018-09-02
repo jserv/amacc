@@ -1,6 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 int assert_eq(int a, int b)
 {
     if (a != b) {
+        printf("Assertion: %d != %d\n", a, b);
         exit(1);
     }
 }

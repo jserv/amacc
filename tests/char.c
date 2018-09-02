@@ -12,7 +12,7 @@ int mcmp(char *a, char *b, int n)
     return 0;
 }
 
-int mcpy(char *a, char *b, int n)
+void mcpy(char *a, char *b, int n)
 {
     char *dst;
     dst = a;
@@ -33,5 +33,6 @@ int main()
     p[0] = -1;
     v = p[0];
     printf("%x %d %d %x\n", p[0], p[0], v, p[1]);
+
     return 0;
 }

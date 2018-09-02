@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 struct foo {
     char *p;
@@ -15,7 +16,7 @@ int main(int argc, char **argv)
 
     // FIXME: 32-bit only
     if (*(int *) ((void *) p + sizeof(struct foo) - 4) != bar.x)
-        return -1;
+        exit(-1);
 
     printf("%d\n", sizeof(struct foo));
     return 0;

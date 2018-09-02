@@ -19,5 +19,5 @@ int main(int argc, char **argv)
            readsz, p);
     printf("\n_______________________________\n");
 
-    exit(0);
+    return 0;
 }

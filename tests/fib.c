@@ -31,5 +31,6 @@ int main(int argc, char **argv)
 
     n = my_atoi(argv[1]);
     printf("%d\n", fib(n));
+
     return 0;
 }
