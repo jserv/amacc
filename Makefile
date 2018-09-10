@@ -9,8 +9,9 @@ EXEC = $(BIN) $(BIN)-native
 
 include mk/arm.mk
 include mk/common.mk
-all: $(EXEC)
 
+## Build amacc
+all: $(EXEC)
 $(BIN): $(BIN).c
 	$(VECHO) "  CC+LD\t\t$@\n"
 	$(Q)$(ARM_CC) $(CFLAGS) -o $@ $< -g -ldl
@@ -20,7 +21,7 @@ $(BIN)-native: $(BIN).c
 	$(Q)$(CC) $(CFLAGS) -o $@ $< \
 	    -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format \
 	    -ldl
-
+## Run tests and show message
 check: $(EXEC) $(TEST_OBJ)
 	$(VECHO) "[ C to IR translation          ]"
 	$(Q)./$(BIN)-native -s tests/arginc.c | diff tests/arginc.list - \
@@ -56,6 +57,15 @@ $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
 	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2 $(REDIR)
 	$(Q)$(call pass,$<)
 
+## Prints help for targets with comments
+help:
+	@cat $(MAKEFILE_LIST)|awk '/^##.*$$/{l1=$$0;getline;l2=(l1 "##" $$0); print l2 $$0}' | awk -F"##" '{split($$3,t,":");printf "\033[36m%-30s\033[0m %s\n",t[1],$$2}'
+
+## Dump assembly from source file,usage:"make dump-ir FILE=tests/main.cc"
+dump-ir:$(BIN)
+	@$(ARM_QEMU) -L /usr/arm-linux-gnueabihf $(BIN) -s $(FILE)
+
+## Clean out files
 clean:
 	$(RM) $(EXEC) $(OBJ_DIR)/* \
               out-1 out-2
