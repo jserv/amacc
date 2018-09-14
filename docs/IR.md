@@ -15,7 +15,7 @@ generate binary file that is independent of the source.
       across machine).
     * Can build a new front-end for an existing back end.
     * We only have to write 2n half-compilers instead of n(n-1) full compilers.
-    * To perform *machine independent optimizations.
+    * To perform machine independent optimizations.
 
 So how does the IR actually work? Let's have an example:
 ```c
