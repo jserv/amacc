@@ -1,7 +1,21 @@
 AMaCC Quick start
 ===
 # How IR work inside AMaCC
-AMaCC use the stack based virtual machine for process the execute command。When the source file load into AMaCC,it will be translated to token，these token will be translated to AMaCC's specific IR，then use these IR to generated executed binary.
+
+## What is an IR? 
+An IR is a representation of a "program" between source code and target languages.Before
+creating binary,the compiler frontend will generate IR to help compiler backend to
+generate binary file that is independent of the source.
+
+## Why use an IR?
+* Because translation appears to inherently require analysis and synthesis.
+* Break the difficult problem of translation into two simpler,more manageable pieces.
+* To build retargetable compilers:
+    * Build new back ends for an existing front end(make source language more portable and
+      across machine).
+    * Can build a new front-end for an existing back end.
+    * We only have to write 2n half-compilers instead of n(n-1) full compilers.
+    * To perform *machine independent optimizations.
 
 So how does the IR actually work? Let's have an example:
 ```c
@@ -44,7 +58,7 @@ reg
 |   1     |               |   11  |               |       |
 ```
 ```
-|  IMM 11 |  pop `IMM 11`               pop `ADD
+|  IMM 11 |  pop `IMM 11`               pop `ADD`
 |  ADD    | ----------->  | ADD   |  -----------> |       |
 stack                   
 |   11    |               |   11  |               |       |
@@ -53,7 +67,6 @@ reg
 ```
 # Instructsion sets
 
-these instructions is for general purpose
 |   opcode  |       format      |       ARM instructions        |                       comments                                   |
 |-----------|-------------------|-------------------------------|------------------------------------------------------------------|
 |LEA        | LEA \<offset\>    |add r0, r11, #\<offset>        |fetch arguments inside sub function                               |
@@ -84,35 +97,34 @@ int main()
 }
 ```
 
-compile by AMaCC with `-s` flag
-
+compiled with AMaCC,passing argument `-s`
 ```c
 1: int func(int a)
 2: {
 3:     return a * 10;
-    ENT  0          ;save func addres on stack
-    LEA  2          ;fetch a's address on stack and save into general register
-    LI              ;Load integer from memory which address is inside general register
-    PSH             ;push interger to top of stack which is inside general register
-    IMM  10         ;move 10 into general register
-    MUL             ;pop 'a' on the top of stack,and multiply 10 which is inside general register,store result into general register
-    LEV             ;return to main
+    ENT  0          ; save func addres on stack
+    LEA  2          ; fetch a's address on stack and save into general register
+    LI              ; Load integer from memory which address is inside general register
+    PSH             ; push interger to top of stack which is inside general register
+    IMM  10         ; move 10 into general register
+    MUL             ; pop 'a' on the top of stack,and multiply 10 which is inside general register,store result into general register
+    LEV             ; return to main
 4: }
-    LEV             ;do nothing
+    LEV             ; do nothing
 5:
 6: int main()
 7: {
 8:     func(20);
-    ENT  0          ;save main address on stack
-    IMM  20         ;move 20 into general register
-    PSH             ;push r0 on top of stack
-    JSR  -11120300  ;save sp on stack,save current execute position to lr,jump to func
-    ADJ  1          ;remove 20 from stack
+    ENT  0          ; save main address on stack
+    IMM  20         ; move 20 into general register
+    PSH             ; push r0 on top of stack
+    JSR  -11120300  ; save sp on stack,save current execute position to lr,jump to func
+    ADJ  1          ; remove 20 from stack
 9:     return 0;
-    IMM  0          ;move 0 into general register
-    LEV             ;return to entry
+    IMM  0          ; move 0 into general register
+    LEV             ; return to entry
 10: }
-    LEV             ;do nothing
+    LEV             ; do nothing
 ```
 
 # Arithmetic instructions
@@ -129,12 +141,12 @@ example
 
 ```c
 7:     if (n > 0) {
-    LEA  2          ;fetch n's address
-    LI              ;load n's value into r0 register
-    PSH             ;push n on to stack
-    IMM  0          ;move 0 into r0 register
-    GT              ;compare r0 and r1(pop r1 first on top of stack)
-    BZ   0          ;jump when r1>r0
+    LEA  2          ; fetch n's address
+    LI              ; load n's value into r0 register
+    PSH             ; push n on to stack
+    IMM  0          ; move 0 into r0 register
+    GT              ; compare r0 and r1(pop r1 first on top of stack)
+    BZ   0          ; jump when r1>r0
 ```
 The arithmetic instructions for compare will be translated to ARM instruction,for exampe:
 ```
