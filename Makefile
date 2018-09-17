@@ -63,7 +63,7 @@ help:
 
 ## Dump assembly from source file,usage:"make dump-ir FILE=tests/main.cc"
 dump-ir:$(BIN)
-	@$(ARM_QEMU) -L /usr/arm-linux-gnueabihf $(BIN) -s $(FILE)
+	@$(ARM_EXEC) $(BIN) -s $(FILE)
 
 ## Clean out files
 clean:
