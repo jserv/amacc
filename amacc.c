@@ -615,10 +615,10 @@ void expr(int lev)
         case Gt:  next(); *++e = PSH; expr(Shl); *++e = GT;  ty = INT; break;
         case Le:  next(); *++e = PSH; expr(Shl); *++e = LE;  ty = INT; break;
         case Ge:  next(); *++e = PSH; expr(Shl); *++e = GE;  ty = INT; break;
-        case Shl: next(); *++e = PSH;if (tk == Sub){tk = Add;expr(Add);*++e = SHR;}
-                                     else{expr(Add);*++e = SHL;}ty = INT; break;
-        case Shr: next(); *++e = PSH;if (tk == Sub){tk = Add;expr(Add);*++e = SHL;}
-                                     else{expr(Add);*++e = SHR;}ty = INT; break;
+        case Shl: next(); *++e = PSH; if (tk == Sub){ tk = Add; expr(Add); *++e = SHR;}
+                                      else{ expr(Add); *++e = SHL; }ty = INT; break;
+        case Shr: next(); *++e = PSH; if (tk == Sub){ tk = Add; expr(Add); *++e = SHL;}
+                                      else{ expr(Add); *++e = SHR; }ty = INT; break;
         case Add:
             next(); *++e = PSH; expr(Mul);
             sz = (ty = t) >= PTR2 ? sizeof(int) :
