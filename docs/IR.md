@@ -71,7 +71,7 @@ reg
 |-----------|-------------------|-------------------------------|------------------------------------------------------------------|
 |LEA        | LEA \<offset\>    |add r0, r11, #\<offset>        |fetch arguments inside sub function                               |
 |IMM        | IMM \<num\>       |mov r0, #20                    |put immediate \<num\> into general register                       |
-|JMP        | JMP \<addr\>      |bl \<addr\>                   |set PC register to \<addr\>                                       |
+|JMP        | JMP \<addr\>      |b \<addr\>                     |set PC register to \<addr\>                                       |
 |JSR        | JSR \<addr\>      |bl \<addr\>                    |stores current execution position and jump to \<addr\>            |
 |LEV        | LEV               |add sp, r11, #0; pop {r11, pc} |fetches bookkeeping info to resume previous execution             |
 |ENT        | ENT \<size\>      |push {r11, lr} ;add r11, sp, #0|Is called when we are about to enter the function call to "make a new calling frame".It will store the current PC value onto the stack, and save \<size\> bytes to store the local variable for function.|

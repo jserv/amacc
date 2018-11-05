@@ -1019,7 +1019,7 @@ int *codegen(int *jitmem, int *jitmap)
                 *je = 0xeb000000;  // bl #(tmp)
                 break;
             case JMP:
-                *je = 0xea000000;  // bl #(tmp)
+                *je = 0xea000000;  // b #(tmp)
                 break;
             case BZ:
                 *++je = 0x0a000000; // beq #(tmp)
