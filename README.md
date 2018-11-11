@@ -1,22 +1,27 @@
-AMaCC = Another Mini ARM C Compiler
+# AMaCC = Another Mini ARM C Compiler
 
-Introduction
-------------
-AMaCC is built from scratch, supporting ARM architecture.
+## Introduction
+AMaCC is built from scratch, targeted at 32-bit ARM architecture.
 There are 3 execution modes AMaCC implements:
 * Just-in-Time compiler (JITC) for ARM backend
 * Generate valid Executable and Linkable Format (ELF) executables
 * Interpreter-only execution
 
-Compatibility
--------------
+Indeed, AMaCC is designed to compile the minimal subset of C required
+to self-host. For example, global variables and, in particular, global
+arrays are there.
+
+## Compatibility
 AMaCC is capable of compiling C source files written in the following
 syntax:
 * data types: char, int, struct, and pointer
-* condition statements: if, while, for, switch, return, and expression
+* condition statements: if, while, for, switch, case, break, return, and
+                        general expressions
+* compound assignments: `+=`, `-=`, `*=`
 
-Prerequisites
--------------
+The architecture support targets armv7hf with Linux ABI.
+
+## Prerequisites
 * Code generator in AMaCC relies on several GNU/Linux behaviors, and it
   is necessary to have ARM/Linux installed in your build environment.
 * Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
@@ -28,8 +33,7 @@ Prerequisites
 sudo apt-get install qemu-user
 ```
 
-Running AMaCC
--------------
+## Running AMaCC
 Run `make check` and you should see this:
 ```
 [ C to IR translation          ] Passed
@@ -38,11 +42,9 @@ Run `make check` and you should see this:
 [ nested/self compilation      ] Passed
 ```
 
-Acknowledgements
-----------------
+## Acknowledgements
 AMaCC is based on the infrastructure of [c4](https://github.com/rswier/c4).
 
-Related Materials
------------------
+## Related Materials
 * [Curated list of awesome resources on Compilers, Interpreters and Runtimes](http://aalhour.com/awesome-compilers/)
 * [Hacker News discussions](https://news.ycombinator.com/item?id=11411124)
