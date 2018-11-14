@@ -1924,7 +1924,7 @@ int main(int argc, char **argv)
                 // (i - loc) indicates memory size to alocate
                 *++e = ENT; *++e = i - loc;
                 while (tk != '}') stmt();
-                *++e = LEV; // function return
+                if (*e != LEV) *++e = LEV; // function return
                 id = sym; // unwind symbol table locals
                 while (id->tk) {
                     if (id->class == Loc) {
