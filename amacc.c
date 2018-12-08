@@ -39,7 +39,7 @@ int rwdata_align_off;
 struct ident_s {
     int tk;          // type-id or keyword
     int hash;
-    char *name;
+    char *name;     // name of this identifier
     /* fields starting with 'h' were designed to save and restore
      * the global class/type/val in order to handle the case if a
      * function declares a local with the same name as a global.
@@ -60,7 +60,8 @@ struct member_s {
 
 // tokens and classes (operators last and in precedence order)
 enum {
-    Num = 128, Func, Syscall, Glo, Loc, Id,
+    Num = 128, // the character set of given source is limited to 7-bit ASCII
+    Func, Syscall, Glo, Loc, Id,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
     Assign, AddAssign, SubAssign, MulAssign, // operator =, +=, -=, *=
@@ -251,7 +252,7 @@ void next()
             while ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
                    (*p >= '0' && *p <= '9') || (*p == '_'))
                 tk = tk * 147 + *p++; // 147 is the magic number generating hash value
-            tk = (tk << 6) + (p - pp);
+            tk = (tk << 6) + (p - pp);  // hash plus symbol length
             // hash value is used for fast comparison. Since it is inaccurate,
             // we have to validate the memory content as well.
             for (id = sym; id->tk; id++) {
@@ -263,7 +264,7 @@ void next()
             }
             id->name = pp;
             id->hash = tk;
-            tk = id->tk = Id;
+            tk = id->tk = Id;  // token type identifier
             return;
         }
         /* Calculate the constant */
@@ -395,7 +396,7 @@ void expr(int lev)
     struct member_s *m;
 
     switch (tk) {
-    case 0: fatal("unexpected eof in expression");
+    case 0: fatal("unexpected EOF in expression");
     // directly take an immediate value as the expression value
     // IMM recorded in emit sequence
     case Num: *++e = IMM; *++e = ival; next(); ty = INT; break;
@@ -556,12 +557,16 @@ void expr(int lev)
 
     // "precedence climbing" or "Top Down Operator Precedence" method
     while (tk >= lev) {
+        // tk is ASCII code will not exceed `Num=128`. Its value may be
+        // changed during recursion, so back up currently processed expression type
         t = ty;
         switch (tk) {
         case Assign:
             next();
+            // the left part is processed by the variable part of `tk=ID` and pushes the address
             if (*e == LC || *e == LI) *e = PSH;
             else fatal("bad lvalue in assignment");
+            // getting the value of the right part `expr` as the result of `a=expr`
             expr(Assign); *++e = ((ty = t) == CHAR) ? SC : SI;
             break;
         case AddAssign: // right associated
@@ -575,7 +580,7 @@ void expr(int lev)
             } else fatal("bad lvalue in compound assignment");
             expr(otk); *++e = ADD + (otk - AddAssign); ty = INT; *++e = SI;
             break;
-        case Cond:
+        case Cond: // `x?a:b` is similar to if except that it can't be without else
             next();
             *++e = BZ; b = ++e;
             expr(Assign);
@@ -585,14 +590,16 @@ void expr(int lev)
             expr(Cond);
             *b = (int) (e + 1);
             break;
-        case Lor:
-            next(); *++e = BNZ; b = ++e;
+        case Lor: // short circuit, the logical or operator on the left is true, expression is true
+            next(); *++e = BNZ; b = ++e; // do not evaluate the value of right side of the operator
             expr(Lan); *b = (int) (e + 1); ty = INT;
             break;
-        case Lan: next(); *++e = BZ; b = ++e;
+        case Lan: // short circuit, logic and
+            next(); *++e = BZ; b = ++e;
             expr(Or); *b = (int) (e + 1); ty = INT;
             break;
-        case Or:  next(); *++e = PSH;
+        case Or: // push the current value, calculate the right value of the operator
+            next(); *++e = PSH;
             expr(Xor); *++e = OR;  ty = INT;
             break;
         case Xor: next(); *++e = PSH;
