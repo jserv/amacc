@@ -40,6 +40,7 @@ Run `make check` and you should see this:
 [ JIT compilation + execution  ] Passed
 [ ELF generation               ] Passed
 [ nested/self compilation      ] Passed
+[ Compatibility with GCC/Arm   ] ......................................
 ```
 
 ## Acknowledgements
