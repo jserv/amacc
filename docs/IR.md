@@ -1,28 +1,30 @@
-AMaCC Quick start
-===
-# How IR work inside AMaCC
+# Intermediate Representation (IR) for AMaCC Compilation
 
-## What is an IR? 
-An IR is a representation of a "program" between source code and target languages.Before
-creating binary,the compiler frontend will generate IR to help compiler backend to
-generate binary file that is independent of the source.
+## What is an IR
+An Intermediate representation (IR) is the specific data structure or code
+used internally by a compiler or virtual machine to represent a "program"
+between source code and target languages. Before generating binary, the
+compiler front-end will generate IR to aid the compiler backend to produce
+the intermediate form which is independent of the source file.
 
-## Why use an IR?
+
+## Why is an IR used
 * Because translation appears to inherently require analysis and synthesis.
 * Break the difficult problem of translation into two simpler,more manageable pieces.
 * To build retargetable compilers:
-    * Build new back ends for an existing front end(make source language more portable and
-      across machine).
-    * Can build a new front-end for an existing back end.
-    * We only have to write 2n half-compilers instead of n(n-1) full compilers.
-    * To perform machine independent optimizations.
+  - Build new back ends for an existing front end(make source language more portable and
+    across machine).
+  - Can build a new front-end for an existing back end.
+  - We only have to write 2n half-compilers instead of n(n-1) full compilers.
+  - To perform machine independent optimizations.
 
 So how does the IR actually work? Let's have an example:
 ```c
 int a;
 a = 10 + 1 + 11;
 ```
-Inside AMaCC，the source code will be converted into following IR:
+
+Inside AMaCC, the above C source will be converted into following IR:
 ```
 IMM  10
 PSH 
@@ -32,7 +34,10 @@ PSH
 IMM  11
 ADD 
 ```
-These IR will be stored inside the stack.According to the stack execution mode LIFO (Last in First Out), these instructions will be executed sequentially from top to bottom by push and pop.
+
+These instructions will be stored inside the stack. According to the stack
+execution mode LIFO (Last in First Out), these instructions will be executed
+sequentially from top to bottom by push and pop.
 ```
 | IMM  10 | pop `IMM 10`
 | PSH     |-------------> | PSH   | pop `PSH`
@@ -65,7 +70,8 @@ stack
 reg
 |         |               |   11  |               |   22  | --------> Now we get the result!
 ```
-# Instructsion sets
+
+## Instructsion sets
 
 |   opcode  |       format      |       ARM instructions        |                       comments                                   |
 |-----------|-------------------|-------------------------------|------------------------------------------------------------------|
@@ -82,7 +88,7 @@ reg
 |SC         | SC                |pop {r1}; strb r0, [r1]        |stores the character in general register into the memory whose address is stored on the top of the stack| 
 |PSH        | PSH               |push {r0}                      |pushes the value in general register onto the stack               |
 
-## Take a look how function call inside AMaCC
+## Function call example
 
 ```c
 int func(int a)
@@ -97,7 +103,8 @@ int main()
 }
 ```
 
-compiled with AMaCC,passing argument `-s`
+while compiled with AMaCC, passing argument `-s` can generate IR along with
+corresponding source..
 ```c
 1: int func(int a)
 2: {
@@ -127,13 +134,13 @@ compiled with AMaCC,passing argument `-s`
     LEV             ; do nothing
 ```
 
-# Arithmetic instructions
+### Arithmetic instructions
 
 Each operator has two arguments, the first one is store on the top of the stack,the second is stored in general register.After the calculation is done, the argument on the stack will be poped out and the result will be stored in general register. So you are not able to fetch the first argument from the stack after the calculation.
 
 You can see the above example to know how arithmetic instructions work.
 
-# compare instructions
+### Conditional jump instructions
 
 The `BZ` and `BNZ` instructions must be used with arithmetic instructions,such as `EQ`,`NE`,`LT`,`GT`,`LE` and `GE`.
 
@@ -148,7 +155,7 @@ example
     GT              ; compare r0 and r1(pop r1 first on top of stack)
     BZ   0          ; jump when r1>r0
 ```
-The arithmetic instructions for compare will be translated to ARM instruction,for exampe:
+The arithmetic instructions for comparisons will be translated to ARM instructions. Example:
 ```
 # GT
 pop  {r1}
@@ -156,7 +163,8 @@ cmp  r1, r0
 movgt r0, 1
 movle r0, 0
 ```
-and the branch instructions can be work as:
+
+Branch-on-zero instruction is about to be translated as following:
 ```
 # BZ
 cmp  r0, 0

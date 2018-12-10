@@ -43,6 +43,9 @@ Run `make check` and you should see this:
 [ Compatibility with GCC/Arm   ] ......................................
 ```
 
+## Internals
+Check [Intermediate Representation (IR) for AMaCC Compilation](docs/IR.md).
+
 ## Acknowledgements
 AMaCC is based on the infrastructure of [c4](https://github.com/rswier/c4).
 
