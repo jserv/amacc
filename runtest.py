@@ -43,24 +43,24 @@ def _generate_test(test_name, test_file, extra_cflags):
         prog_exe = os.path.join(gccdir, test_file_name)
         # parameter '-w' inhibits all warning messages of gcc
         gcc_params = [gcc, '-w', '-o', prog_exe, test_file] + extra_cflags
-        sp.check_call(gcc_params)
+        sp.run(gcc_params)
 
-        proc = sp.Popen(qemuCmd + [prog_exe] + args, stdout=sp.PIPE)
-        gcc_out, gcc_err = proc.communicate()
+        proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
+        gcc_out, gcc_err = proc.stdout, proc.stderr
 
         # run amacc in jit mode
         amacc_params = [amacc] + extra_cflags + [test_file] + args
-        proc = sp.Popen(qemuCmd + amacc_params, stdout=sp.PIPE)
-        amacc_out, amacc_err = proc.communicate()
+        proc = sp.run(qemuCmd + amacc_params, timeout=10, stdout=sp.PIPE)
+        amacc_out, amacc_err = proc.stdout, proc.stderr
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
 
         # run amacc in compiler mode
         prog_exe = os.path.join(amaccdir, test_file_name)
         amacc_params = [amacc] + extra_cflags + ['-o', prog_exe, test_file]
-        sp.check_call(qemuCmd + amacc_params)
+        sp.run(qemuCmd + amacc_params)
 
-        proc = sp.Popen(qemuCmd + [prog_exe] + args, stdout=sp.PIPE)
-        amacc_out, amacc_err = proc.communicate()
+        proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
+        amacc_out, amacc_err = proc.stdout, proc.stderr
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
 
     return test
@@ -84,6 +84,7 @@ def _define_tests():
                 # test with -fsigned-char
                 test_func = _generate_test(test_name, test_file, ['-fsigned-char'])
                 setattr(TestCC_SC, test_name, test_func)
+
 
 _define_tests()
 
