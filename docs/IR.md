@@ -36,41 +36,44 @@ ADD
 ```
 
 These instructions will be stored inside the stack. According to the stack
-execution mode LIFO (Last in First Out), these instructions will be executed
-sequentially from top to bottom by push and pop.
-```
-| IMM  10 | pop `IMM 10`
-| PSH     |-------------> | PSH   | pop `PSH`
-| IMM  1  |               | IMM 1 |-------------> | IMM 1 | pop `IMM 1`
-| ADD     |               | ADD   |               | ADD   |------------->
-| PSH     |               | PSH   |               | PSH   |
-| IMM  11 |               | IMM 11|               | IMM 11|
-| ADD     |               | ADD   |               | ADD   |
-
-stack                   
-|         |               |       |               |   10  |
-reg
-|         |               |   10  |               |       |
-```
+LIFO (Last in First Out) order, they will be executed sequentially from
+top to bottom illustrated as following:
 
 ```
-|  ADD    |  pop `ADD`
-|  PSH    |-------------> | PSH   |  pop `PSH`
-|  IMM 11 |               | IMM 11|-------------> | IMM 11|
-|  ADD    |               | ADD   |               | ADD   |
-stack                   
-|   10    |               |       |               |   11  |
-reg
-|   1     |               |   11  |               |       |
+| IMM  10 | pop "IMM 10"
+| PSH     |-------------> | PSH   | pop "PSH"
+| IMM  1  |               | IMM 1 |----------> | IMM 1 | pop "IMM 1"
+| ADD     |               | ADD   |            | ADD   |----------->
+| PSH     |               | PSH   |            | PSH   |
+| IMM  11 |               | IMM 11|            | IMM 11|
+| ADD     |               | ADD   |            | ADD   |
+
+* stack    *
+|         |               |       |            |   10  |
+* register *
+|         |               |   10  |            |       |
 ```
 
 ```
-|  IMM 11 |  pop `IMM 11`               pop `ADD`
-|  ADD    | ----------->  | ADD   |  -----------> |       |
-stack                   
-|   11    |               |   11  |               |       |
-reg
-|         |               |   11  |               |   22  | --------> Now we get the result!
+|  ADD    |  pop "ADD"
+|  PSH    |-------------> | PSH   | pop "PSH"
+|  IMM 11 |               | IMM 11|----------> | IMM 11|
+|  ADD    |               | ADD   |            | ADD   |
+
+* stack    *
+|   10    |               |       |            |   11  |
+* register *
+|   1     |               |   11  |            |       |
+```
+
+```
+|  IMM 11 | pop "IMM 11"             pop "ADD"
+|  ADD    | ----------->  | ADD   |  --------> |       |
+
+* stack    *
+|   11    |               |   11  |            |       |
+* register *
+|         |               |   11  |            |   22  | -> the result we get
 ```
 
 ## Instructsion sets
