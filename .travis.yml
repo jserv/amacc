@@ -15,6 +15,7 @@ before_install:
     - sudo apt-get install build-essential git-core
     - sudo apt-get install gcc-arm-linux-gnueabihf
     - sudo apt-get install qemu-user
+    - sudo apt-get install python3
 
 script:
     - make check

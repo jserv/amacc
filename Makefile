@@ -9,6 +9,7 @@ EXEC = $(BIN) $(BIN)-native
 
 include mk/arm.mk
 include mk/common.mk
+include mk/python.mk
 
 ## Build amacc
 all: $(EXEC)
@@ -40,7 +41,7 @@ check: $(EXEC) $(TEST_OBJ)
 	$(call pass); \
 	fi
 	$(VECHO) "[ Compatibility with GCC/Arm   ] "
-	$(Q)python runtest.py || echo
+	$(Q)$(PYTHON) runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
 	$(VECHO) "  SelfCC\t$@\n"
