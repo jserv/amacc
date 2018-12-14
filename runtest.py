@@ -46,13 +46,14 @@ def _generate_test(test_name, test_file, extra_cflags):
         sp.run(gcc_params)
 
         proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
-        gcc_out, gcc_err = proc.stdout, proc.stderr
+        gcc_out, gcc_err, gcc_retcode = proc.stdout, proc.stderr, proc.returncode
 
         # run amacc in jit mode
         amacc_params = [amacc] + extra_cflags + [test_file] + args
         proc = sp.run(qemuCmd + amacc_params, timeout=10, stdout=sp.PIPE)
-        amacc_out, amacc_err = proc.stdout, proc.stderr
+        amacc_out, amacc_err, amacc_retcode = proc.stdout, proc.stderr, proc.returncode
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
+        self.assertEqual(amacc_retcode, gcc_retcode)
 
         # run amacc in compiler mode
         prog_exe = os.path.join(amaccdir, test_file_name)
@@ -60,8 +61,9 @@ def _generate_test(test_name, test_file, extra_cflags):
         sp.run(qemuCmd + amacc_params)
 
         proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
-        amacc_out, amacc_err = proc.stdout, proc.stderr
+        amacc_out, amacc_err, amacc_retcode = proc.stdout, proc.stderr, proc.returncode
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
+        self.assertEqual(amacc_retcode, gcc_retcode)
 
     return test
 
@@ -84,7 +86,6 @@ def _define_tests():
                 # test with -fsigned-char
                 test_func = _generate_test(test_name, test_file, ['-fsigned-char'])
                 setattr(TestCC_SC, test_name, test_func)
-
 
 _define_tests()
 
