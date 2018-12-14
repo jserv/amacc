@@ -1058,15 +1058,14 @@ int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
     int *je, *tje, *_start,  retval, *jitmap, *res;
+    if (src) return 1; // skip for IR listing
 
     // setup JIT memory
-    jitmem = mmap(0, poolsz, _PROT_EXEC | _PROT_READ | _PROT_WRITE,
-                  _MAP_PRIVATE | _MAP_ANON, -1, 0);
-    if (!jitmem) {
+    if (!(jitmem = mmap(0, poolsz, _PROT_EXEC | _PROT_READ | _PROT_WRITE,
+                        _MAP_PRIVATE | _MAP_ANON, -1, 0))) {
         printf("could not mmap(%d) jit executable memory\n", poolsz);
         return -1;
     }
-    if (src) return 1;
     jitmap = (int *) (jitmem + (poolsz >> 1));
     je = (int *) jitmem;
     *je++ = (int) &retval;
@@ -1226,16 +1225,11 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
 {
     struct Elf32_Shdr *shdr;
     shdr = (struct Elf32_Shdr *) ptr;
-    shdr->sh_name = name;
-    shdr->sh_type = type;
-    shdr->sh_addr = addr;
-    shdr->sh_offset = offset;
-    shdr->sh_size = size;
-    shdr->sh_link = link;
-    shdr->sh_info = info;
-    shdr->sh_flags = flag;
-    shdr->sh_addralign = align;
-    shdr->sh_entsize = entsize;
+    shdr->sh_name = name;       shdr->sh_type = type;
+    shdr->sh_addr = addr;       shdr->sh_offset = offset;
+    shdr->sh_size = size;       shdr->sh_link = link;
+    shdr->sh_info = info;       shdr->sh_flags = flag;
+    shdr->sh_addralign = align; shdr->sh_entsize = entsize;
     return shdr_idx++;
 }
 
@@ -1605,12 +1599,12 @@ int elf32(int poolsz, int *main)
     // Generate section header
     *(int *) e_shoff = (int) (o - buf);
     gen_shdr(o, SHT_NULL, shdr_names[SNONE], 0, 0, 0,
-            0, 0, 0, 0, 0);
+             0, 0, 0, 0, 0);
     o += SHDR_ENT_SIZE;
 
     // sh_shstrtab_idx
     gen_shdr(o, SHT_STRTAB, shdr_names[SSTAB], shstrtab_off, 0,
-            shstrtab_size, 0, 0, 0, 1, 0);
+             shstrtab_size, 0, 0, 0, 1, 0);
     o += SHDR_ENT_SIZE;
 
     // sh_text_idx
@@ -1620,42 +1614,42 @@ int elf32(int poolsz, int *main)
 
     // sh_data_idx
     gen_shdr(o, SHT_PROGBITS, shdr_names[SDATA], rwdata_off, (int) _data,
-            dseg_size, 0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
+             dseg_size, 0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o += SHDR_ENT_SIZE;
 
     sh_dynstr_idx =
     gen_shdr(o, SHT_STRTAB, shdr_names[SDYNS], dynstr_off, (int) dynstr_addr,
-            dynstr_size, 0, 0, SHF_ALLOC, 1, 0);
+             dynstr_size, 0, 0, SHF_ALLOC, 1, 0);
     o += SHDR_ENT_SIZE;
     
     sh_dynsym_idx =
     gen_shdr(o, SHT_DYNSYM, shdr_names[SDYNM], dynsym_off, (int) dynsym_addr,
-            dynsym_size, sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
+             dynsym_size, sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
     o += SHDR_ENT_SIZE;
     
     // sh_dynamic_idx
     gen_shdr(o, SHT_DYNAMIC, shdr_names[SDYNC], pt_dyn_off, (int) pt_dyn,
-            pt_dyn_size, sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
+             pt_dyn_size, sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o += SHDR_ENT_SIZE;
 
     // sh_interp_idx
     gen_shdr(o, SHT_PROGBITS, shdr_names[SINTP], interp_off, (int) interp,
-            interp_str_size, 0, 0, SHF_ALLOC, 1, 0);
+             interp_str_size, 0, 0, SHF_ALLOC, 1, 0);
     o += SHDR_ENT_SIZE;
 
     // sh_rel_idx
     gen_shdr(o, SHT_REL, shdr_names[SREL], rel_off, (int) rel_addr,
-            rel_size, sh_dynsym_idx, 11, SHF_ALLOC | 0x40, 4, 8);
+             rel_size, sh_dynsym_idx, 11, SHF_ALLOC | 0x40, 4, 8);
     o += SHDR_ENT_SIZE;
 
     // sh_plt_idx
     gen_shdr(o, SHT_PROGBITS, shdr_names[SPLT], plt_off, (int) plt_addr,
-            plt_size, 0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 4);
+             plt_size, 0, 0, SHF_ALLOC | SHF_EXECINSTR, 4, 4);
     o += SHDR_ENT_SIZE;
 
     // sh_got_idx
     gen_shdr(o, SHT_PROGBITS, shdr_names[SGOT], got_off, (int) got_addr,
-            got_size, 0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
+             got_size, 0, 0, SHF_ALLOC | SHF_WRITE, 4, 4);
     o += SHDR_ENT_SIZE;
 
     // Copy .data to a part of (o - buf) where _data located.
