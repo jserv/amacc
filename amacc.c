@@ -255,8 +255,8 @@ void next()
             tk = (tk << 6) + (p - pp);  // hash plus symbol length
             // hash value is used for fast comparison. Since it is inaccurate,
             // we have to validate the memory content as well.
-            for (id = sym; id->tk; id++) {
-                if (tk == id->hash &&
+            for (id = sym; id->tk; id++) { // find one free slot in table
+                if (tk == id->hash && /* if token is found (hash match), overwrite */
                     !memcmp(id->name, pp, p - pp)) {
                     tk = id->tk;
                     return;
@@ -270,6 +270,11 @@ void next()
         /* Calculate the constant */
 	// first byte is a number, and it is considered a numerical value
         else if (tk >= '0' && tk <= '9') {
+            /* Parse with 3 conditions:
+             * 1) not starting with 0 :=> decimal number;
+             * 2) starting with 0x :=> hex number;
+             * 3) starting with 0: octal number;
+             */
             if ((ival = tk - '0')) {
                 while (*p >= '0' && *p <= '9')
                     ival = ival * 10 + *p++ - '0';
@@ -279,8 +284,7 @@ void next()
             else if (*p == 'x' || *p == 'X') {
                 while ((tk = *++p) &&
                        ((tk >= '0' && tk <= '9') ||
-                        (tk >= 'a' && tk <= 'f') ||
-                        (tk >= 'A' && tk <= 'F')))
+                        (tk >= 'a' && tk <= 'f') || (tk >= 'A' && tk <= 'F')))
                     ival = ival * 16 + (tk & 15) + (tk >= 'A' ? 9 : 0);
             }
             else { // considered octal
