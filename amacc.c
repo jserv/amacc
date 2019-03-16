@@ -1823,7 +1823,7 @@ int streq(char *p1, char *p2)
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
-    int fd, ret, bt, mbt, ty, poolsz, *ast;
+    int fd, ret, bt, mbt, ty, poolsz, *ast, *freed_ast;
     struct ident_s *idmain;
     struct member_s *m;
     int i;
@@ -1870,7 +1870,7 @@ int main(int argc, char **argv)
     if (!(members = malloc(PTR * sizeof(struct member_s *)))) {
         printf("could not malloc() members area\n"); return -1;
     }
-    if (!(ast = malloc(poolsz))) { 
+    if (!(freed_ast = ast = malloc(poolsz))) { 
         printf("could not malloc(%d) abstract syntax tree area\n", poolsz); return -1; 
     }
     
@@ -2112,6 +2112,7 @@ int main(int argc, char **argv)
     free(freedata);
     free(text);
     free(sym);
+    free(freed_ast);
     return ret;
 }
 
