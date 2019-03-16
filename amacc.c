@@ -14,6 +14,11 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 
+/* 64-bit host support */
+#if defined(__x86_64__) || defined(__aarch64__)
+#define int long
+#endif
+
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
 char **scnames; // system call names
