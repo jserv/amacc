@@ -889,7 +889,7 @@ void gen(int *n)
         *++e = LEA; *++e = n[1];
         break;
     case Load:
-        gen(n+2); 
+        gen(n + 2); 
         if (n[1] <= INT || n[1] >= PTR){ *++e = (n[1] == CHAR) ? LC : LI; }
         break;
     case Assign:
@@ -897,7 +897,7 @@ void gen(int *n)
         break;
     case Inc:
     case Dec:
-        gen(n+2);
+        gen(n + 2);
         *++e = PSH; *++e = (n[1] == CHAR) ? LC : LI; *++e = PSH;
         *++e = IMM; *++e = (n[1] >= PTR2) ? sizeof(int) : n[1] >= PTR ? tsize[n[1] - PTR] : 1;
         *++e = (i == Inc) ? ADD : SUB;
@@ -910,22 +910,22 @@ void gen(int *n)
         if (n[3]) { *b = (int)(e + 3); *++e = JMP; b = ++e; gen((int *)n[3]); }
         *b = (int)(e + 1);
         break;
-    case Lor:  gen((int *)n[1]); *++e = BNZ; b = ++e; gen(n+2); *b = (int)(e + 1); break;
-    case Lan:  gen((int *)n[1]); *++e = BZ;  b = ++e; gen(n+2); *b = (int)(e + 1); break;
-    case Or:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = OR; break;
-    case Xor:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = XOR; break;
-    case And:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = AND; break;
-    case Eq:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = EQ; break;
-    case Ne:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = NE; break;
-    case Lt:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = LT; break;
-    case Gt:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = GT; break;
-    case Le:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = LE; break;
-    case Ge:   gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = GE; break;
-    case Shl:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = SHL; break;
-    case Shr:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = SHR; break;
-    case Add:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = ADD; break;
-    case Sub:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = SUB; break;
-    case Mul:  gen((int *)n[1]); *++e = PSH; gen(n+2); *++e = MUL; break;
+    case Lor:  gen((int *)n[1]); *++e = BNZ; b = ++e; gen(n + 2); *b = (int)(e + 1); break;
+    case Lan:  gen((int *)n[1]); *++e = BZ;  b = ++e; gen(n + 2); *b = (int)(e + 1); break;
+    case Or:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = OR; break;
+    case Xor:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = XOR; break;
+    case And:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = AND; break;
+    case Eq:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = EQ; break;
+    case Ne:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = NE; break;
+    case Lt:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = LT; break;
+    case Gt:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = GT; break;
+    case Le:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = LE; break;
+    case Ge:   gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = GE; break;
+    case Shl:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = SHL; break;
+    case Shr:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = SHR; break;
+    case Add:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = ADD; break;
+    case Sub:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = SUB; break;
+    case Mul:  gen((int *)n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
     case Syscall:
     case Func:
         c = b = (int *)n[1]; k = 0; l = 1;
@@ -943,7 +943,7 @@ void gen(int *n)
         d = (e+1);
         gen((int *)n[1]);
         *++e = BZ; b = ++e;
-        gen(n+2);
+        gen(n + 2);
         *++e = JMP; *++e = (int)d;
         *b = (int)(e+1);
         break;
@@ -990,8 +990,8 @@ void gen(int *n)
         gen((int *)n[1]); break;
     case Return:  if (n[1]) gen((int *)n[1]); *++e = LEV; break; 
     case '{':  
-        gen((int *)n[1]); gen(n+2); break; 
-    case Enter:  *++e = ENT; *++e = n[1]; gen(n+2); if (*e != LEV) *++e = LEV; break;
+        gen((int *)n[1]); gen(n + 2); break; 
+    case Enter:  *++e = ENT; *++e = n[1]; gen(n + 2); if (*e != LEV) *++e = LEV; break;
     default:
         if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1);} break;
     }
