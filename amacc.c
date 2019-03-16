@@ -39,7 +39,7 @@ int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
 int rwdata_align_off;
-int* n;              // the head of ast              
+int *n;              // the head of ast              
 
 // identifier
 struct ident_s {
