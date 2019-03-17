@@ -866,19 +866,20 @@ void gen(int *n)
     i = *n;
 
     switch (i) {
-    case Num:
-        *++e = IMM; *++e = n[1]; 
+    case Num: // get the value of integer
+        *++e = IMM; *++e = n[1];
         break;
-    case Loc:
+    case Loc: // get the value of variable
         *++e = LEA; *++e = n[1];
         break;
     case Load:
-        gen(n + 2); 
+        gen(n + 2); // load the value
         if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
         break;
-    case Assign:
+    case Assign: // assign the value to variables
         gen((int *) n[2]); *++e = PSH; gen(n + 3); *++e = (n[1] == CHAR) ? SC : SI;
         break;
+    // increment or decrement variables
     case Inc:
     case Dec:
         gen(n + 2);
@@ -887,13 +888,14 @@ void gen(int *n)
         *++e = (i == Inc) ? ADD : SUB;
         *++e = (n[1] == CHAR) ? SC : SI;
         break;
-    case Cond:
-        gen((int *) n[1]);
+    case Cond: // if else condition case
+        gen((int *) n[1]); // condition
         *++e = BZ; b = ++e;
-        gen((int *) n[2]);
-        if (n[3]) { *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]); }
+        gen((int *) n[2]); // expression
+        if (n[3]) { *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]); } // else statment
         *b = (int)(e + 1);
         break;
+    // operators
     case Lor:  gen((int *) n[1]); *++e = BNZ; b = ++e; gen(n + 2); *b = (int)(e + 1); break;
     case Lan:  gen((int *) n[1]); *++e = BZ;  b = ++e; gen(n + 2); *b = (int)(e + 1); break;
     case Or:   gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = OR; break;
@@ -918,6 +920,7 @@ void gen(int *n)
         j = 0; a = malloc(sizeof(int *) * k); b = c; l = 1;
         while (b && l) { a[j] = (int) b;  if (!(int *) *b) l = 0; else b = (int *) *b; ++j; }
         if (j > 0) --j;
+        // push parameters
         while (j >= 0 && k > 0) { gen(b + 1);  *++e = PSH; --j; b = (int *) a[j]; }
         free(a);
         if (i == Func) *++e = JSR; *++e = n[2];
@@ -925,9 +928,9 @@ void gen(int *n)
         break;
     case While:
         d = (e + 1);
-        gen((int *) n[1]);
+        gen((int *) n[1]); // condition
         *++e = BZ; b = ++e;
-        gen(n + 2);
+        gen(n + 2); // expression
         *++e = JMP; *++e = (int) d;
         *b = (int)(e + 1);
         break;
@@ -946,10 +949,10 @@ void gen(int *n)
         *d = (int)(e + 1);
         break;
     case Switch:
-        gen((int *) n[1]);
+        gen((int *) n[1]); // condition
         a = cas; *++e = JMP; cas = ++e;
         b = brks; d = def; brks = def = 0;
-        gen((int *) n[2]);
+        gen((int *) n[2]); // case statment
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
         while (brks) { a = (int *) * brks; *brks = (int)(e + 1); brks = a; }
@@ -959,23 +962,24 @@ void gen(int *n)
         *++e = JMP; ++e;
         a = 0;
         *e = (int) (e + 7); *++e = PSH; i = *cas; *cas = (int) e;
-        gen((int *) n[1]);
+        gen((int *) n[1]); // condition
         if (e[-1] != IMM) fatal("bad case immediate");
         *++e = SUB; *++e = BNZ; cas = ++e; *e = i + e[-3];
         if (*(int *) n[2] == Switch) a = cas;
-        gen((int *) n[2]);
+        gen((int *) n[2]); // expression
         if (a != 0) cas = a;
         break;
     case Break:
+        // set jump locate
         *++e = JMP; *++e = (int) brks; brks = e;
         break;
     case Default:
         def = e + 1;
         gen((int *) n[1]); break;
     case Return:  
-        if (n[1]) gen((int *) n[1]); *++e = LEV; break; 
+        if (n[1]) gen((int *) n[1]); *++e = LEV; break; // parse return ast 
     case '{':  
-        gen((int *) n[1]); gen(n + 2); break; 
+        gen((int *) n[1]); gen(n + 2); break;  // parse expression or statment from ast
     case Enter:  *++e = ENT; *++e = n[1]; gen(n + 2); if (*e != LEV) *++e = LEV; break;
     default:
         if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1); }
