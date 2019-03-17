@@ -39,7 +39,9 @@ int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
 int rwdata_align_off;
-int *n;              // current position in emitted abstract syntax tree          
+int *n;              // current position in emitted abstract syntax tree
+                     // With an AST, the compiler is not limited to generating code on the fly with parsing.
+                     // This capability allows function parameter code to be emitted and pushed on the stack in the proper right-to-left order.      
 
 // identifier
 struct ident_s {
@@ -450,7 +452,7 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func) { fatal("bad function call");}
+            if (d->class != Syscall && d->class != Func) fatal("bad function call");
             next();
             t = 0; b = 0;
             // parameters
@@ -652,7 +654,7 @@ void expr(int lev)
         case Sub:
             next(); expr(Mul);
             sz = t >= PTR2 ? sizeof(int) : t >= PTR ? tsize[t - PTR] : 1;
-            if (sz > 1 && *n == Num){ *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
+            if (sz > 1 && *n == Num) { *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
             if (*n == Num && *b == Num) n[1] -= b[1]; 
             else { 
                 *--n = (int) b; *--n = Sub; 
@@ -804,7 +806,7 @@ void stmt()
     // RETURN_stmt -> 'return' expr ';' | 'return' ';'
     case Return:
         a = 0; next();
-        if (tk != ';'){ expr(Assign); a = n; }
+        if (tk != ';') { expr(Assign); a = n; }
         *--n = (int) a; *--n = Return;
         if (tk == ';') next();
         else fatal("semicolon expected");
@@ -912,9 +914,9 @@ void gen(int *n)
     case Func:
         c = b = (int *) n[1]; k = 0; l = 1;
         // how many parameters
-        while (b && l) { ++k; if (!(int *) * b) l = 0; else b = (int *) * b; }
+        while (b && l) { ++k; if (!(int *) *b) l = 0; else b = (int *) *b; }
         j = 0; a = malloc(sizeof(int *) * k); b = c; l = 1;
-        while (b && l) { a[j] = (int) b;  if (!(int *) * b) l = 0; else b = (int *) * b; ++j; }
+        while (b && l) { a[j] = (int) b;  if (!(int *) *b) l = 0; else b = (int *) *b; ++j; }
         if (j > 0) --j;
         while (j >= 0 && k > 0) { gen(b + 1);  *++e = PSH; --j; b = (int *) a[j]; }
         free(a);
@@ -950,7 +952,7 @@ void gen(int *n)
         gen((int *) n[2]);
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
-        while (brks){ a = (int *) * brks; *brks = (int)(e + 1); brks = a; }
+        while (brks) { a = (int *) * brks; *brks = (int)(e + 1); brks = a; }
         brks = b; def = d;
         break;
     case Case:
@@ -976,7 +978,7 @@ void gen(int *n)
         gen((int *) n[1]); gen(n + 2); break; 
     case Enter:  *++e = ENT; *++e = n[1]; gen(n + 2); if (*e != LEV) *++e = LEV; break;
     default:
-        if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1);} break;
+        if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1); }
     }
 }
 
