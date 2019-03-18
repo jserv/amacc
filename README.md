@@ -40,7 +40,12 @@ Run `make check` and you should see this:
 [ JIT compilation + execution  ] Passed
 [ ELF generation               ] Passed
 [ nested/self compilation      ] Passed
-[ Compatibility with GCC/Arm   ] ......................................
+[ Compatibility with GCC/Arm   ] ........................................
+----------------------------------------------------------------------
+Ran 40 tests in 4.975s
+
+OK
+
 ```
 
 ## Internals
