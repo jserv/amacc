@@ -1,6 +1,7 @@
 1: int main(int argc, char **argv)
 2: {
 3:     return argc - 2;
+4: }
     ENT  0
     LEA  3
     LI  
@@ -8,4 +9,3 @@
     IMM  2
     SUB 
     LEV 
-4: }

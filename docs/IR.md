@@ -111,6 +111,7 @@ corresponding source..
 ```c
 1: int func(int a) {
 2:     return a * 10;
+3: }
     ENT  0          ; save func addres on stack
     LEA  2          ; fetch a's address on stack and save into general register
     LI              ; Load integer from memory which address is inside general register
@@ -118,19 +119,19 @@ corresponding source..
     IMM  10         ; move 10 into general register
     MUL             ; pop 'a' on the top of stack,and multiply 10 which is inside general register,store result into general register
     LEV             ; return to main
-3: }
 4:
-5: int main() {
-6:     func(20);
+5: int main()
+6: {
+7:     func(20);
+8:     return 0;
+9: }
     ENT  0          ; save main address on stack
     IMM  20         ; move 20 into general register
     PSH             ; push r0 on top of stack
     JSR  -11120300  ; save sp on stack,save current execute position to lr, jump to func
     ADJ  1          ; remove 20 from stack
-7:     return 0;
     IMM  0          ; move 0 into general register
     LEV             ; return to entry
-8: }
 ```
 
 ### Arithmetic instructions
