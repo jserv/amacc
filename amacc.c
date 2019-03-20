@@ -986,7 +986,7 @@ void gen(int *n)
     }
 }
 
-void die(char *msg) { printf("codegen: %s\n", msg); exit(2); }
+void die(char *msg) { printf("%s\n", msg); exit(-1); }
 
 int reloc_imm(int offset) { return ((((offset) - 8) >> 2) & 0x00ffffff); }
 int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
@@ -1106,9 +1106,9 @@ int *codegen(int *jitmem, int *jitmap)
             }
             else if (i >= OPEN && i <= EXIT) {
                 tmp = (int) (elf ? plt_func_addr[i - OPEN] : dlsym(0, scnames[i - OPEN]));
-                if (*pc++ != ADJ) die("no ADJ after native proc!");
+                if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
                 i = *pc;
-                if (i > 10) die("no support for 10+ arguments!");
+                if (i > 10) die("codegen: no support for 10+ arguments");
                 while (i > 0) *je++ = 0xe49d0004 | (--i << 12); // pop r(i-1)
                 i = *pc++;
                 if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
@@ -1136,7 +1136,7 @@ int *codegen(int *jitmem, int *jitmap)
             *iv = 0;
             while (il > immloc) {
                 tmp = *--il;
-                if ((int) je > tmp + 4096 + 8) die("can't reach the pool");
+                if ((int) je > tmp + 4096 + 8) die("codegen: can't reach the pool");
                 iv--; if (iv[0] == iv[1]) je--;
                 if (tmp & 1) {
                     // ldr pc, [pc, #..]
@@ -1155,7 +1155,7 @@ int *codegen(int *jitmem, int *jitmap)
             genpool = 0;
         }
     }
-    if (il > immloc) die("code is not terminated by a LEV");
+    if (il > immloc) die("codegen: not terminated by a LEV");
     tje = je;
 
     // second pass
@@ -1497,7 +1497,7 @@ int elf32(int poolsz, int *main)
     // Compile and generate the code.
     je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je) return 1;
-    if ((int *) je >= jitmap) die("jitmem too small");
+    if ((int *) je >= jitmap) die("elf32: jitmem too small");
 
     // elf32_hdr
     *o++ = 0x7f; *o++ = 'E'; *o++ = 'L'; *o++ = 'F';
@@ -1574,7 +1574,7 @@ int elf32(int poolsz, int *main)
     shstrtab_size = 0;
 
     shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
-    if (!shdr_names) die("Could not malloc shdr_names table\n");
+    if (!shdr_names) die("elf32: could not malloc shdr_names table");
 
     shdr_names[SNONE] = append_strtab(&data, "") - shstrtab_addr;
     shdr_names[SSTAB] = append_strtab(&data, ".shstrtab") - shstrtab_addr;
@@ -1598,7 +1598,7 @@ int elf32(int poolsz, int *main)
     ldso = append_strtab(&data, "libdl.so.2");
 
     func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
-    if (!func_entries) die("Could not malloc func_entries table\n");
+    if (!func_entries) die("elf32: could not malloc func_entries table");
 
     for (i = OPEN; i <= EXIT; i++)
         func_entries[i] = append_strtab(&data, scnames[i - OPEN]) - dynstr_addr;
@@ -1724,7 +1724,7 @@ int elf32(int poolsz, int *main)
         free(shdr_names);
         return 1;
     }
-    if ((int *) je >= jitmap) die("jitmem too small");
+    if ((int *) je >= jitmap) die("elf32: jitmem too small");
 
     // Relocate _start() stub.
     *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
@@ -1827,17 +1827,13 @@ int main(int argc, char **argv)
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
-        if (argc < 1) {
-            printf("no output file argument\n"); return -1;
-        }
+        if (argc < 1) die("no output file argument");
         if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
             printf("could not open(%s)\n", *argv); return -1;
         }
         --argc; ++argv;
     }
-    if (argc < 1) {
-        printf("usage: amacc [-s] [-o object] file ...\n"); return -1;
-    }
+    if (argc < 1) die("usage: amacc [-s] [-o object] file");
 
     if ((fd = open(*argv, 0)) < 0) {
         printf("could not open(%s)\n", *argv); return -1;
@@ -1854,10 +1850,10 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) data area\n", poolsz); return -1;
     }
     if (!(tsize = malloc(PTR * sizeof(int)))) {
-        printf("could not malloc() tsize area\n"); return -1;
+        die("could not malloc() tsize area");
     }
     if (!(members = malloc(PTR * sizeof(struct member_s *)))) {
-        printf("could not malloc() members area\n"); return -1;
+        die("could not malloc() members area");
     }
     if (!(freed_ast = ast = malloc(poolsz))) { 
         printf("could not malloc(%d) abstract syntax tree area\n", poolsz); return -1; 
