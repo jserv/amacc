@@ -38,7 +38,6 @@ int src;             // print source and assembly flag
 int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
-int rwdata_align_off;
 int *n;              // current position in emitted abstract syntax tree
                      // With an AST, the compiler is not limited to generating code on the fly with parsing.
                      // This capability allows function parameter code to be emitted and pushed on the stack in the proper right-to-left order.      
@@ -245,7 +244,6 @@ char *append_strtab(char **strtab, char *str)
 void next()
 {
     char *pp;
-    int t;
 
     /* using loop to ignore whitespace characters, but characters that
      * cannot be recognized by the lexical analyzer are considered blank
@@ -330,7 +328,8 @@ void next()
         case '#': // skip #include statement
                 while (*p != 0 && *p != '\n') ++p;
             } else if (*p == '*') { // C-style multiline comments
-                for (++p, t = 0; (*p != 0) && (t == 0); ++p) {
+                int t = 0;
+                for (++p; (*p != 0) && (t == 0); ++p) {
                     pp = p + 1;
                     if (*p == '\n') line++;
                     else if (*p == '*' && *pp == '/') t = 1;
@@ -571,7 +570,7 @@ void expr(int lev)
             next(); expr(Assign);
             if (tk == ':') next();
             else fatal("conditional missing colon"); c = n; 
-            expr(Cond); --n; *n = (int)(n + 1); *--n = (int) c; *--n = (int) b; *--n = Cond;
+            expr(Cond); --n; *n = (int) (n + 1); *--n = (int) c; *--n = (int) b; *--n = Cond;
             break;
         case Lor: // short circuit, the logical or operator on the left is true, expression is true
             next(); expr(Lan); 
@@ -749,11 +748,11 @@ void gen(int *n)
         *++e = BZ; b = ++e;
         gen((int *) n[2]); // expression
         if (n[3]) { *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]); } // else statment
-        *b = (int)(e + 1);
+        *b = (int) (e + 1);
         break;
     // operators
-    case Lor:  gen((int *) n[1]); *++e = BNZ; b = ++e; gen(n + 2); *b = (int)(e + 1); break;
-    case Lan:  gen((int *) n[1]); *++e = BZ;  b = ++e; gen(n + 2); *b = (int)(e + 1); break;
+    case Lor:  gen((int *) n[1]); *++e = BNZ; b = ++e; gen(n + 2); *b = (int) (e + 1); break;
+    case Lan:  gen((int *) n[1]); *++e = BZ;  b = ++e; gen(n + 2); *b = (int) (e + 1); break;
     case Or:   gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = OR; break;
     case Xor:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = XOR; break;
     case And:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = AND; break;
@@ -788,7 +787,7 @@ void gen(int *n)
         *++e = BZ; b = ++e;
         gen(n + 2); // expression
         *++e = JMP; *++e = (int) d;
-        *b = (int)(e + 1);
+        *b = (int) (e + 1);
         break;
     case For:
         gen((int *) n[4]);
@@ -799,10 +798,10 @@ void gen(int *n)
         b = (e + 1);
         gen((int *) n[2]); // area b
         *++e = JMP; *++e = (int) a;
-        *c = (int)(e + 1);
+        *c = (int) (e + 1);
         gen((int *) n[3]); // area c
         *++e = JMP; *++e = (int) b;
-        *d = (int)(e + 1);
+        *d = (int) (e + 1);
         break;
     case Switch:
         gen((int *) n[1]); // condition
@@ -811,7 +810,7 @@ void gen(int *n)
         gen((int *) n[2]); // case statment
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
-        while (brks) { a = (int *) * brks; *brks = (int)(e + 1); brks = a; }
+        while (brks) { a = (int *) * brks; *brks = (int) (e + 1); brks = a; }
         brks = b; def = d;
         break;
     case Case:
@@ -847,8 +846,7 @@ void stmt(int ctx)
 {
     int *a, *b, *c, *d, *f;
     int i, j;
-    int bt, ty, mbt;
-    int *t;
+    int bt, ty;
     struct member_s *m;
 
     switch (tk) {
@@ -887,7 +885,7 @@ void stmt(int ctx)
             if (members[bt]) fatal("duplicate structure definition");
             i = 0;
             while (tk != '}') {
-                mbt = INT;
+                int mbt = INT;
                 switch (tk) {
                 case Int: next(); break;
                 case Char: next(); mbt = CHAR; break;
@@ -966,7 +964,7 @@ void stmt(int ctx)
                 // Not declare and must not be function, analyze inner block.
                 // e represents the address which will store pc
                 // (ld - loc) indicates memory size to allocate
-                t = n;
+                int *t = n;
                 *--n = ';'; while (tk != '}') { t = n;  stmt(Loc); *--n = (int) t; *--n = '{'; }
                 *--n = ld - loc; *--n = Enter;
                 cas = 0;
@@ -1088,11 +1086,11 @@ void stmt(int ctx)
         if (tk == ';') next();
         else fatal("semicolon expected");
         return;
+    /* For iteration is implemented as:
+     * Init -> Cond -> Bz to end -> Jmp to Body
+     * After -> Jmp to Cond -> Body -> Jmp to After
+     */
     case For:
-        /* For iteratiion is implemented as:
-         * Init -> Cond -> Bz to end -> Jmp to Body
-         * After -> Jmp to Cond -> Body -> Jmp to After
-         */
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
@@ -1770,7 +1768,7 @@ int elf32(int poolsz, int *main)
     *(int *) to = 0xe52de004; to += 4; // push {lr}
     // movw r10 addr_to_got
     *(int *) to = 0xe300a000 | (0xfff & (int) (to_got_movw)) |
-                  (0xf0000 & ((int)(to_got_movw) << 4));
+                  (0xf0000 & ((int) (to_got_movw) << 4));
     to += 4;
     // movt r10 addr_to_got
     *(int *) to = 0xe340a000 | (0xfff & ((int) (to_got_movt) >> 16)) |
@@ -1854,8 +1852,8 @@ int elf32(int poolsz, int *main)
     if ((int *) je >= jitmap) die("elf32: jitmem too small");
 
     // Relocate _start() stub.
-    *((int *)(code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
-    *((int *)(code + 0x44)) =
+    *((int *) (code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
+    *((int *) (code + 0x44)) =
         reloc_bl(jitmap[((int) main - (int) text) >> 2] - (int) code - 0x44);
 
     // Copy the generated binary.
@@ -1991,7 +1989,7 @@ int main(int argc, char **argv)
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
     memset(ast, 0, poolsz);
-    ast = (int *)((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
+    ast = (int *) ((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
 
     /* Resgister keywords and system calls to symbol stack
      * must match the sequence of enum
