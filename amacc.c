@@ -229,11 +229,9 @@ char **plt_func_addr;
 char *append_strtab(char **strtab, char *str)
 {
     char *s;
-    int nbytes;
-    char *res;
     for (s = str; *s && (*s != ' '); s++) ; /* ignore trailing space */
-    nbytes = s - str + 1;
-    res = *strtab;
+    int nbytes = s - str + 1;
+    char *res = *strtab;
     memcpy(res, str, nbytes);
     res[s - str] = 0; // null terminator
     *strtab = res + nbytes;
@@ -1142,18 +1140,17 @@ int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
 {
-    int *pc;
-    int i, tmp, genpool;
+    int i, tmp;
     int *je, *tje;    // current position in emitted native code
-    int *immloc, *il, *iv, *imm0;
+    int *immloc, *il;
 
     immloc = il = malloc(1024 * 4);
-    iv = malloc(1024 * 4);
-    imm0 = 0;
-    genpool = 0;
+    int *iv = malloc(1024 * 4);
+    int *imm0 = 0;
+    int genpool = 0;
 
     // first pass: emit native code
-    pc = text + 1; je = jitmem; line = 0;
+    int *pc = text + 1; je = jitmem; line = 0;
     while (pc <= e) {
         i = *pc;
         jitmap[((int) pc++ - (int) text) >> 2] = (int) je;
@@ -1344,7 +1341,7 @@ enum {
 int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
-    int *je, *tje, *_start,  retval, *jitmap, *res;
+    int retval;
     if (src) return 1; // skip for IR listing
 
     // setup JIT memory
@@ -1353,18 +1350,18 @@ int jit(int poolsz, int *main, int argc, char **argv)
         printf("could not mmap(%d) jit executable memory\n", poolsz);
         return -1;
     }
-    jitmap = (int *) (jitmem + (poolsz >> 1));
-    je = (int *) jitmem;
+    int *jitmap = (int *) (jitmem + (poolsz >> 1));
+    int *je = (int *) jitmem;
     *je++ = (int) &retval;
     *je++ = argc;
     *je++ = (int) argv;
-    _start = je;
+    int *_start = je;
     *je++ = 0xe92d5ff0;       // push    {r4-r12, lr}
     *je++ = 0xe51f0014;       // ldr     r0, [pc, #-20] ; argc
     *je++ = 0xe51f1014;       // ldr     r1, [pc, #-20] ; argv
     *je++ = 0xe52d0004;       // push    {r0}
     *je++ = 0xe52d1004;       // push    {r1}
-    tje = je++;               // bl      jitmain
+    int *tje = je++;               // bl      jitmain
     *je++ = 0xe51f502c;       // ldr     r5, [pc, #-44] ; retval
     *je++ = 0xe5850000;       // str     r0, [r5]
     *je++ = 0xe28dd008;       // add     sp, sp, #8
@@ -1375,7 +1372,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
 
     // hack to jump into specific function pointer
     __clear_cache(jitmem, je);
-    res = bsearch(&sym, sym, 1, 1, (void *) _start);
+    int *res = bsearch(&sym, sym, 1, 1, (void *) _start);
     if (((void *) 0) != res) return 0; return -1; // make compiler happy
 }
 
@@ -1537,8 +1534,7 @@ int gen_sym(char *ptr, int name, char info,
 
 int append_func_sym(char **data, int name)
 {
-    int idx;
-    idx = gen_sym(*data, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    int idx = gen_sym(*data, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
     *data += SYM_ENT_SIZE;
     return idx;
 }
@@ -1556,32 +1552,14 @@ enum {
 
 int elf32(int poolsz, int *main)
 {
-    char *o, *buf, *code, *entry, *je;
-    char *to, *phdr, *dseg, *freebuf, *freecode;
-    char *pt_dyn, *libc, *ldso, *interp, *interp_str;
-    int pt_dyn_off, interp_off, code_off, i;
-    int *jitmap;
-    int *stub_end;
-    int FUNC_NUM, phdr_size;
-    char *e_shoff;
+    char *freebuf, *freecode, *interp;
+    int i;
 
-    int code_size, start_stub_size, rel_size, rel_off, dseg_size, load_bias;
-    char *rel_addr, *plt_addr, *code_addr, *_data_end, *shstrtab_addr;
-    int plt_size, plt_off, pt_dyn_size, rwdata_off;
-    int shstrtab_off, shstrtab_size, interp_str_size;
-    char *dynstr_addr, *dynsym_addr, *got_addr;
-    int dynstr_off, dynstr_size;
-    int dynsym_off, dynsym_size, got_off;
-    char *to_got_movw, *to_got_movt;
-    char **got_func_slot;
-    int *func_entries, *shdr_names;
-    int got_size, rwdata_size, sh_dynstr_idx, sh_dynsym_idx;
-
-    code = freecode = malloc(poolsz);
-    buf = freebuf = malloc(poolsz);
-    jitmap = (int *) (code + (poolsz >> 1));
+    char *code = freecode = malloc(poolsz);
+    char *buf = freebuf = malloc(poolsz);
+    int *jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
-    o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
+    char *o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
     code =    (char *) (((int) code + PAGE_SIZE - 1) & -PAGE_SIZE);
 
     phdr_idx = 0;
@@ -1593,7 +1571,7 @@ int elf32(int poolsz, int *main)
      * (4 instruction * 4 bytes), so the first codegen and second codegen
      * have consistent code_size.
      */
-    FUNC_NUM = EXIT - OPEN + 1;
+    int FUNC_NUM = EXIT - OPEN + 1;
     plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++)
         plt_func_addr[i] = o + i * 16;
@@ -1614,7 +1592,7 @@ int elf32(int poolsz, int *main)
      * of libc.  It sounds too complex.  To keep this compiler simple,
      * let's simply pass NULL pointer.
      */
-    stub_end = (int *) code;
+    int *stub_end = (int *) code;
 
     *stub_end++ = 0xe3a0b000;  // mov   fp, #0  @ initialize frame pointer
     *stub_end++ = 0xe3a0e000;  // mov   lr, #0  @ initialize link register
@@ -1641,10 +1619,10 @@ int elf32(int poolsz, int *main)
     *stub_end++ = 0xe28dd008;  // add   sp, sp, #8
     *stub_end++ = 0xe8bd9ff0;  // pop   {r4-r12, pc}
 
-    start_stub_size = (char *) stub_end - code;
+    int start_stub_size = (char *) stub_end - code;
 
     // Compile and generate the code.
-    je = (char *) codegen((int *) (code + start_stub_size), jitmap);
+    char *je = (char *) codegen((int *) (code + start_stub_size), jitmap);
     if (!je) return 1;
     if ((int *) je >= jitmap) die("elf32: jitmem too small");
 
@@ -1655,74 +1633,74 @@ int elf32(int poolsz, int *main)
     *o++ = ET_EXEC; *o++ = 0; // e_type
     *o++ = EM_ARM;  *o++ = 0; // e_machine
     *(int *) o = 1;          o += 4;
-    entry = o;               o += 4; // e_entry
+    char *entry = o;               o += 4; // e_entry
     *(int *) o = EHDR_SIZE;  o += 4; // e_phoff
-    e_shoff = o;             o += 4; // e_shoff
+    char *e_shoff = o;             o += 4; // e_shoff
     *(int *) o = 0x5000400;  o += 4; // e_flags
     *o++ = EHDR_SIZE; *o++ = 0;
     *o++ = PHDR_ENT_SIZE; *o++ = 0; *o++ = PHDR_NUM; *o++ = 0; // e_phentsize & e_phnum
     *o++ = SHDR_ENT_SIZE; *o++ = 0; *o++ = SHDR_NUM; *o++ = 0; // e_shentsize & e_shnum
     *o++ =  1; *o++ = 0;
 
-    phdr_size = PHDR_ENT_SIZE * PHDR_NUM;
-    phdr = o; o += phdr_size;
+    int phdr_size = PHDR_ENT_SIZE * PHDR_NUM;
+    char *phdr = o; o += phdr_size;
 
     // .text
-    code_off = o - buf;
-    code_size = je - code;
-    code_addr = o;
+    int code_off = o - buf;
+    int code_size = je - code;
+    char *code_addr = o;
     o += code_size;
 
     // .rel.plt (embedded in PT_LOAD of text)
-    rel_size = REL_ENT_SIZE * FUNC_NUM;
-    rel_off = code_off + code_size;
-    rel_addr = code_addr + code_size;
+    int rel_size = REL_ENT_SIZE * FUNC_NUM;
+    int rel_off = code_off + code_size;
+    char *rel_addr = code_addr + code_size;
     o += rel_size;
 
     // .plt (embedded in PT_LOAD of text)
-    plt_size = 20 + PLT_ENT_SIZE * FUNC_NUM; // 20 is the size of .plt entry code to .got
-    plt_off = rel_off + rel_size;
-    plt_addr = rel_addr + rel_size;
+    int plt_size = 20 + PLT_ENT_SIZE * FUNC_NUM; // 20 is the size of .plt entry code to .got
+    int plt_off = rel_off + rel_size;
+    char *plt_addr = rel_addr + rel_size;
     o += plt_size;
 
     memcpy(code_addr, code,  code_size);
     *(int *) entry = (int) code_addr;
 
     // .data
-    _data_end = data;
+    char *_data_end = data;
     // Use load_bias to align offset and v_addr, the elf loader
     // needs PAGE_SIZE align to do mmap().
-    load_bias = PAGE_SIZE + ((int) _data & (PAGE_SIZE - 1))
-        - ((o - buf) & (PAGE_SIZE - 1));
+    int load_bias = PAGE_SIZE + ((int) _data & (PAGE_SIZE - 1))
+                    - ((o - buf) & (PAGE_SIZE - 1));
     o += load_bias;
-    dseg = o;
+    char *dseg = o;
 
     // rwdata (embedded in PT_LOAD of data)
     // rwdata is all the data (R/O and R/W) in source code,
     // e.g, the variable with initial value and all the string.
-    rwdata_off = dseg - buf;
-    rwdata_size = _data_end - _data;
+    int rwdata_off = dseg - buf;
+    int rwdata_size = _data_end - _data;
     o += rwdata_size;
 
     // .dynamic (embedded in PT_LOAD of data)
-    pt_dyn = data;
-    pt_dyn_size = DYN_NUM * DYN_ENT_SIZE;
-    pt_dyn_off = rwdata_off + rwdata_size; data += pt_dyn_size;
+    char *pt_dyn = data;
+    int pt_dyn_size = DYN_NUM * DYN_ENT_SIZE;
+    int pt_dyn_off = rwdata_off + rwdata_size; data += pt_dyn_size;
     o += pt_dyn_size;
 
     // .interp (embedded in PT_LOAD of data)
-    interp_str = "/lib/ld-linux-armhf.so.3";
-    interp_str_size = 25; // strlen(interp_str) + 1
+    char *interp_str = "/lib/ld-linux-armhf.so.3";
+    int interp_str_size = 25; // strlen(interp_str) + 1
     interp = data; memcpy(interp, interp_str, interp_str_size);
-    interp_off = pt_dyn_off + pt_dyn_size; data += interp_str_size;
+    int interp_off = pt_dyn_off + pt_dyn_size; data += interp_str_size;
     o += interp_str_size;
 
     // .shstrtab (embedded in PT_LOAD of data)
-    shstrtab_addr = data;
-    shstrtab_off = interp_off + interp_str_size;
-    shstrtab_size = 0;
+    char *shstrtab_addr = data;
+    int shstrtab_off = interp_off + interp_str_size;
+    int shstrtab_size = 0;
 
-    shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
+    int *shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
     if (!shdr_names) die("elf32: could not malloc shdr_names table");
 
     shdr_names[SNONE] = append_strtab(&data, "") - shstrtab_addr;
@@ -1740,55 +1718,55 @@ int elf32(int poolsz, int *main)
     o += shstrtab_size;
 
     // .dynstr (embedded in PT_LOAD of data)
-    dynstr_addr = data;
-    dynstr_off = shstrtab_off + shstrtab_size;
+    char *dynstr_addr = data;
+    int dynstr_off = shstrtab_off + shstrtab_size;
     append_strtab(&data, "");
-    libc = append_strtab(&data, "libc.so.6");
-    ldso = append_strtab(&data, "libdl.so.2");
+    char *libc = append_strtab(&data, "libc.so.6");
+    char *ldso = append_strtab(&data, "libdl.so.2");
 
-    func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
+    int *func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
     for (i = OPEN; i <= EXIT; i++)
         func_entries[i] = append_strtab(&data, scnames[i - OPEN]) - dynstr_addr;
 
-    dynstr_size = data - dynstr_addr;
+    int dynstr_size = data - dynstr_addr;
     o += dynstr_size;
 
     // .dynsym (embedded in PT_LOAD of data)
-    dynsym_addr = data;
-    dynsym_off = dynstr_off + dynstr_size;
+    char *dynsym_addr = data;
+    int dynsym_off = dynstr_off + dynstr_size;
     memset(data, 0, SYM_ENT_SIZE);
     data += SYM_ENT_SIZE;
 
     for (i = OPEN; i <= EXIT; i++)
         append_func_sym(&data, func_entries[i]);
 
-    dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
+    int dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
     o += dynsym_size;
 
     // .got (embedded in PT_LOAD of data)
-    got_addr = data;
-    got_off = dynsym_off + dynsym_size;
+    char *got_addr = data;
+    int got_off = dynsym_off + dynsym_size;
     *(int *) data = (int) pt_dyn; data += 4;
     data += 4;  // reserved 2 and 3 entry for interp
-    to_got_movw = data;  // The address manipulates dynamic
-    to_got_movt = data;  // linking, plt must jump here.
+    char *to_got_movw = data;  // The address manipulates dynamic
+    char *to_got_movt = data;  // linking, plt must jump here.
     data += 4;  // reserved 2 and 3 entry for interp
     // .got function slot
-    got_func_slot = malloc(sizeof(char *) * FUNC_NUM);
+    char **got_func_slot = malloc(sizeof(char *) * FUNC_NUM);
     for (i = 0; i < FUNC_NUM; i++) {
         got_func_slot[i] = data;
         *(int *) data = (int) plt_addr; data += 4;
     }
     data += 4;  // end with 0x0
-    got_size = (int) data - (int) got_addr;
+    int got_size = (int) data - (int) got_addr;
     o += got_size;
 
-    dseg_size = o - dseg;
+    int dseg_size = o - dseg;
 
     // .plt -- Now we back to handle .plt after .got was initial 
-    to = plt_addr;
+    char *to = plt_addr;
     *(int *) to = 0xe52de004; to += 4; // push {lr}
     // movw r10 addr_to_got
     *(int *) to = 0xe300a000 | (0xfff & (int) (to_got_movw)) |
@@ -1904,12 +1882,12 @@ int elf32(int poolsz, int *main)
              dseg_size, 0, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
     o += SHDR_ENT_SIZE;
 
-    sh_dynstr_idx =
+    int sh_dynstr_idx =
     gen_shdr(o, SHT_STRTAB, shdr_names[SDYNS], dynstr_off, (int) dynstr_addr,
              dynstr_size, 0, 0, SHF_ALLOC, 1, 0);
     o += SHDR_ENT_SIZE;
     
-    sh_dynsym_idx =
+    int sh_dynsym_idx =
     gen_shdr(o, SHT_DYNSYM, shdr_names[SDYNM], dynsym_off, (int) dynsym_addr,
              dynsym_size, sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
     o += SHDR_ENT_SIZE;
@@ -1961,7 +1939,7 @@ int streq(char *p1, char *p2)
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
-    int fd, ret, poolsz, *freed_ast, *ast;
+    int fd, ret, *freed_ast, *ast;
     struct ident_s *idmain;
     int i;
 
@@ -1986,7 +1964,7 @@ int main(int argc, char **argv)
         printf("could not open(%s)\n", *argv); return -1;
     }
 
-    poolsz = 256 * 1024; // arbitrary size
+    int poolsz = 256 * 1024; // arbitrary size
     if (!(text = le = e = malloc(poolsz))) {
         printf("could not malloc(%d) text area\n", poolsz); return -1;
     }
