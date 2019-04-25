@@ -42,6 +42,7 @@ int rwdata_align_off;
 int *n;              // current position in emitted abstract syntax tree
                      // With an AST, the compiler is not limited to generating code on the fly with parsing.
                      // This capability allows function parameter code to be emitted and pushed on the stack in the proper right-to-left order.      
+int ld;              // local variable depth
 
 // identifier
 struct ident_s {
@@ -69,7 +70,7 @@ struct member_s {
 // tokens and classes (operators last and in precedence order)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Glo, Loc, Id, Load, Enter,
+    Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
     Assign, AddAssign, SubAssign, MulAssign, // operator =, +=, -=, *=
@@ -467,7 +468,7 @@ void expr(int lev)
         else {
             // Variable get offset
             switch (d->class) {
-            case Loc: *--n = loc - d->val; *--n = Loc; break;
+            case Loc: case Par: *--n = loc - d->val; *--n = Loc; break;
             case Glo: *--n = d->val; *--n = Num; break;
             default: fatal("undefined variable");
             }
@@ -714,156 +715,13 @@ void expr(int lev)
     }
 }
 
-// statement parsing (syntax analysis, except for declarations)
-void stmt()
-{
-    int *a, *b, *c, *d, *f;
-    int i, j;
-
-    switch (tk) {
-    /* if (...) <statement> [else <statement>]
-     *     if (...)           <cond>
-     *                        JZ a
-     *         <statement>    <statement>
-     *     else:              JMP b
-     * a:
-     *     <statement>        <statement>
-     * b:                     b:
-     */
-    case If:
-        next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
-        expr(Assign); a = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
-        stmt(); 
-        b = n;
-        if (tk == Else) { next(); stmt(); d = n; } else d = 0;
-        *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
-        return;
-    /* while (...) <statement>
-     * a:                     a:
-     *     while (<cond>)         <cond>
-     *                            JZ b
-     *         <statement>        <statement>
-     *                            JMP a
-     * b:                     b:
-     */
-    case While:
-        next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
-        expr(Assign); a = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
-        stmt(); // parse body of "while"
-        *--n = (int) a; *--n = While;
-        return;
-    case Switch:
-        i = 0; j = 0;
-        if (cas) j = (int)cas; 
-        cas = &i;
-        next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
-        expr(Assign); 
-        a = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
-        stmt();
-        b = n;
-        *--n = (int) b; *--n = (int) a; *--n = Switch;
-        if (j) cas = (int *) j;
-        return;
-    case Case:
-        i = *cas;
-        next();
-        expr(Or);
-        a = n;
-        if (*n != Num) fatal("bad case immediate");
-        j = n[1]; n[1] -= i; *cas = j;
-        *--n = ';';
-        if (tk == ':') next();
-        else fatal("colon expected");
-        stmt();
-        b = n;
-        *--n = (int) b;*--n = (int) a; *--n = Case;
-        return;
-    case Break:
-        next();
-        if (tk == ';') next();
-        else fatal("semicolon expected");
-        *--n = Break;
-        return;
-    case Default:
-        next();
-        if (tk == ':') next();
-        else fatal("colon expected");
-        stmt(); a = n;
-        *--n = (int) a; *--n = Default;
-        return;
-    // RETURN_stmt -> 'return' expr ';' | 'return' ';'
-    case Return:
-        a = 0; next();
-        if (tk != ';') { expr(Assign); a = n; }
-        *--n = (int) a; *--n = Return;
-        if (tk == ';') next();
-        else fatal("semicolon expected");
-        return;
-    case For:
-        /* For iteratiion is implemented as:
-         * Init -> Cond -> Bz to end -> Jmp to Body
-         * After -> Jmp to Cond -> Body -> Jmp to After
-         */
-        next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
-        *--n = ';';
-        expr(Assign);
-        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
-        d = n;
-        if (tk == ';') next();
-        else fatal("semicolon expected");
-        *--n = ';';
-        expr(Assign); a = n; // Point to entry of for cond
-        if (tk == ';') next();
-        else fatal("semicolon expected");
-        *--n = ';';
-        expr(Assign);  
-        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
-        b = n;
-        if (tk == ')') next(); else fatal("close paren expected");
-        stmt(); c = n;
-        *--n = (int)d; *--n = (int)c; *--n = (int) b; *--n = (int) a; *--n = For;
-        return;
-    // stmt -> '{' stmt '}'
-    case '{':
-        next();
-        *--n = ';';
-        while (tk != '}') { a = n; stmt(); *--n = (int) a; *--n = '{'; }
-        next();
-        return;
-    // stmt -> ';'
-    case ';':
-        next();
-        *--n = ';';
-        return;
-    default:
-        // general statements are considered assignment statements/expressions
-        expr(Assign);
-        if (tk == ';') next(); else fatal("semicolon expected");
-    }
-}
-
 // Ast parsing for IR generating.
 // With a modular code generator, new targets can be easily supported such as native Arm machine code.
 // The compiler now resembles something you could actually build upon (or at least shows the way.)
 void gen(int *n)
 {
-    int i, j, k, l;
+    int i = *n, j, k, l;
     int *a, *b, *c, *d;
-    i = *n;
 
     switch (i) {
     case Num: // get the value of integer
@@ -983,6 +841,297 @@ void gen(int *n)
     case Enter:  *++e = ENT; *++e = n[1]; gen(n + 2); if (*e != LEV) *++e = LEV; break;
     default:
         if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1); }
+    }
+}
+
+// statement parsing (syntax analysis, except for declarations)
+void stmt(int ctx)
+{
+    int *a, *b, *c, *d, *f;
+    int i, j;
+    int bt, ty, mbt;
+    int *t;
+    struct member_s *m;
+
+    switch (tk) {
+    case Enum:
+        next();
+        if (tk != '{') next();
+        if (tk == '{') {
+            next();
+            i = 0;
+            while (tk != '}') {
+                if (tk != Id) fatal("bad enum identifier"); 
+                next();
+                if (tk == Assign) {
+                    next();
+                    expr(Cond);
+                    if (*n != Num) fatal("bad enum initializer");
+                    i = n[1];
+                }
+                id->class = Num; id->type = INT; id->val = i++;
+                if (tk == ',') next();
+            }
+            next();
+        }else if(tk == Id){ id->type = INT; id->class = ctx; id->val = ld++; next(); }
+        return;
+    case Struct:
+        next();
+        if (tk == Id) {
+            if (!id->stype) id->stype = tnew++;
+            bt = id->stype;
+            next();
+        } else { 
+            bt = tnew++;
+        }
+        if (tk == '{') {
+            next();
+            if (members[bt]) fatal("duplicate structure definition");
+            i = 0;
+            while (tk != '}') {
+                mbt = INT;
+                switch (tk) {
+                case Int: next(); break;
+                case Char: next(); mbt = CHAR; break;
+                case Struct:
+                    next(); 
+                    if (tk != Id) fatal("bad struct declaration");
+                    mbt = id->stype;
+                    next(); break;
+                }
+                while (tk != ';') {
+                    ty = mbt;
+                    while (tk == Mul) { next(); ty += PTR; }
+                    if (tk != Id) fatal("bad struct member definition");
+                    m = malloc(sizeof(struct member_s));
+                    m->id = id;
+                    m->offset = i;
+                    m->type = ty;
+                    m->next = members[bt];
+                    members[bt] = m;
+                    i += (ty >= PTR) ? sizeof(int) : tsize[ty];
+                    i = (i + 3) & -4;
+                    next();
+                    if (tk == ',') next();
+                }
+                next();
+            }
+            next();
+            tsize[bt] = i;
+        }
+        // 1. local variable of struct type
+        // 2. global variable of struct type
+        while (tk != ';') {
+            ty = bt;
+            // if the beginning of * is a pointer type, then type plus `PTR`
+            // indicates what kind of pointer
+            while (tk == Mul) { next(); ty += PTR; }
+            if (tk != Id) fatal("bad local declaration");
+            if (id->class == Loc) fatal("duplicate local definition");
+            id->hclass = id->class; id->class = ctx;
+            id->htype = id->type; id->type = ty;
+            id->hval = id->val;
+            if (ctx == Glo) { id->val = (int)data; data += sizeof(int); }
+            else if (ctx == Loc) { id->val = ++ld; }
+            else if (ctx == Par) { id->val = ld++; }
+            next();
+            if (tk == ',') next();
+        }
+        return;
+    case Int:
+    case Char:
+        bt = (tk == Int) ? INT : CHAR; // basetype
+        next();
+        /* parse statemanet such as 'int a, b, c;'
+         * "enum" finishes by "tk == ';'", so the code below will be skipped
+         */
+        while (tk != ';' && tk != '}' && tk != ',' && tk != ')') {
+            ty = bt;
+            // if the beginning of * is a pointer type, then type plus `PTR`
+            // indicates what kind of pointer
+            while (tk == Mul) { next(); ty += PTR; }
+            if (tk != Id) fatal("bad global declaration");
+            if (id->class >= ctx) fatal("duplicate global definition");
+            next();
+            id->type = ty;
+            if (tk == '(') { // function
+                if (ctx != Glo) fatal("nested function");
+                id->class = Func; // type is functional
+                id->val = (int) (e + 1); // function Pointer? offset/address in bytecode
+                id->type = ty;
+                next(); ld = 0;
+                while (tk != ')') { stmt(Par); if (tk == ',') next(); }
+                next();
+                if (tk != '{') fatal("bad function definition");
+                loc = ++ld;
+                next();
+                // Not declare and must not be function, analyze inner block.
+                // e represents the address which will store pc
+                // (ld - loc) indicates memory size to allocate
+                t = n;
+                *--n = ';'; while (tk != '}') { t = n;  stmt(Loc); *--n = (int) t; *--n = '{'; }
+                *--n = ld - loc; *--n = Enter;
+                cas = 0;
+                gen(n);
+                id = sym; // unwind symbol table locals
+                while (id->tk) {
+                    if (id->class == Loc || id->class == Par) {
+                        id->class = id->hclass;
+                        id->type = id->htype;
+                        id->val = id->hval;
+                    }
+                    id++;
+                }
+            }
+            else {
+                id->hclass = id->class; id->class = ctx;
+                id->htype = id->type; id->type = ty;
+                id->hval = id->val;
+                if (ctx == Glo) { id->val = (int)data; data += sizeof(int); }
+                else if (ctx == Loc) { id->val = ++ld; }
+                else if (ctx == Par) { id->val = ld++; }
+                if (ctx == Loc && tk == Assign){
+                    int ptk = tk;
+                    *--n = loc - id->val; *--n = Loc;
+                    next(); a = n; expr(ptk);
+                    *--n = (int)a; *--n = ty; *--n = Assign;
+                }
+            }
+            if (ctx != Par && tk == ',') next();
+        }
+        return;    
+    /* if (...) <statement> [else <statement>]
+     *     if (...)           <cond>
+     *                        JZ a
+     *         <statement>    <statement>
+     *     else:              JMP b
+     * a:
+     *     <statement>        <statement>
+     * b:                     b:
+     */
+    case If:
+        next();
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        expr(Assign); a = n;
+        if (tk == ')') next();
+        else fatal("close paren expected");
+        stmt(ctx); 
+        b = n;
+        if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
+        *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
+        return;
+    /* while (...) <statement>
+     * a:                     a:
+     *     while (<cond>)         <cond>
+     *                            JZ b
+     *         <statement>        <statement>
+     *                            JMP a
+     * b:                     b:
+     */
+    case While:
+        next();
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        expr(Assign); a = n;
+        if (tk == ')') next();
+        else fatal("close paren expected");
+        stmt(ctx); // parse body of "while"
+        *--n = (int) a; *--n = While;
+        return;
+    case Switch:
+        i = 0; j = 0;
+        if (cas) j = (int)cas; 
+        cas = &i;
+        next();
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        expr(Assign); 
+        a = n;
+        if (tk == ')') next();
+        else fatal("close paren expected");
+        stmt(ctx);
+        b = n;
+        *--n = (int) b; *--n = (int) a; *--n = Switch;
+        if (j) cas = (int *) j;
+        return;
+    case Case:
+        i = *cas;
+        next();
+        expr(Or);
+        a = n;
+        if (*n != Num) fatal("bad case immediate");
+        j = n[1]; n[1] -= i; *cas = j;
+        *--n = ';';
+        if (tk == ':') next();
+        else fatal("colon expected");
+        stmt(ctx);
+        b = n;
+        *--n = (int) b;*--n = (int) a; *--n = Case;
+        return;
+    case Break:
+        next();
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        *--n = Break;
+        return;
+    case Default:
+        next();
+        if (tk == ':') next();
+        else fatal("colon expected");
+        stmt(ctx); a = n;
+        *--n = (int) a; *--n = Default;
+        return;
+    // RETURN_stmt -> 'return' expr ';' | 'return' ';'
+    case Return:
+        a = 0; next();
+        if (tk != ';') { expr(Assign); a = n; }
+        *--n = (int) a; *--n = Return;
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        return;
+    case For:
+        /* For iteratiion is implemented as:
+         * Init -> Cond -> Bz to end -> Jmp to Body
+         * After -> Jmp to Cond -> Body -> Jmp to After
+         */
+        next();
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        *--n = ';';
+        expr(Assign);
+        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
+        d = n;
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        *--n = ';';
+        expr(Assign); a = n; // Point to entry of for cond
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        *--n = ';';
+        expr(Assign);  
+        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
+        b = n;
+        if (tk == ')') next(); else fatal("close paren expected");
+        stmt(ctx); c = n;
+        *--n = (int)d; *--n = (int)c; *--n = (int) b; *--n = (int) a; *--n = For;
+        return;
+    // stmt -> '{' stmt '}'
+    case '{':
+        next();
+        *--n = ';';
+        while (tk != '}') { a = n; stmt(ctx); *--n = (int) a; *--n = '{'; }
+        next();
+        return;
+    // stmt -> ';'
+    case ';':
+        next();
+        *--n = ';';
+        return;
+    default:
+        // general statements are considered assignment statements/expressions
+        expr(Assign);
+        if (tk == ';') next(); else fatal("semicolon expected");
     }
 }
 
@@ -1371,7 +1520,7 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
     return shdr_idx++;
 }
 
-int gen_sym(char *ptr, int name, unsigned char info,
+int gen_sym(char *ptr, int name, char info,
             int shndx, int size, int value)
 {
     struct Elf32_Sym *sym;
@@ -1812,11 +1961,9 @@ int streq(char *p1, char *p2)
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
-    int fd, ret, bt, mbt, ty, poolsz, *ast, *freed_ast;
+    int fd, ret, poolsz, *freed_ast, *ast;
     struct ident_s *idmain;
-    struct member_s *m;
     int i;
-    int *t; // temp
 
     --argc; ++argv;
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
@@ -1912,179 +2059,14 @@ int main(int argc, char **argv)
     // add primitive types
     tsize[tnew++] = sizeof(char);
     tsize[tnew++] = sizeof(int);
-    // parse declarations
-    line = 1;
+
     // real C parser begins here
+    // parse the program
+    line = 1;
     next();
+    n = ast;
     while (tk) {
-        bt = INT; // basetype
-        switch (tk) {
-        case Int:
-            next();
-            break;
-        case Char:
-            next(); bt = CHAR;
-            break;
-        case Enum:
-            next();
-            if (tk != '{') next();
-            if (tk == '{') {
-                next();
-                i = 0;
-                while (tk != '}') {
-                    if (tk != Id) {
-                        printf("%d: bad enum identifier %d\n", line, tk);
-                        return -1;
-                    }
-                    next();
-                    if (tk == Assign) {
-                        next();
-                        n = ast; expr(Cond);
-                        if (*n != Num) fatal("bad enum initializer");
-                        i = n[1];
-                    }
-                    id->class = Num; id->type = INT; id->val = i++;
-                    if (tk == ',') next();
-                }
-                next();
-            }
-            break;
-        case Struct:
-            next();
-            if (tk == Id) {
-                if (!id->stype) id->stype = tnew++;
-                bt = id->stype;
-                next();
-            } else { 
-                bt = tnew++;
-            }
-            if (tk == '{') {
-                next();
-                if (members[bt]) fatal("duplicate structure definition");
-                i = 0;
-                while (tk != '}') {
-                    mbt = INT;
-                    switch (tk) {
-                    case Int: next(); break;
-                    case Char: next(); mbt = CHAR; break;
-                    case Struct:
-                        next(); 
-                        if (tk != Id) fatal("bad struct declaration");
-                        mbt = id->stype;
-                        next(); break;
-                    }
-                    while (tk != ';') {
-                        ty = mbt;
-                        while (tk == Mul) { next(); ty += PTR; }
-                        if (tk != Id) fatal("bad struct member definition");
-                        m = malloc(sizeof(struct member_s));
-                        m->id = id;
-                        m->offset = i;
-                        m->type = ty;
-                        m->next = members[bt];
-                        members[bt] = m;
-                        i += (ty >= PTR) ? sizeof(int) : tsize[ty];
-                        i = (i + 3) & -4;
-                        next();
-                        if (tk == ',') next();
-                    }
-                    next();
-                }
-                next();
-                tsize[bt] = i;
-            }
-            break;
-        }
-        /* parse statemanet such as 'int a, b, c;'
-         * "enum" finishes by "tk == ';'", so the code below will be skipped
-         */
-        while (tk != ';' && tk != '}') {
-            ty = bt;
-            // if the beginning of * is a pointer type, then type plus `PTR`
-            // indicates what kind of pointer
-            while (tk == Mul) { next(); ty += PTR; }
-            if (tk != Id) fatal("bad global declaration");
-            if (id->class) fatal("duplicate global definition");
-            next();
-            id->type = ty;
-            if (tk == '(') { // function
-                id->class = Func; // type is functional
-                id->val = (int) (e + 1); // function Pointer? offset/address in bytecode
-                next(); i = 0;
-                while (tk != ')') {
-                    ty = INT;
-                    switch (tk) {
-                    case Int: next(); break;
-                    case Char: next(); ty = CHAR; break;
-                    case Struct:
-                        next(); 
-                        if (tk != Id) fatal("bad struct declaration");
-                        ty = id->stype;
-                        next(); break;
-                    }
-                    while (tk == Mul) { next(); ty += PTR; }
-                    if (tk != Id) fatal("bad parameter declaration");
-                    // function arguments are local variables
-                    if (id->class == Loc) fatal("duplicate parameter definition");
-                    // Maintain argument in function, update to be a local variable
-                    id->hclass = id->class; id->class = Loc;
-                    id->htype  = id->type;  id->type = ty;
-                    id->hval   = id->val;   id->val = i++;
-                    next();
-                    if (tk == ',') next();
-                }
-                next();
-                if (tk != '{') fatal("bad function definition");
-                loc = ++i;
-                next();
-                while (tk == Int || tk == Char || tk == Struct) {
-                    switch (tk) {
-                    case Int: bt = INT; break;
-                    case Char: bt = CHAR; break;
-                    default:
-                        next();
-                        if (tk != Id) fatal("bad struct declaration");
-                        bt = id->stype; break;
-                    }
-                    next();
-                    while (tk != ';') {
-                        ty = bt;
-                        while (tk == Mul) { next(); ty += PTR; }
-                        if (tk != Id) fatal("bad local declaration");
-                        if (id->class == Loc) fatal("duplicate local definition");
-                        id->hclass = id->class; id->class = Loc;
-                        id->htype  = id->type;  id->type = ty;
-                        id->hval   = id->val;   id->val = ++i;
-                        next();
-                        if (tk == ',') next();
-                    }
-                    next();
-                }
-                // Not declare and must not be function, analyze inner block.
-                // e represents the address which will store pc
-                // (i - loc) indicates memory size to alocate
-                n = ast; 
-                *--n = ';'; while (tk != '}') { t = n;  stmt(); *--n = (int) t; *--n = '{'; }
-                *--n = i - loc; *--n = Enter;
-                cas = 0;
-                gen(n);
-                id = sym; // unwind symbol table locals
-                while (id->tk) {
-                    if (id->class == Loc) {
-                        id->class = id->hclass;
-                        id->type = id->htype;
-                        id->val = id->hval;
-                    }
-                    id++;
-                }
-            }
-            else {
-                id->class = Glo; // global variables
-                id->val = (int) data; // assign memory to global variables in data section
-                data += sizeof(int);
-            }
-            if (tk == ',') next();
-        }
+        stmt(Glo);
         next();
     }
 
