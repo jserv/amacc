@@ -351,6 +351,7 @@ void next()
                     case 'v': ival = '\v'; break; // vertical tab
                     case 'f': ival = '\f'; break; // form feed
                     case 'r': ival = '\r'; break; // carriage return
+                    case '0': ival = '\0'; break; // an int with value 0
                     }
                 }
                 // if it is double quotes, it is considered as a string,
