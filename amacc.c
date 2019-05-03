@@ -1484,8 +1484,7 @@ int phdr_idx, shdr_idx, sym_idx;
 int gen_phdr(char *ptr, int type, int offset, int addr, int size,
              int flag, int align)
 {
-    struct Elf32_Phdr *phdr;
-    phdr = (struct Elf32_Phdr *) ptr;
+    struct Elf32_Phdr *phdr = (struct Elf32_Phdr *) ptr;
     phdr->p_type =  type;
     phdr->p_offset = offset;
     phdr->p_vaddr = addr;
@@ -1501,8 +1500,7 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
              int size, int link, int info,
              int flag, int align, int entsize)
 {
-    struct Elf32_Shdr *shdr;
-    shdr = (struct Elf32_Shdr *) ptr;
+    struct Elf32_Shdr *shdr = (struct Elf32_Shdr *) ptr;
     shdr->sh_name = name;       shdr->sh_type = type;
     shdr->sh_addr = addr;       shdr->sh_offset = offset;
     shdr->sh_size = size;       shdr->sh_link = link;
@@ -1514,8 +1512,7 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
 int gen_sym(char *ptr, int name, char info,
             int shndx, int size, int value)
 {
-    struct Elf32_Sym *sym;
-    sym = (struct Elf32_Sym *) ptr;
+    struct Elf32_Sym *sym = (struct Elf32_Sym *) ptr;
     sym->st_name = name;
     sym->st_info = info;
     sym->st_other = 0;
