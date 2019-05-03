@@ -874,51 +874,51 @@ void stmt(int ctx)
     case Int:
     case Char:
     case Struct:
-        switch(tk){
+        switch (tk) {
         case Struct:
                 next();
                 if (tk == Id) {
-                if (!id->stype) id->stype = tnew++;
-                bt = id->stype;
-                next();
-            } else { 
-                bt = tnew++;
-            }
-            if (tk == '{') {
-                next();
-                if (members[bt]) fatal("duplicate structure definition");
-                i = 0;
-                while (tk != '}') {
-                    int mbt = INT;
-                    switch (tk) {
-                    case Int: next(); break;
-                    case Char: next(); mbt = CHAR; break;
-                    case Struct:
-                        next(); 
-                        if (tk != Id) fatal("bad struct declaration");
-                        mbt = id->stype;
-                        next(); break;
-                    }
-                    while (tk != ';') {
-                        ty = mbt;
-                        while (tk == Mul) { next(); ty += PTR; }
-                        if (tk != Id) fatal("bad struct member definition");
-                        m = malloc(sizeof(struct member_s));
-                        m->id = id;
-                        m->offset = i;
-                        m->type = ty;
-                        m->next = members[bt];
-                        members[bt] = m;
-                        i += (ty >= PTR) ? sizeof(int) : tsize[ty];
-                        i = (i + 3) & -4;
+                    if (!id->stype) id->stype = tnew++;
+                    bt = id->stype;
+                    next();
+                } else { 
+                    bt = tnew++;
+                }
+                if (tk == '{') {
+                    next();
+                    if (members[bt]) fatal("duplicate structure definition");
+                    i = 0;
+                    while (tk != '}') {
+                        int mbt = INT;
+                        switch (tk) {
+                        case Int: next(); break;
+                        case Char: next(); mbt = CHAR; break;
+                        case Struct:
+                            next(); 
+                            if (tk != Id) fatal("bad struct declaration");
+                            mbt = id->stype;
+                            next(); break;
+                        }
+                        while (tk != ';') {
+                            ty = mbt;
+                            while (tk == Mul) { next(); ty += PTR; }
+                            if (tk != Id) fatal("bad struct member definition");
+                            m = malloc(sizeof(struct member_s));
+                            m->id = id;
+                            m->offset = i;
+                            m->type = ty;
+                            m->next = members[bt];
+                            members[bt] = m;
+                            i += (ty >= PTR) ? sizeof(int) : tsize[ty];
+                            i = (i + 3) & -4;
+                            next();
+                            if (tk == ',') next();
+                        }
                         next();
-                        if (tk == ',') next();
                     }
                     next();
+                    tsize[bt] = i;
                 }
-                next();
-                tsize[bt] = i;
-            }
             break;
         case Int:
         case Char:
@@ -934,15 +934,15 @@ void stmt(int ctx)
             // if the beginning of * is a pointer type, then type plus `PTR`
             // indicates what kind of pointer
             while (tk == Mul) { next(); ty += PTR; }
-            switch(ctx){
-                case Glo:
-                    if(tk != Id) fatal("bad global declaration");
-                    if (id->class >= ctx) fatal("duplicate global definition");
-                    break;
-                case Loc:
-                    if(tk != Id) fatal("bad local declaration");
-                    if (id->class >= ctx) fatal("duplicate local definition");
-                    break;
+            switch (ctx) {
+            case Glo:
+                if(tk != Id) fatal("bad global declaration");
+                if (id->class >= ctx) fatal("duplicate global definition");
+                break;
+            case Loc:
+                if(tk != Id) fatal("bad local declaration");
+                if (id->class >= ctx) fatal("duplicate local definition");
+                break;
             }
             next();
             id->type = ty;
@@ -961,7 +961,11 @@ void stmt(int ctx)
                 // e represents the address which will store pc
                 // (ld - loc) indicates memory size to allocate
                 int *t = n;
-                *--n = ';'; while (tk != '}') { t = n; stmt(Loc); if (t != n){*--n = (int) t; *--n = '{';} }
+                *--n = ';';
+                while (tk != '}') {
+                    t = n; stmt(Loc);
+                    if (t != n) { *--n = (int) t; *--n = '{'; }
+                }
                 *--n = ld - loc; *--n = Enter;
                 cas = 0;
                 gen(n);
