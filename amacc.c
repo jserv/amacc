@@ -960,10 +960,9 @@ void stmt(int ctx)
                 // Not declare and must not be function, analyze inner block.
                 // e represents the address which will store pc
                 // (ld - loc) indicates memory size to allocate
-                int *t = n;
                 *--n = ';';
                 while (tk != '}') {
-                    t = n; stmt(Loc);
+                    int *t = n; stmt(Loc);
                     if (t != n) { *--n = (int) t; *--n = '{'; }
                 }
                 *--n = ld - loc; *--n = Enter;
