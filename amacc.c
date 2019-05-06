@@ -502,7 +502,7 @@ void expr(int lev)
         expr(Inc); // dereference has the same precedence as Inc(++)
         if (ty >= PTR) ty -= PTR;
         else fatal("bad dereference");
-        if (ty == PTR || ty == INT || ty == CHAR) {
+        if (ty >= CHAR && ty <= PTR) {
             *--n = ty; *--n = Load;
         } else fatal("unexpected type");
         break;
