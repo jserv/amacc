@@ -273,7 +273,7 @@ void next()
             return;
         }
         /* Calculate the constant */
-	// first byte is a number, and it is considered a numerical value
+        // first byte is a number, and it is considered a numerical value
         else if (tk >= '0' && tk <= '9') {
             /* Parse with 3 conditions:
              * 1) not starting with 0 :=> decimal number;
@@ -325,7 +325,7 @@ void next()
             break;
         case '/':
             if (*p == '/') { // comment
-        case '#': // skip #include statement
+        case '#': // skip #include statement, preprocessor directives ignored
                 while (*p != 0 && *p != '\n') ++p;
             } else if (*p == '*') { // C-style multiline comments
                 int t = 0;
@@ -335,7 +335,7 @@ void next()
                     else if (*p == '*' && *pp == '/') t = 1;
                 }
                 ++p;
-	    } else {
+            } else {
                 // FIXME: Div is not supported
                 return;
             }
@@ -351,6 +351,7 @@ void next()
                     case 'v': ival = '\v'; break; // vertical tab
                     case 'f': ival = '\f'; break; // form feed
                     case 'r': ival = '\r'; break; // carriage return
+                    case '0': ival = '\0'; break; // an int with value 0
                     }
                 }
                 // if it is double quotes, it is considered as a string,

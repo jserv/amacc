@@ -68,5 +68,4 @@ dump-ir:$(BIN)
 
 ## Clean out files
 clean:
-	$(RM) $(EXEC) $(OBJ_DIR)/* \
-              out-1 out-2
+	$(RM) $(EXEC) $(OBJ_DIR)/* elf/* out-gcc/*
