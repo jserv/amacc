@@ -503,7 +503,7 @@ void expr(int lev)
         expr(Inc); // dereference has the same precedence as Inc(++)
         if (ty >= PTR) ty -= PTR;
         else fatal("bad dereference");
-        if (ty == PTR || ty == INT || ty == CHAR) {
+        if (ty >= CHAR && ty <= PTR) {
             *--n = ty; *--n = Load;
         } else fatal("unexpected type");
         break;
@@ -870,75 +870,65 @@ void stmt(int ctx)
                 if (tk == ',') next();
             }
             next();
-        }else if(tk == Id){ id->type = INT; id->class = ctx; id->val = ld++; next(); }
-        return;
-    case Struct:
-        next();
-        if (tk == Id) {
-            if (!id->stype) id->stype = tnew++;
-            bt = id->stype;
-            next();
-        } else { 
-            bt = tnew++;
-        }
-        if (tk == '{') {
-            next();
-            if (members[bt]) fatal("duplicate structure definition");
-            i = 0;
-            while (tk != '}') {
-                int mbt = INT;
-                switch (tk) {
-                case Int: next(); break;
-                case Char: next(); mbt = CHAR; break;
-                case Struct:
-                    next(); 
-                    if (tk != Id) fatal("bad struct declaration");
-                    mbt = id->stype;
-                    next(); break;
-                }
-                while (tk != ';') {
-                    ty = mbt;
-                    while (tk == Mul) { next(); ty += PTR; }
-                    if (tk != Id) fatal("bad struct member definition");
-                    m = malloc(sizeof(struct member_s));
-                    m->id = id;
-                    m->offset = i;
-                    m->type = ty;
-                    m->next = members[bt];
-                    members[bt] = m;
-                    i += (ty >= PTR) ? sizeof(int) : tsize[ty];
-                    i = (i + 3) & -4;
-                    next();
-                    if (tk == ',') next();
-                }
-                next();
-            }
-            next();
-            tsize[bt] = i;
-        }
-        // 1. local variable of struct type
-        // 2. global variable of struct type
-        while (tk != ';') {
-            ty = bt;
-            // if the beginning of * is a pointer type, then type plus `PTR`
-            // indicates what kind of pointer
-            while (tk == Mul) { next(); ty += PTR; }
-            if (tk != Id) fatal("bad local declaration");
-            if (id->class == Loc) fatal("duplicate local definition");
-            id->hclass = id->class; id->class = ctx;
-            id->htype = id->type; id->type = ty;
-            id->hval = id->val;
-            if (ctx == Glo) { id->val = (int)data; data += sizeof(int); }
-            else if (ctx == Loc) { id->val = ++ld; }
-            else if (ctx == Par) { id->val = ld++; }
-            next();
-            if (tk == ',') next();
-        }
+        }else if (tk == Id) { id->type = INT; id->class = ctx; id->val = ld++; next(); }
         return;
     case Int:
     case Char:
-        bt = (tk == Int) ? INT : CHAR; // basetype
-        next();
+    case Struct:
+        switch (tk) {
+        case Struct:
+            next();
+            if (tk == Id) {
+                if (!id->stype) id->stype = tnew++;
+                bt = id->stype;
+                next();
+            } else { 
+                bt = tnew++;
+            }
+            if (tk == '{') {
+                next();
+                if (members[bt]) fatal("duplicate structure definition");
+                i = 0;
+                while (tk != '}') {
+                    int mbt = INT;
+                    switch (tk) {
+                    case Int: next(); break;
+                    case Char: next(); mbt = CHAR; break;
+                    case Struct:
+                        next(); 
+                        if (tk != Id) fatal("bad struct declaration");
+                        mbt = id->stype;
+                        next(); break;
+                    }
+                    while (tk != ';') {
+                        ty = mbt;
+                        // if the beginning of * is a pointer type, then type plus `PTR`
+                        // indicates what kind of pointer
+                        while (tk == Mul) { next(); ty += PTR; }
+                        if (tk != Id) fatal("bad struct member definition");
+                        m = malloc(sizeof(struct member_s));
+                        m->id = id;
+                        m->offset = i;
+                        m->type = ty;
+                        m->next = members[bt];
+                        members[bt] = m;
+                        i += (ty >= PTR) ? sizeof(int) : tsize[ty];
+                        i = (i + 3) & -4;
+                        next();
+                        if (tk == ',') next();
+                    }
+                    next();
+                }
+                next();
+                tsize[bt] = i;
+            }
+            break;
+        case Int:
+        case Char:
+            bt = (tk == Int) ? INT : CHAR; // basetype
+            next();
+            break;
+        }
         /* parse statemanet such as 'int a, b, c;'
          * "enum" finishes by "tk == ';'", so the code below will be skipped
          */
@@ -947,8 +937,16 @@ void stmt(int ctx)
             // if the beginning of * is a pointer type, then type plus `PTR`
             // indicates what kind of pointer
             while (tk == Mul) { next(); ty += PTR; }
-            if (tk != Id) fatal("bad global declaration");
-            if (id->class >= ctx) fatal("duplicate global definition");
+            switch (ctx) {
+            case Glo:
+                if (tk != Id) fatal("bad global declaration");
+                if (id->class >= ctx) fatal("duplicate global definition");
+                break;
+            case Loc:
+                if (tk != Id) fatal("bad local declaration");
+                if (id->class >= ctx) fatal("duplicate local definition");
+                break;
+            }
             next();
             id->type = ty;
             if (tk == '(') { // function
@@ -965,8 +963,11 @@ void stmt(int ctx)
                 // Not declare and must not be function, analyze inner block.
                 // e represents the address which will store pc
                 // (ld - loc) indicates memory size to allocate
-                int *t = n;
-                *--n = ';'; while (tk != '}') { t = n;  stmt(Loc); *--n = (int) t; *--n = '{'; }
+                *--n = ';';
+                while (tk != '}') {
+                    int *t = n; stmt(Loc);
+                    if (t != n) { *--n = (int) t; *--n = '{'; }
+                }
                 *--n = ld - loc; *--n = Enter;
                 cas = 0;
                 gen(n);
@@ -987,7 +988,7 @@ void stmt(int ctx)
                 if (ctx == Glo) { id->val = (int)data; data += sizeof(int); }
                 else if (ctx == Loc) { id->val = ++ld; }
                 else if (ctx == Par) { id->val = ld++; }
-                if (ctx == Loc && tk == Assign){
+                if (ctx == Loc && tk == Assign) {
                     int ptk = tk;
                     *--n = loc - id->val; *--n = Loc;
                     next(); a = n; expr(ptk);
@@ -1489,8 +1490,7 @@ int phdr_idx, shdr_idx, sym_idx;
 int gen_phdr(char *ptr, int type, int offset, int addr, int size,
              int flag, int align)
 {
-    struct Elf32_Phdr *phdr;
-    phdr = (struct Elf32_Phdr *) ptr;
+    struct Elf32_Phdr *phdr = (struct Elf32_Phdr *) ptr;
     phdr->p_type =  type;
     phdr->p_offset = offset;
     phdr->p_vaddr = addr;
@@ -1506,8 +1506,7 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
              int size, int link, int info,
              int flag, int align, int entsize)
 {
-    struct Elf32_Shdr *shdr;
-    shdr = (struct Elf32_Shdr *) ptr;
+    struct Elf32_Shdr *shdr = (struct Elf32_Shdr *) ptr;
     shdr->sh_name = name;       shdr->sh_type = type;
     shdr->sh_addr = addr;       shdr->sh_offset = offset;
     shdr->sh_size = size;       shdr->sh_link = link;
@@ -1519,8 +1518,7 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
 int gen_sym(char *ptr, int name, char info,
             int shndx, int size, int value)
 {
-    struct Elf32_Sym *sym;
-    sym = (struct Elf32_Sym *) ptr;
+    struct Elf32_Sym *sym = (struct Elf32_Sym *) ptr;
     sym->st_name = name;
     sym->st_info = info;
     sym->st_other = 0;

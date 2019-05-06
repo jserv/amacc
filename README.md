@@ -42,7 +42,7 @@ Run `make check` and you should see this:
 [ nested/self compilation      ] Passed
 [ Compatibility with GCC/Arm   ] ........................................
 ----------------------------------------------------------------------
-Ran 40 tests in 4.975s
+Ran 44 tests in 4.975s
 
 OK
 
