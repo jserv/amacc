@@ -7,6 +7,7 @@ int assert_eq(int a, int b)
         printf("Assertion: %d != %d\n", a, b);
         exit(1);
     }
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -37,6 +38,13 @@ int main(int argc, char **argv)
     a = 2;
     a *= 3 * 4;
     assert_eq(a, 24);
+    
+    a = 10;
+    a /= 5;
+    assert_eq(a, 2);
 
+    a = 4;
+    a %= 3;
+    assert_eq(a, 1);
     return 0;
 }
