@@ -72,12 +72,12 @@ enum {
     Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
-    Assign, AddAssign, SubAssign, MulAssign, // operator =, +=, -=, *=
+    Assign, AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // operator =, +=, -=, *=, /=, %=
                                              // keep Assign as highest priority operator here
     Cond, // operator: ?
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
     Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
-    Shl, Shr, Add, Sub, Mul, // operator: <<, >>, +, -, *
+    Shl, Shr, Add, Sub, Mul, Div, Mod, // operator: <<, >>, +, -, *, /, %
     Inc, Dec, Dot, Arrow, Brak, // operator: ++, --, ., ->, [
 };
 
@@ -215,7 +215,7 @@ enum {
      */
 
     /* system call shortcuts */
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,EXIT,
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
     CLCA /* clear cache, used by JIT compilation */
 };
 
@@ -312,7 +312,7 @@ void next()
                              "SHL  SHR  ADD  SUB  MUL  "
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
-                             "DSYM BSCH STRT EXIT CLCA" [*++le * 5]);
+                             "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
             }
@@ -336,8 +336,8 @@ void next()
                 }
                 ++p;
             } else {
-                // FIXME: Div is not supported
-                return;
+                if (*p == '=') { ++p; tk = DivAssign; }
+                else tk = Div; return;
             }
             break;
         case '\'': // quotes start with character (string)
@@ -384,6 +384,8 @@ void next()
         case '^': tk = Xor; return;
         case '*': if (*p == '=') { ++p; tk = MulAssign; }
                   else tk = Mul; return;
+        case '%': if (*p == '=') { ++p; tk = ModAssign; }
+                  else tk = Mod; return;
         case '[': tk = Brak; return;
         case '?': tk = Cond; return;
         case '.': tk = Dot; return;
@@ -534,6 +536,9 @@ void expr(int lev)
         if (*n == Num) n[1] = -n[1]; else { *--n = -1; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
         ty = INT;
         break;
+    case Div:
+    case Mod:
+        break;
     // processing ++x and --x. x-- and x++ is handled later
     case Inc:
     case Dec:
@@ -559,6 +564,8 @@ void expr(int lev)
         case AddAssign: // right associated
         case SubAssign:
         case MulAssign:
+        case DivAssign:
+        case ModAssign:
             otk = tk;
             *--n=';'; *--n = ty = id->type; *--n = Load;
             sz = (ty = t) >= PTR2 ? sizeof(int) :  ty >= PTR ? tsize[ty - PTR] : 1;
@@ -678,6 +685,16 @@ void expr(int lev)
             *--n = (int) b; *--n = (tk == Inc) ? Sub : Add;
             next();
             break;
+        case Div:
+            next(); expr(Inc); 
+            if (*n == Num && *b == Num) n[1] /= b[1]; else { *--n = (int) b; *--n = Div; } 
+            ty = INT;    
+            break;
+        case Mod:
+            next(); expr(Inc); 
+            if (*n == Num && *b == Num) n[1] %= b[1]; else { *--n = (int) b; *--n = Mod; } 
+            ty = INT;    
+            break;
         case Dot:
             ty += PTR;
         case Arrow:
@@ -768,6 +785,8 @@ void gen(int *n)
     case Add:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = ADD; break;
     case Sub:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = SUB; break;
     case Mul:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
+    case Div:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = DIV; break;
+    case Mod:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MOD; break;
     case Syscall:
     case Func:
         c = b = (int *) n[1]; k = 0; l = 1;
@@ -1231,6 +1250,23 @@ int *codegen(int *jitmem, int *jitmap)
         case MUL:
             *je++ = 0xe49d1004; *je++ = 0xe0000091; // pop {r1}; mul r0, r1, r0
             break;
+        case DIV:
+        case MOD:
+            *je++ = 0xe52d0004;                     // push {r0}
+            if (elf) {
+                tmp = (int) plt_func_addr[i - OPEN];
+            } else {
+                void *handle = dlopen("libgcc_s.so.1", 1);
+                if (!handle) fatal("libgcc_s.so.1 open error!");
+                tmp = (int) dlsym(handle, scnames[i - OPEN]);
+            }
+            *je++ = 0xe49d0004 | (1 << 12); // pop r1
+            *je++ = 0xe49d0004 | (0 << 12); // pop r0
+            *je++ = 0xe28fe000;                          // add lr, pc, #0
+            if (!imm0) imm0 = je;
+            *il++ = (int) je++ + 1;
+            *iv++ = tmp;
+            break;
         case CLCA:
             *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
                                                     // ldr r1, [sp]
@@ -1361,7 +1397,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
     *je++ = 0xe51f1014;       // ldr     r1, [pc, #-20] ; argv
     *je++ = 0xe52d0004;       // push    {r0}
     *je++ = 0xe52d1004;       // push    {r1}
-    int *tje = je++;               // bl      jitmain
+    int *tje = je++;          // bl      jitmain
     *je++ = 0xe51f502c;       // ldr     r5, [pc, #-44] ; retval
     *je++ = 0xe5850000;       // str     r0, [r5]
     *je++ = 0xe28dd008;       // add     sp, sp, #8
@@ -1544,7 +1580,7 @@ enum {
 
 enum {
     PAGE_SIZE = 0x1000, PHDR_NUM = 4, SHDR_NUM = 11,
-    DYN_NUM = 14
+    DYN_NUM = 15
 };
 
 int elf32(int poolsz, int *main)
@@ -1720,6 +1756,7 @@ int elf32(int poolsz, int *main)
     append_strtab(&data, "");
     char *libc = append_strtab(&data, "libc.so.6");
     char *ldso = append_strtab(&data, "libdl.so.2");
+    char *libgcc_s = append_strtab(&data, "libgcc_s.so.1");
 
     int *func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
     if (!func_entries) die("elf32: could not malloc func_entries table");
@@ -1837,6 +1874,7 @@ int elf32(int poolsz, int *main)
     *(int *) to = 23; to += 4; *(int *) to = (int) rel_addr;     to += 4;
     *(int *) to =  1; to += 4; *(int *) to = libc - dynstr_addr; to += 4;
     *(int *) to =  1; to += 4; *(int *) to = ldso - dynstr_addr; to += 4;
+    *(int *) to =  1; to += 4; *(int *) to = libgcc_s - dynstr_addr; to += 4;
     *(int *) to =  0; to += 8;
 
     /* Generate code again bacause address of .plt function slots must
@@ -1997,18 +2035,23 @@ int main(int argc, char **argv)
         "sizeof struct switch for while "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
-        "dlsym bsearch __libc_start_main exit __clear_cache void main";
+        "dlsym bsearch __libc_start_main " 
+        "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
 
     // name vector to system call
     // must match the sequence of supported calls
-    scnames = malloc(16 * sizeof(char *));
+    scnames = malloc(19 * sizeof(char *));
     scnames[ 0] = "open";    scnames[ 1] = "read";    scnames[ 2] = "write";
     scnames[ 3] = "close";   scnames[ 4] = "printf";
     scnames[ 5] = "malloc";  scnames[ 6] = "free";
     scnames[ 7] = "memset";  scnames[ 8] = "memcmp";  scnames[ 9] = "memcpy";
     scnames[10] = "mmap";    scnames[11] = "dlsym";   scnames[12] = "bsearch";
-    scnames[13] = "__libc_start_main"; scnames[14] = "exit";
-    scnames[15] = "__clear_cache";
+    scnames[13] = "__libc_start_main"; 
+    scnames[14] = "dlopen";
+    scnames[15] = "__aeabi_idiv";
+    scnames[16] = "__aeabi_idivmod";
+    scnames[17] = "exit";
+    scnames[18] = "__clear_cache";
 
     // add keywords to symbol table
     for (i = Break; i <= While; i++) {
