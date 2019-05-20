@@ -2,14 +2,27 @@
 
 ## Introduction
 AMaCC is built from scratch, targeted at 32-bit ARM architecture.
+It is a considerably stripped down version of C and it is meant as
+pedagogical tool for learning about compilers, linkers, and loaders.
+
 There are 3 execution modes AMaCC implements:
 * Just-in-Time compiler (JITC) for ARM backend
 * Generate valid Executable and Linkable Format (ELF) executables
 * Interpreter-only execution
 
-Indeed, AMaCC is designed to compile the minimal subset of C required
-to self-host. For example, global variables and, in particular, global
-arrays are there.
+It is worth mentioning that AMaCC is designed to compile the minimal
+subset of C required to self-host with the above execution modes. For
+example, global variables and, in particular, global arrays are there.
+
+Intermediate code generation is integrated into the parsing since it
+is generating code for a stack-based machine and hat also follows the
+sequence of actions performed when parsing.
+
+It mixes classical recursive descent and operator precedence parser.
+An operator precedence parser is actually quite a bit faster than
+recursive descent parser (RDP) for expressions when operator precedence
+is defined using grammar productions that would otherwise get turned
+into methods.
 
 ## Compatibility
 AMaCC is capable of compiling C source files written in the following
@@ -18,8 +31,12 @@ syntax:
 * condition statements: if, while, for, switch, case, break, return, and
                         general expressions
 * compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`
+* global/local variable initializations for supported data types
+    - e.g. `int i = [expr]`
+    - New variables are allowed to be declared within functions anywhere.
 
-The architecture support targets armv7hf with Linux ABI.
+The architecture support targets armv7hf with Linux ABI, verified on
+Raspberry Pi 2/3 with GNU/Linux.
 
 ## Prerequisites
 * Code generator in AMaCC relies on several GNU/Linux behaviors, and it
@@ -45,7 +62,6 @@ Run `make check` and you should see this:
 Ran 44 tests in 4.975s
 
 OK
-
 ```
 
 ## Internals
