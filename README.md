@@ -17,7 +17,7 @@ syntax:
 * data types: char, int, struct, and pointer
 * condition statements: if, while, for, switch, case, break, return, and
                         general expressions
-* compound assignments: `+=`, `-=`, `*=`
+* compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`
 
 The architecture support targets armv7hf with Linux ABI.
 
