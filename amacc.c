@@ -39,8 +39,11 @@ int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
 int elf_fd;
 int *n;              // current position in emitted abstract syntax tree
-                     // With an AST, the compiler is not limited to generating code on the fly with parsing.
-                     // This capability allows function parameter code to be emitted and pushed on the stack in the proper right-to-left order.      
+                     // With an AST, the compiler is not limited to generate
+                     // code on the fly with parsing.
+                     // This capability allows function parameter code to be
+                     // emitted and pushed on the stack in the proper
+                     // right-to-left order.
 int ld;              // local variable depth
 
 // identifier
@@ -72,8 +75,8 @@ enum {
     Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
     Struct, Switch, For, While,
-    Assign, AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // operator =, +=, -=, *=, /=, %=
-                                             // keep Assign as highest priority operator here
+    Assign, // operator =, keep Assign as highest priority operator
+    AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
     Cond, // operator: ?
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
     Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
@@ -453,11 +456,15 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func) fatal("bad function call");
+            if (d->class != Syscall && d->class != Func)
+                fatal("bad function call");
             next();
             t = 0; b = 0;
             // parameters
-            while (tk != ')') { expr(Assign); *--n = (int) b; b = n; ++t; if (tk == ',') next(); }
+            while (tk != ')') {
+                expr(Assign); *--n = (int) b; b = n; ++t;
+                if (tk == ',') next();
+            }
             next();
             // function or system call id
             *--n = t; *--n = d->val; *--n = (int) b; *--n = d->class;
@@ -519,21 +526,24 @@ void expr(int lev)
         break;
     case '!': // "!x" is equivalent to "x == 0"
         next(); expr(Inc);
-        if (*n == Num) n[1] = !n[1]; else { *--n = 0; *--n = Num; --n; *n = (int) (n + 3); *--n = Eq; }
+        if (*n == Num) n[1] = !n[1];
+        else { *--n = 0; *--n = Num; --n; *n = (int) (n + 3); *--n = Eq; }
         ty = INT;
         break;
     case '~': // "~x" is equivalent to "x ^ -1"
         next(); expr(Inc);
-        if (*n == Num) n[1] = ~n[1]; else { *--n = -1; *--n = Num; --n; *n = (int) (n + 3); *--n = Xor; }
+        if (*n == Num) n[1] = ~n[1];
+        else { *--n = -1; *--n = Num; --n; *n = (int) (n + 3); *--n = Xor; }
         ty = INT;
         break;
     case Add:
         next(); expr(Inc); ty = INT;
         break;
     case Sub:
-        next(); 
+        next();
         expr(Inc);
-        if (*n == Num) n[1] = -n[1]; else { *--n = -1; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
+        if (*n == Num) n[1] = -n[1];
+        else { *--n = -1; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
         ty = INT;
         break;
     case Div:
@@ -550,15 +560,16 @@ void expr(int lev)
 
     // "precedence climbing" or "Top Down Operator Precedence" method
     while (tk >= lev) {
-        // tk is ASCII code will not exceed `Num=128`. Its value may be
-        // changed during recursion, so back up currently processed expression type
+        // tk is ASCII code will not exceed `Num=128`. Its value may be changed
+        // during recursion, so back up currently processed expression type
         t = ty; b = n;
         switch (tk) {
         case Assign:
             next();
-            // the left part is processed by the variable part of `tk=ID` and pushes the address
+            // the left part is processed by the variable part of `tk=ID`
+            // and pushes the address
             if (*n != Load) { fatal("bad lvalue in assignment");}
-            // getting the value of the right part `expr` as the result of `a=expr`
+            // get the value of the right part `expr` as the result of `a=expr`
             expr(Assign); *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             break;
         case AddAssign: // right associated
@@ -568,114 +579,135 @@ void expr(int lev)
         case ModAssign:
             otk = tk;
             *--n=';'; *--n = ty = id->type; *--n = Load;
-            sz = (ty = t) >= PTR2 ? sizeof(int) :  ty >= PTR ? tsize[ty - PTR] : 1;
+            sz = (ty = t) >= PTR2 ? sizeof(int) :
+                                    ty >= PTR ? tsize[ty - PTR] : 1;
             next(); c = n; expr(otk);
-            if (*n == Num) n[1] *= sz; 
-            *--n = (int)c; *--n = Add + (otk - AddAssign); *--n = (int) (b + 2); *--n = ty = t; *--n = Assign; 
-            ty = INT; 
+            if (*n == Num) n[1] *= sz;
+            *--n = (int) c; *--n = Add + (otk - AddAssign);
+            *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
+            ty = INT;
             break;
-        case Cond: // `x?a:b` is similar to if except that it can't be without else
+        case Cond: // `x?a:b` is similar to if except that it relies on else
             next(); expr(Assign);
             if (tk == ':') next();
-            else fatal("conditional missing colon"); c = n; 
-            expr(Cond); --n; *n = (int) (n + 1); *--n = (int) c; *--n = (int) b; *--n = Cond;
+            else fatal("conditional missing colon"); c = n;
+            expr(Cond); --n;
+            *n = (int) (n + 1); *--n = (int) c; *--n = (int) b; *--n = Cond;
             break;
-        case Lor: // short circuit, the logical or operator on the left is true, expression is true
-            next(); expr(Lan); 
-            if (*n == Num && *b == Num) n[1] = b[1] || n[1]; else { *--n = (int) b; *--n = Lor; }
+        case Lor: // short circuit, the logical or
+            next(); expr(Lan);
+            if (*n == Num && *b == Num) n[1] = b[1] || n[1];
+            else { *--n = (int) b; *--n = Lor; }
             ty = INT;
             break;
         case Lan: // short circuit, logic and
             next(); expr(Or);
-            if (*n == Num && *b == Num) n[1] = b[1] && n[1]; else { *--n = (int) b; *--n = Lan; }
+            if (*n == Num && *b == Num) n[1] = b[1] && n[1];
+            else { *--n = (int) b; *--n = Lan; }
             ty = INT;
             break;
-        case Or: // push the current value, calculate the right value of the operator
+        case Or: // push the current value, calculate the right value
             next(); expr(Xor);
-            if (*n == Num && *b == Num) n[1] = b[1] | n[1]; else { *--n = (int) b; *--n = Or; }
+            if (*n == Num && *b == Num) n[1] = b[1] | n[1];
+            else { *--n = (int) b; *--n = Or; }
             ty = INT;
             break;
-        case Xor: 
+        case Xor:
             next(); expr(And);
-            if (*n == Num && *b == Num) n[1] = b[1] ^ n[1]; else { *--n = (int) b; *--n = Xor; }
+            if (*n == Num && *b == Num) n[1] = b[1] ^ n[1];
+            else { *--n = (int) b; *--n = Xor; }
             ty = INT;
             break;
-        case And: 
+        case And:
             next(); expr(Eq);
-            if (*n == Num && *b == Num) n[1] = b[1] & n[1]; else { *--n = (int) b; *--n = And; }
+            if (*n == Num && *b == Num) n[1] = b[1] & n[1];
+            else { *--n = (int) b; *--n = And; }
             ty = INT;
             break;
         case Eq:
             next(); expr(Lt);
-            if (*n == Num && *b == Num) n[1] = b[1] == n[1]; else { *--n = (int) b; *--n = Eq; }
+            if (*n == Num && *b == Num) n[1] = b[1] == n[1];
+            else { *--n = (int) b; *--n = Eq; }
             ty = INT;
             break;
         case Ne:
             next(); expr(Lt);
-            if (*n == Num && *b == Num) n[1] = b[1] != n[1]; else { *--n = (int) b; *--n = Ne; }
+            if (*n == Num && *b == Num) n[1] = b[1] != n[1];
+	    else { *--n = (int) b; *--n = Ne; }
             ty = INT;
             break;
-        case Lt:  
+        case Lt:
             next(); expr(Shl);
-            if (*n == Num && *b == Num) n[1] = b[1] < n[1]; else { *--n = (int) b; *--n = Lt; }
+            if (*n == Num && *b == Num) n[1] = b[1] < n[1];
+            else { *--n = (int) b; *--n = Lt; }
             ty = INT;
             break;
-        case Gt:  
+        case Gt:
             next(); expr(Shl);
-            if (*n == Num && *b == Num) n[1] = b[1] > n[1]; else { *--n = (int) b; *--n = Gt; }
-            ty = INT; 
+            if (*n == Num && *b == Num) n[1] = b[1] > n[1];
+            else { *--n = (int) b; *--n = Gt; }
+            ty = INT;
             break;
-        case Le:  
+        case Le:
             next(); expr(Shl);
-            if (*n == Num && *b == Num) n[1] = b[1] <= n[1]; else { *--n = (int) b; *--n = Le; }
-            ty = INT; 
+            if (*n == Num && *b == Num) n[1] = b[1] <= n[1];
+            else { *--n = (int) b; *--n = Le; }
+            ty = INT;
             break;
-        case Ge:  
+        case Ge:
             next(); expr(Shl);
-            if (*n == Num && *b == Num) n[1] = b[1] >= n[1]; else { *--n = (int) b; *--n = Ge; }
-            ty = INT; 
+            if (*n == Num && *b == Num) n[1] = b[1] >= n[1];
+            else { *--n = (int) b; *--n = Ge; }
+            ty = INT;
             break;
-        case Shl: 
+        case Shl:
             next(); expr(Add);
             if (*n == Num && *b == Num) {
                 if (n[1] < 0) n[1] = b[1] >> -n[1];
                 else n[1] = b[1] << n[1];
             } else { *--n = (int) b; *--n = Shl; }
-            ty = INT; 
+            ty = INT;
             break;
-        case Shr: 
+        case Shr:
             next(); expr(Add);
             if (*n == Num && *b == Num) {
                 if (n[1] < 0) n[1] = b[1] << -n[1];
                 else n[1] = b[1] >> n[1];
             } else { *--n = (int) b; *--n = Shr; }
-            ty = INT; 
+            ty = INT;
             break;
         case Add:
             next(); expr(Mul);
-            sz = (ty = t) >= PTR2 ? sizeof(int) :  ty >= PTR ? tsize[ty - PTR] : 1;
-            if (*n == Num) n[1] *= sz; 
-            if (*n == Num && *b == Num) n[1] += b[1]; else { *--n = (int) b; *--n = Add; }
+            sz = (ty = t) >= PTR2 ? sizeof(int) :
+                                    ty >= PTR ? tsize[ty - PTR] : 1;
+            if (*n == Num) n[1] *= sz;
+            if (*n == Num && *b == Num) n[1] += b[1];
+            else { *--n = (int) b; *--n = Add; }
             break;
         case Sub:
             next(); expr(Mul);
             sz = t >= PTR2 ? sizeof(int) : t >= PTR ? tsize[t - PTR] : 1;
-            if (sz > 1 && *n == Num) { *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
-            if (*n == Num && *b == Num) n[1] -= b[1]; 
-            else { 
-                *--n = (int) b; *--n = Sub; 
+            if (sz > 1 && *n == Num) {
+                *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul;
+            }
+            if (*n == Num && *b == Num) n[1] -= b[1];
+            else {
+                *--n = (int) b; *--n = Sub;
                 if (t == ty && sz > 1) {
                     switch (sz) {
-                    case 4: *--n = 2; *--n = Num; --n; *n = (int) (n + 3);  *--n = Shr; break;
-                    default: *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Sub;
+                    case 4: *--n = 2; *--n = Num; --n; *n = (int) (n + 3);
+                            *--n = Shr; break;
+                    default: *--n = sz; *--n = Num; --n; *n = (int) (n + 3);
+                             *--n = Sub;
                     }
                 }
             }
             break;
         case Mul:
-            next(); expr(Inc); 
-            if (*n == Num && *b == Num) n[1] *= b[1]; else { *--n = (int) b; *--n = Mul; } 
-            ty = INT;    
+            next(); expr(Inc);
+            if (*n == Num && *b == Num) n[1] *= b[1];
+            else { *--n = (int) b; *--n = Mul; }
+            ty = INT;
             break;
         case Inc:
         case Dec:
@@ -686,14 +718,16 @@ void expr(int lev)
             next();
             break;
         case Div:
-            next(); expr(Inc); 
-            if (*n == Num && *b == Num) n[1] /= b[1]; else { *--n = (int) b; *--n = Div; } 
-            ty = INT;    
+            next(); expr(Inc);
+            if (*n == Num && *b == Num) n[1] /= b[1];
+            else { *--n = (int) b; *--n = Div; }
+            ty = INT;
             break;
         case Mod:
-            next(); expr(Inc); 
-            if (*n == Num && *b == Num) n[1] %= b[1]; else { *--n = (int) b; *--n = Mod; } 
-            ty = INT;    
+            next(); expr(Inc);
+            if (*n == Num && *b == Num) n[1] %= b[1];
+            else { *--n = (int) b; *--n = Mod; }
+            ty = INT;
             break;
         case Dot:
             ty += PTR;
@@ -703,9 +737,13 @@ void expr(int lev)
             if (tk != Id) fatal("structure member expected");
             m = members[ty - PTR]; while (m && m->id != id) m = m->next;
             if (!m) fatal("structure member not found");
-            if (m->offset) { *--n = m->offset; *--n = Num; --n; *n = (int) (n + 3); *--n = Add; }
+            if (m->offset) {
+                *--n = m->offset; *--n = Num; --n; *n = (int) (n + 3);
+                *--n = Add;
+            }
             ty = m->type;
-            if (ty <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT; *--n = Load;
+            if (ty <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT;
+            *--n = Load;
             next();
             break;
         case Brak:
@@ -716,9 +754,11 @@ void expr(int lev)
             sz = (t = t - PTR) >= PTR ? sizeof(int) : tsize[t];
             if (sz > 1) {
                 if (*n == Num) n[1] *= sz;
-                else { *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul; }
+                else {
+                    *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul;
+                }
             }
-            if (*n == Num && *b == Num) n[1] += b[1]; 
+            if (*n == Num && *b == Num) n[1] += b[1];
             else { *--n = (int) b; *--n = Add; }
             if ((ty = t) <= INT || ty >= PTR)
                 *--n = (ty == CHAR) ? CHAR : INT;
@@ -730,9 +770,9 @@ void expr(int lev)
     }
 }
 
-// Ast parsing for IR generating.
-// With a modular code generator, new targets can be easily supported such as native Arm machine code.
-// The compiler now resembles something you could actually build upon (or at least shows the way.)
+// AST parsing for IR generatiion
+// With a modular code generator, new targets can be easily supported such as
+// native Arm machine code.
 void gen(int *n)
 {
     int i = *n, j, k, l;
@@ -750,14 +790,16 @@ void gen(int *n)
         if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
         break;
     case Assign: // assign the value to variables
-        gen((int *) n[2]); *++e = PSH; gen(n + 3); *++e = (n[1] == CHAR) ? SC : SI;
+        gen((int *) n[2]); *++e = PSH; gen(n + 3);
+        *++e = (n[1] == CHAR) ? SC : SI;
         break;
     // increment or decrement variables
     case Inc:
     case Dec:
         gen(n + 2);
         *++e = PSH; *++e = (n[1] == CHAR) ? LC : LI; *++e = PSH;
-        *++e = IMM; *++e = (n[1] >= PTR2) ? sizeof(int) : n[1] >= PTR ? tsize[n[1] - PTR] : 1;
+        *++e = IMM; *++e = (n[1] >= PTR2) ? sizeof(int) :
+                                            n[1] >= PTR ? tsize[n[1] - PTR] : 1;
         *++e = (i == Inc) ? ADD : SUB;
         *++e = (n[1] == CHAR) ? SC : SI;
         break;
@@ -765,12 +807,16 @@ void gen(int *n)
         gen((int *) n[1]); // condition
         *++e = BZ; b = ++e;
         gen((int *) n[2]); // expression
-        if (n[3]) { *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]); } // else statment
+        if (n[3]) {
+            *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]);
+        } // else statment
         *b = (int) (e + 1);
         break;
     // operators
-    case Lor:  gen((int *) n[1]); *++e = BNZ; b = ++e; gen(n + 2); *b = (int) (e + 1); break;
-    case Lan:  gen((int *) n[1]); *++e = BZ;  b = ++e; gen(n + 2); *b = (int) (e + 1); break;
+    case Lor:  gen((int *) n[1]); *++e = BNZ;
+               b = ++e; gen(n + 2); *b = (int) (e + 1); break;
+    case Lan:  gen((int *) n[1]); *++e = BZ;
+               b = ++e; gen(n + 2); *b = (int) (e + 1); break;
     case Or:   gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = OR; break;
     case Xor:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = XOR; break;
     case And:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = AND; break;
@@ -793,10 +839,15 @@ void gen(int *n)
         // how many parameters
         while (b && l) { ++k; if (!(int *) *b) l = 0; else b = (int *) *b; }
         j = 0; a = malloc(sizeof(int *) * k); b = c; l = 1;
-        while (b && l) { a[j] = (int) b;  if (!(int *) *b) l = 0; else b = (int *) *b; ++j; }
+        while (b && l) {
+            a[j] = (int) b;
+            if (!(int *) *b) l = 0; else b = (int *) *b; ++j;
+        }
         if (j > 0) --j;
         // push parameters
-        while (j >= 0 && k > 0) { gen(b + 1);  *++e = PSH; --j; b = (int *) a[j]; }
+        while (j >= 0 && k > 0) {
+            gen(b + 1); *++e = PSH; --j; b = (int *) a[j];
+        }
         free(a);
         if (i == Func) *++e = JSR; *++e = n[2];
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
@@ -851,13 +902,17 @@ void gen(int *n)
     case Default:
         def = e + 1;
         gen((int *) n[1]); break;
-    case Return:  
-        if (n[1]) gen((int *) n[1]); *++e = LEV; break; // parse return ast 
-    case '{':  
-        gen((int *) n[1]); gen(n + 2); break;  // parse expression or statment from ast
-    case Enter:  *++e = ENT; *++e = n[1]; gen(n + 2); if (*e != LEV) *++e = LEV; break;
+    case Return:
+        if (n[1]) gen((int *) n[1]); *++e = LEV; break; // parse return AST
+    case '{':
+        // parse expression or statment from  AST
+        gen((int *) n[1]); gen(n + 2); break;
+    case Enter: *++e = ENT; *++e = n[1]; gen(n + 2);
+                if (*e != LEV) *++e = LEV; break;
     default:
-        if (i != ';') { printf("%d: compiler error gen=%d\n", line, i); exit(-1); }
+        if (i != ';') {
+            printf("%d: compiler error gen=%d\n", line, i); exit(-1);
+        }
     }
 }
 
@@ -877,7 +932,7 @@ void stmt(int ctx)
             next();
             i = 0;
             while (tk != '}') {
-                if (tk != Id) fatal("bad enum identifier"); 
+                if (tk != Id) fatal("bad enum identifier");
                 next();
                 if (tk == Assign) {
                     next();
@@ -889,7 +944,10 @@ void stmt(int ctx)
                 if (tk == ',') next();
             }
             next();
-        }else if (tk == Id) { id->type = INT; id->class = ctx; id->val = ld++; next(); }
+        } else if (tk == Id) {
+            id->type = INT; id->class = ctx; id->val = ld++;
+            next();
+        }
         return;
     case Int:
     case Char:
@@ -901,7 +959,7 @@ void stmt(int ctx)
                 if (!id->stype) id->stype = tnew++;
                 bt = id->stype;
                 next();
-            } else { 
+            } else {
                 bt = tnew++;
             }
             if (tk == '{') {
@@ -914,15 +972,15 @@ void stmt(int ctx)
                     case Int: next(); break;
                     case Char: next(); mbt = CHAR; break;
                     case Struct:
-                        next(); 
+                        next();
                         if (tk != Id) fatal("bad struct declaration");
                         mbt = id->stype;
                         next(); break;
                     }
                     while (tk != ';') {
                         ty = mbt;
-                        // if the beginning of * is a pointer type, then type plus `PTR`
-                        // indicates what kind of pointer
+                        // if the beginning of * is a pointer type,
+                        // then type plus `PTR` indicates what kind of pointer
                         while (tk == Mul) { next(); ty += PTR; }
                         if (tk != Id) fatal("bad struct member definition");
                         m = malloc(sizeof(struct member_s));
@@ -971,7 +1029,7 @@ void stmt(int ctx)
             if (tk == '(') { // function
                 if (ctx != Glo) fatal("nested function");
                 id->class = Func; // type is functional
-                id->val = (int) (e + 1); // function Pointer? offset/address in bytecode
+                id->val = (int) (e + 1); // function Pointer? offset/address
                 id->type = ty;
                 next(); ld = 0;
                 while (tk != ')') { stmt(Par); if (tk == ',') next(); }
@@ -1004,7 +1062,7 @@ void stmt(int ctx)
                 id->hclass = id->class; id->class = ctx;
                 id->htype = id->type; id->type = ty;
                 id->hval = id->val;
-                if (ctx == Glo) { id->val = (int)data; data += sizeof(int); }
+                if (ctx == Glo) { id->val = (int) data; data += sizeof(int); }
                 else if (ctx == Loc) { id->val = ++ld; }
                 else if (ctx == Par) { id->val = ld++; }
                 if (ctx == Loc && tk == Assign) {
@@ -1016,7 +1074,7 @@ void stmt(int ctx)
             }
             if (ctx != Par && tk == ',') next();
         }
-        return;    
+        return;
     /* if (...) <statement> [else <statement>]
      *     if (...)           <cond>
      *                        JZ a
@@ -1033,7 +1091,7 @@ void stmt(int ctx)
         expr(Assign); a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
-        stmt(ctx); 
+        stmt(ctx);
         b = n;
         if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
         *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
@@ -1058,12 +1116,12 @@ void stmt(int ctx)
         return;
     case Switch:
         i = 0; j = 0;
-        if (cas) j = (int)cas; 
+        if (cas) j = (int) cas;
         cas = &i;
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
-        expr(Assign); 
+        expr(Assign);
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
@@ -1117,7 +1175,9 @@ void stmt(int ctx)
         else fatal("open paren expected");
         *--n = ';';
         expr(Assign);
-        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
+        while (tk == ',') {
+            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
+        }
         d = n;
         if (tk == ';') next();
         else fatal("semicolon expected");
@@ -1126,12 +1186,15 @@ void stmt(int ctx)
         if (tk == ';') next();
         else fatal("semicolon expected");
         *--n = ';';
-        expr(Assign);  
-        while (tk == ',') { f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{'; }
+        expr(Assign);
+        while (tk == ',') {
+            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
+        }
         b = n;
         if (tk == ')') next(); else fatal("close paren expected");
         stmt(ctx); c = n;
-        *--n = (int)d; *--n = (int)c; *--n = (int) b; *--n = (int) a; *--n = For;
+        *--n = (int) d; *--n = (int) c; *--n = (int) b; *--n = (int) a;
+        *--n = For;
         return;
     // stmt -> '{' stmt '}'
     case '{':
@@ -1283,11 +1346,12 @@ int *codegen(int *jitmem, int *jitmap)
                 else { je[0] = 0xc3a00000; je[1] = 0xd3a00000; }           // movgt r0, #0; movle r0, #0
                 if (i == EQ || i == LT || i == GT) je[0] = je[0] | 1;
                 else je[1] = je[1] | 1;
-                je = je + 2;
+                je += 2;
                 break;
             }
             else if (i >= OPEN && i <= EXIT) {
-                tmp = (int) (elf ? plt_func_addr[i - OPEN] : dlsym(0, scnames[i - OPEN]));
+                tmp = (int) (elf ? plt_func_addr[i - OPEN] :
+                                   dlsym(0, scnames[i - OPEN]));
                 if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
                 i = *pc;
                 if (i > 10) die("codegen: no support for 10+ arguments");
@@ -1799,7 +1863,7 @@ int elf32(int poolsz, int *main)
 
     int dseg_size = o - dseg;
 
-    // .plt -- Now we back to handle .plt after .got was initial 
+    // .plt -- Now we back to handle .plt after .got was initial
     char *to = plt_addr;
     *(int *) to = 0xe52de004; to += 4; // push {lr}
     // movw r10 addr_to_got
@@ -1827,11 +1891,11 @@ int elf32(int poolsz, int *main)
         to += 4;
         *(int *) to = 0xe59cf000; to += 4;  // ldr pc, [ip]
     }
-    
+
     // .rel.plt
     to = rel_addr;
-    for (i = 0; i < FUNC_NUM; i++) { 
-        *(int *) to = (int) got_func_slot[i]; to += 4; 
+    for (i = 0; i < FUNC_NUM; i++) {
+        *(int *) to = (int) got_func_slot[i]; to += 4;
         *(int *) to = 0x16 | (i + 1) << 8 ; to += 4;
         // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
     }
@@ -1921,12 +1985,12 @@ int elf32(int poolsz, int *main)
     gen_shdr(o, SHT_STRTAB, shdr_names[SDYNS], dynstr_off, (int) dynstr_addr,
              dynstr_size, 0, 0, SHF_ALLOC, 1, 0);
     o += SHDR_ENT_SIZE;
-    
+
     int sh_dynsym_idx =
     gen_shdr(o, SHT_DYNSYM, shdr_names[SDYNM], dynsym_off, (int) dynsym_addr,
              dynsym_size, sh_dynstr_idx, 1, SHF_ALLOC, 4, 0x10);
     o += SHDR_ENT_SIZE;
-    
+
     // sh_dynamic_idx
     gen_shdr(o, SHT_DYNAMIC, shdr_names[SDYNC], pt_dyn_off, (int) pt_dyn,
              pt_dyn_size, sh_dynstr_idx, 0, SHF_ALLOC | SHF_WRITE, 4, 0);
@@ -2015,10 +2079,10 @@ int main(int argc, char **argv)
     if (!(members = malloc(PTR * sizeof(struct member_s *)))) {
         die("could not malloc() members area");
     }
-    if (!(freed_ast = ast = malloc(poolsz))) { 
-        printf("could not malloc(%d) abstract syntax tree area\n", poolsz); return -1; 
+    if (!(freed_ast = ast = malloc(poolsz))) {
+        printf("could not malloc(%d) abstract syntax tree area\n", poolsz); return -1;
     }
-    
+
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
     memset(data, 0, poolsz);
@@ -2035,7 +2099,7 @@ int main(int argc, char **argv)
         "sizeof struct switch for while "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
-        "dlsym bsearch __libc_start_main " 
+        "dlsym bsearch __libc_start_main "
         "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
 
     // name vector to system call
@@ -2046,7 +2110,7 @@ int main(int argc, char **argv)
     scnames[ 5] = "malloc";  scnames[ 6] = "free";
     scnames[ 7] = "memset";  scnames[ 8] = "memcmp";  scnames[ 9] = "memcpy";
     scnames[10] = "mmap";    scnames[11] = "dlsym";   scnames[12] = "bsearch";
-    scnames[13] = "__libc_start_main"; 
+    scnames[13] = "__libc_start_main";
     scnames[14] = "dlopen";
     scnames[15] = "__aeabi_idiv";
     scnames[16] = "__aeabi_idivmod";
@@ -2100,5 +2164,3 @@ int main(int argc, char **argv)
     free(freed_ast);
     return ret;
 }
-
-// vim: set tabstop=4 shiftwidth=4 expandtab:
