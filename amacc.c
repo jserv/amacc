@@ -37,7 +37,6 @@ int line;            // current line number
 int src;             // print source and assembly flag
 int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
-int elf_fd;
 int *n;              // current position in emitted abstract syntax tree
                      // With an AST, the compiler is not limited to generate
                      // code on the fly with parsing.
@@ -1647,9 +1646,9 @@ enum {
     DYN_NUM = 15
 };
 
-int elf32(int poolsz, int *main)
+int elf32(int poolsz, int *main, int elf_fd)
 {
-    char *freebuf, *freecode, *interp;
+    char *freebuf, *freecode;
     int i;
 
     char *code = freecode = malloc(poolsz);
@@ -1657,7 +1656,7 @@ int elf32(int poolsz, int *main)
     int *jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
     char *o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
-    code =    (char *) (((int) code + PAGE_SIZE - 1) & -PAGE_SIZE);
+    code = (char *) (((int) code + PAGE_SIZE - 1) & -PAGE_SIZE);
 
     phdr_idx = 0;
     shdr_idx = 0;
@@ -1788,7 +1787,7 @@ int elf32(int poolsz, int *main)
     // .interp (embedded in PT_LOAD of data)
     char *interp_str = "/lib/ld-linux-armhf.so.3";
     int interp_str_size = 25; // strlen(interp_str) + 1
-    interp = data; memcpy(interp, interp_str, interp_str_size);
+    char *interp = data; memcpy(interp, interp_str, interp_str_size);
     int interp_off = pt_dyn_off + pt_dyn_size; data += interp_str_size;
     o += interp_str_size;
 
@@ -2038,8 +2037,8 @@ int streq(char *p1, char *p2)
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 int main(int argc, char **argv)
 {
-    int fd, ret, *freed_ast, *ast;
-    struct ident_s *idmain;
+    int *freed_ast, *ast;
+    int elf_fd;
     int i;
 
     --argc; ++argv;
@@ -2059,6 +2058,7 @@ int main(int argc, char **argv)
     }
     if (argc < 1) die("usage: amacc [-s] [-o object] file");
 
+    int fd;
     if ((fd = open(*argv, 0)) < 0) {
         printf("could not open(%s)\n", *argv); return -1;
     }
@@ -2127,12 +2127,13 @@ int main(int argc, char **argv)
         next(); id->class = Syscall; id->type = INT; id->val = i;
     }
     next(); id->tk = Char; // handle void type
-    next(); idmain = id; // keep track of main
+    next();
+    struct ident_s *idmain = id; // keep track of main
 
     if (!(freep = lp = p = malloc(poolsz))) {
         printf("could not malloc(%d) source area\n", poolsz); return -1;
     }
-    if ((i = read(fd, p, poolsz-1)) <= 0) {
+    if ((i = read(fd, p, poolsz - 1)) <= 0) {
         printf("read() returned %d\n", i); return -1;
     }
     p[i] = 0;
@@ -2152,10 +2153,8 @@ int main(int argc, char **argv)
         next();
     }
 
-    if (elf)
-        ret = elf32(poolsz, (int *) idmain->val);
-    else
-        ret = jit(poolsz, (int *) idmain->val, argc, argv);
+    int ret = elf ? elf32(poolsz, (int *) idmain->val, elf_fd) :
+                    jit(poolsz,   (int *) idmain->val, argc, argv);
 
     free(freep);
     free(freedata);
