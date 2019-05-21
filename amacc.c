@@ -1567,21 +1567,6 @@ enum {
     PF_X        = 1,         // Execute
     PF_W        = 2,         // Write
     PF_R        = 4,         // Read
-
-    // Dynamic table entry tags
-    DT_NULL         = 0,     // Marks end of dynamic array
-    DT_NEEDED       = 1,     // String table offset of needed library
-    DT_PLTRELSZ     = 2,     // Size of relocation entries in PLT
-    DT_PLTGOT       = 3,     // Address associated with linkage table
-    DT_STRTAB       = 5,     // Address of dynamic string table
-    DT_SYMTAB       = 6,     // Address of dynamic symbol table
-    DT_STRSZ        = 10,    // Total size of the string table
-    DT_SYMENT       = 11,    // Size of a symbol table entry
-    DT_REL          = 17,    // Address of relocation table (Rel entries)
-    DT_RELSZ        = 18,    // Size of Rel relocation table
-    DT_RELENT       = 19,    // Size of a Rel relocation entry
-    DT_PLTREL       = 20,    // Type of relocation entry used for linking
-    DT_JMPREL       = 23,    // Address of relocations associated with PLT
 };
 
 int phdr_idx, shdr_idx, sym_idx;
