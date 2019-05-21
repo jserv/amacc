@@ -2049,24 +2049,18 @@ int main(int argc, char **argv)
     }
 
     int poolsz = 256 * 1024; // arbitrary size
-    if (!(text = le = e = malloc(poolsz))) {
-        printf("could not malloc(%d) text area\n", poolsz); return -1;
-    }
-    if (!(sym = malloc(poolsz))) {
-        printf("could not malloc(%d) symbol area\n", poolsz); return -1;
-    }
-    if (!(freedata = _data = data = malloc(poolsz))) {
-        printf("could not malloc(%d) data area\n", poolsz); return -1;
-    }
-    if (!(tsize = malloc(PTR * sizeof(int)))) {
-        die("could not malloc() tsize area");
-    }
-    if (!(members = malloc(PTR * sizeof(struct member_s *)))) {
+    if (!(text = le = e = malloc(poolsz)))
+        die("could not allocate text area");
+    if (!(sym = malloc(poolsz)))
+        die("could not allocate symbol area");
+    if (!(freedata = _data = data = malloc(poolsz)))
+        printf("could not allocat data area");
+    if (!(tsize = malloc(PTR * sizeof(int))))
+        die("could not allocate tsize area");
+    if (!(members = malloc(PTR * sizeof(struct member_s *))))
         die("could not malloc() members area");
-    }
-    if (!(freed_ast = ast = malloc(poolsz))) {
-        printf("could not malloc(%d) abstract syntax tree area\n", poolsz); return -1;
-    }
+    if (!(freed_ast = ast = malloc(poolsz)))
+        die("could not allocate abstract syntax tree area");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
@@ -2115,12 +2109,10 @@ int main(int argc, char **argv)
     next();
     struct ident_s *idmain = id; // keep track of main
 
-    if (!(freep = lp = p = malloc(poolsz))) {
-        printf("could not malloc(%d) source area\n", poolsz); return -1;
-    }
-    if ((i = read(fd, p, poolsz - 1)) <= 0) {
-        printf("read() returned %d\n", i); return -1;
-    }
+    if (!(freep = lp = p = malloc(poolsz)))
+        die("could not allocate source area");
+    if ((i = read(fd, p, poolsz - 1)) <= 0)
+        die("unable to read from source file");
     p[i] = 0;
     close(fd);
 
