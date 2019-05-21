@@ -15,7 +15,7 @@ subset of C required to self-host with the above execution modes. For
 example, global variables and, in particular, global arrays are there.
 
 Intermediate code generation is integrated into the parsing since it
-is generating code for a stack-based machine and hat also follows the
+is generating code for a stack-based machine and that also follows the
 sequence of actions performed when parsing.
 
 It mixes classical recursive descent and operator precedence parser.
