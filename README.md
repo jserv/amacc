@@ -1,4 +1,4 @@
-# AMaCC = Another Mini ARM C Compiler
+# AMaCC = Arguably Minimalist Arm C Compiler
 
 ## Introduction
 AMaCC is built from scratch, targeted at 32-bit ARM architecture.
