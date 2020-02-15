@@ -462,7 +462,10 @@ void expr(int lev)
             // parameters
             while (tk != ')') {
                 expr(Assign); *--n = (int) b; b = n; ++t;
-                if (tk == ',') next();
+                if (tk == ',') {
+                    next();
+                    if (tk == ')') fatal("unexpected comma in function call");
+		} else if (tk != ')') fatal("missing comma in function call");
             }
             next();
             // function or system call id
