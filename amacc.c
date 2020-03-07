@@ -77,6 +77,7 @@ struct member_s {
 } **members; // array (indexed by type) of struct member lists
 
 // tokens and classes (operators last and in precedence order)
+// ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
     Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
