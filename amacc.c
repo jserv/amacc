@@ -218,7 +218,8 @@ enum {
 
     /* system call shortcuts */
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
-    CLCA /* clear cache, used by JIT compilation */
+    CLCA, /* clear cache, used by JIT compilation */
+    INVALID
 };
 
 // types
@@ -2127,7 +2128,7 @@ int main(int argc, char **argv)
     }
 
     // add library to symbol table
-    for (i = OPEN; i <= CLCA; i++) {
+    for (i = OPEN; i < INVALID; i++) {
         next(); id->class = Syscall; id->type = INT; id->val = i;
     }
     next(); id->tk = Char; // handle void type
