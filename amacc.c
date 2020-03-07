@@ -303,6 +303,28 @@ void next()
         }
         switch (tk) {
         case '\n':
+            /* Take an integer (representing an operation) and printing out
+             * the name of that operation. First thing to say is that "* ++le"
+             * is the integer representing the operation to perform.
+             * This basically walks through the array of instructions
+             * returning each integer in turn.
+             *
+             * Starting at the beginning of the line, we have "printf" with
+             * a format string of "%8.4s". This means print out the first 4
+             * characters of the string that we are about to pass next (padded
+             * to 8 characters). There then follows a string containing all of
+             * the operation names, in numerical order, padded to 4 characters
+             * and separated by commas (so the start of each is 5 apart).
+             *
+             * Finally, we do a lookup into this string (treating it as an
+             * array) at offset "* ++le * 5", i.e. the integer representing
+             * the operation multipled by "5", being the number of characters
+             * between the start of each operation name). Doing this lookup
+             * gives us a char, but actually we wanted the pointer to this
+             * char (as we want printf to print out this char and the
+             * following 3 chars), so we take the address of this char
+             * (the "&" at the beginning of the whole expression).
+             */
             if (src) {
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
