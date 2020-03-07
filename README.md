@@ -7,7 +7,7 @@ pedagogical tool for learning about compilers, linkers, and loaders.
 
 There are 2 execution modes AMaCC implements:
 * Just-in-Time compiler (JITC) for ARM backend
-* Generate valid Executable and Linkable Format (ELF) executables
+* Generate valid GNU/Linux executables with Executable and Linkable Format (ELF)
 
 It is worth mentioning that AMaCC is designed to compile the minimal
 subset of C required to self-host with the above execution modes. For
