@@ -1,7 +1,15 @@
 /*
  * AMaCC is capable of compiling (subset of) C source files into GNU/Linux
  * executables or running via just-in-time compilation on 32-bit ARM
- * processor-based platforms.
+ * processor-based platforms. There is no preprocessor.
+ *
+ * The following options are supported:
+ *   -s : Print source and generated intermediate representation (IR).
+ *   -o : Create executable file and terminate normally.
+ *
+ * If -o and -s are omitted, the compiled code is executed immediately (if
+ * there were no compile errors) with the command line arguments passed
+ * after the source file parameter.
  */
 
 #include <stdio.h>
