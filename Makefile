@@ -11,7 +11,7 @@ include mk/arm.mk
 include mk/common.mk
 include mk/python.mk
 
-## Build amacc
+## Build AMaCC
 all: $(EXEC)
 $(BIN): $(BIN).c
 	$(VECHO) "  CC+LD\t\t$@\n"
@@ -58,14 +58,15 @@ $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
 	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2 $(REDIR)
 	$(Q)$(call pass,$<)
 
-## Prints help for targets with comments
+## Print available build targets
 help:
-	@cat $(MAKEFILE_LIST)|awk '/^##.*$$/{l1=$$0;getline;l2=(l1 "##" $$0); print l2 $$0}' | awk -F"##" '{split($$3,t,":");printf "\033[36m%-30s\033[0m %s\n",t[1],$$2}'
+	@cat $(MAKEFILE_LIST) | \
+	 awk '/^##.*$$/{l1=$$0;getline;l2=(l1 "##" $$0); print l2 $$0}' | awk -F"##" '{split($$3,t,":");printf "\033[36m%-11s\033[0m %s\n",t[1],$$2}'
 
-## Dump assembly from source file,usage:"make dump-ir FILE=tests/main.cc"
-dump-ir:$(BIN)
+## Dump assembly from source file. Usage: "make dump-ir FILE=tests/hello.c"
+dump-ir: $(BIN)
 	@$(ARM_EXEC) $(BIN) -s $(FILE)
 
-## Clean out files
+## Remove all generated files
 clean:
 	$(RM) $(EXEC) $(OBJ_DIR)/* elf/* out-gcc/*
