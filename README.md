@@ -89,3 +89,4 @@ AMaCC is based on the infrastructure of [c4](https://github.com/rswier/c4).
 ## Related Materials
 * [Curated list of awesome resources on Compilers, Interpreters and Runtimes](http://aalhour.com/awesome-compilers/)
 * [Hacker News discussions](https://news.ycombinator.com/item?id=11411124)
+* [A Compiler Writing Journey](https://github.com/DoctorWkt/acwj) by Warren Toomey.
