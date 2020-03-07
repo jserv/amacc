@@ -64,6 +64,22 @@ Ran 45 tests in 7.101s
 OK
 ```
 
+## Benchmark
+AMaCC is able to generate machine code really fast and provides 70% of the performance of `gcc -O0`.
+
+Test environment:
+* Raspberry Pi 3B (SoC: bcm2837, ARMv7-A architecture)
+* Raspbian GNU/Linux, kernel 4.14.98-v7+ (armv7l)
+
+Input source file: `amacc.c`
+
+| comiler driver                     | binary size (KiB) | compile time (s) |
+| ---------------------------------- | ----------------- | ---------------- |
+| gcc with `-O0 -ldl` (compile+link) | 55                |  1.3007          |
+| gcc with `-O0 -c` (compile only)   | 53                |  1.1686          |
+| AMaCC                              | 93                |  0.0373          |
+
+
 ## Internals
 Check [Intermediate Representation (IR) for AMaCC Compilation](docs/IR.md).
 
