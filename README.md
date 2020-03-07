@@ -5,10 +5,9 @@ AMaCC is built from scratch, targeted at 32-bit ARM architecture.
 It is a considerably stripped down version of C and it is meant as
 pedagogical tool for learning about compilers, linkers, and loaders.
 
-There are 3 execution modes AMaCC implements:
+There are 2 execution modes AMaCC implements:
 * Just-in-Time compiler (JITC) for ARM backend
 * Generate valid Executable and Linkable Format (ELF) executables
-* Interpreter-only execution
 
 It is worth mentioning that AMaCC is designed to compile the minimal
 subset of C required to self-host with the above execution modes. For
