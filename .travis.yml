@@ -1,21 +1,24 @@
 language: c
 
-compiler:
-  - gcc
+arch:
+  - amd64
+
+os:
+  - linux
+
+dist:
+  - bionic
 
 sudo: required
-dist: trusty
+
+ompiler:
+  - gcc
 
 before_install:
-    - sudo apt-get install python-software-properties
-    - sudo add-apt-repository 'deb http://archive.ubuntu.com/ubuntu/ xenial main restricted'
-    - sudo add-apt-repository 'deb http://archive.ubuntu.com/ubuntu/ xenial main universe'
-    - sudo add-apt-repository 'deb http://archive.ubuntu.com/ubuntu/ xenial main multiverse'
-    - sudo apt-get update -qq
-    - sudo apt-get install build-essential git-core
-    - sudo apt-get install gcc-arm-linux-gnueabihf
-    - sudo apt-get install qemu-user
-    - sudo apt-get install python3
+    - sudo apt-get install -y build-essential gcc-7-multilib
+    - sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+    - sudo apt-get install -y qemu-user
+    - sudo apt-get install -y python3
 
 script:
     - make check
