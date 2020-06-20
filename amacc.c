@@ -279,6 +279,9 @@ void next()
                     return;
                 }
             }
+            /* At this point, existing symbol name is not found.
+             * "id" points to the first unused symbol table entry.
+             */
             id->name = pp;
             id->hash = tk;
             tk = id->tk = Id;  // token type identifier
@@ -451,8 +454,13 @@ void expr(int lev)
         *--n = ival; *--n = Num; next();
         // continuous `"` handles C-style multiline text such as `"abc" "def"`
         while (tk == '"') next();
-        /* append the end of string character '\0', all the data is defaulted
-         * to 0, so just move data one position forward.
+        /* Point "data" to next integer-aligned address.
+         * e.g. "-sizeof(int)" is -4, i.e. 0b11111100.
+         * This guarantees to leave at least one '\0' after the string.
+         *
+         * append the end of string character '\0', all the data is defaulted
+         * to 0, so just move data one position forward. Specify result value
+         * type to char pointer. CHAR + PTR = PTR because CHAR is 0.
          */
         data = (char *) (((int) data + sizeof(int)) & (-sizeof(int)));
         ty = PTR;
@@ -490,8 +498,7 @@ void expr(int lev)
             if (d->class != Syscall && d->class != Func)
                 fatal("bad function call");
             next();
-            t = 0; b = 0;
-            // parameters
+            t = 0; b = 0; // parameters count
             while (tk != ')') {
                 expr(Assign); *--n = (int) b; b = n; ++t;
                 if (tk == ',') {
@@ -825,6 +832,8 @@ void gen(int *n)
         break;
     case Assign: // assign the value to variables
         gen((int *) n[2]); *++e = PSH; gen(n + 3);
+        // Add SC/SI instruction to save value in register to variable address
+        // held on stack.
         *++e = (n[1] == CHAR) ? SC : SI;
         break;
     // increment or decrement variables
@@ -839,18 +848,39 @@ void gen(int *n)
         break;
     case Cond: // if else condition case
         gen((int *) n[1]); // condition
+        // Add jump-if-zero instruction "BZ" to jump to false branch.
+        // Point "b" to the jump address field to be patched later.
         *++e = BZ; b = ++e;
         gen((int *) n[2]); // expression
+	// Patch the jump address field pointed to by "b" to hold the address
+        // of false branch. "+ 3" counts the "JMP" instruction added below.
+        //
+        // Add "JMP" instruction after true branch to jump over false branch.
+        // Point "b" to the jump address field to be patched later.
         if (n[3]) {
             *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]);
         } // else statment
+        // Patch the jump address field pointed to by "d" to hold the address
+        // past the false branch.
         *b = (int) (e + 1);
         break;
     // operators
+    /* If current token is logical OR operator:
+     * Add jump-if-nonzero instruction "BNZ" to implement short circuit.
+     * Point "b" to the jump address field to be patched later.
+     * Parse RHS expression.
+     * Patch the jump address field pointed to by "b" to hold the address past
+     * the RHS expression.
+     */
     case Lor:  gen((int *) n[1]); *++e = BNZ;
                b = ++e; gen(n + 2); *b = (int) (e + 1); break;
     case Lan:  gen((int *) n[1]); *++e = BZ;
                b = ++e; gen(n + 2); *b = (int) (e + 1); break;
+    /* If current token is bitwise OR operator:
+     * Add "PSH" instruction to push LHS value in register to stack.
+     * Parse RHS expression.
+     * Add "OR" instruction to compute the result.
+     */
     case Or:   gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = OR; break;
     case Xor:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = XOR; break;
     case And:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = AND; break;
@@ -939,7 +969,7 @@ void gen(int *n)
     case Return:
         if (n[1]) gen((int *) n[1]); *++e = LEV; break; // parse return AST
     case '{':
-        // parse expression or statment from  AST
+        // parse expression or statment from AST
         gen((int *) n[1]); gen(n + 2); break;
     case Enter: *++e = ENT; *++e = n[1]; gen(n + 2);
                 if (*e != LEV) *++e = LEV; break;
@@ -961,23 +991,32 @@ void stmt(int ctx)
     switch (tk) {
     case Enum:
         next();
+        // If current token is not "{", it means having enum type name.
+        // Skip the enum type name.
         if (tk != '{') next();
         if (tk == '{') {
             next();
-            i = 0;
+            i = 0; // Enum value starts from 0
             while (tk != '}') {
+                // Current token should be enum name.
+                // If current token is not identifier, stop parsing.
                 if (tk != Id) fatal("bad enum identifier");
                 next();
                 if (tk == Assign) {
                     next();
                     expr(Cond);
                     if (*n != Num) fatal("bad enum initializer");
-                    i = n[1];
+                    i = n[1]; // Set enum value
                 }
+                /* "id" is pointing to the enum name's symbol table entry.
+                 * Set the symbol table entry's symbol type be "Num".
+                 * Set the symbol table entry's associated value type be "INT".
+                 * Set the symbol table entry's associated value be enum value.
+                 */
                 id->class = Num; id->type = INT; id->val = i++;
-                if (tk == ',') next();
+                if (tk == ',') next(); // If current token is ",", skip.
             }
-            next();
+            next(); // Skip "}"
         } else if (tk == Id) {
             id->type = INT; id->class = ctx; id->val = ld++;
             next();
@@ -1041,7 +1080,8 @@ void stmt(int ctx)
             break;
         }
         /* parse statemanet such as 'int a, b, c;'
-         * "enum" finishes by "tk == ';'", so the code below will be skipped
+         * "enum" finishes by "tk == ';'", so the code below will be skipped.
+         * While current token is not statement end or block end.
          */
         while (tk != ';' && tk != '}' && tk != ',' && tk != ')') {
             ty = bt;
@@ -1062,10 +1102,11 @@ void stmt(int ctx)
             id->type = ty;
             if (tk == '(') { // function
                 if (ctx != Glo) fatal("nested function");
-                id->class = Func; // type is functional
+                id->class = Func; // type is function
+                // "+ 1" is because the code to add instruction always uses "++e".
                 id->val = (int) (e + 1); // function Pointer? offset/address
                 id->type = ty;
-                next(); ld = 0;
+                next(); ld = 0; // "ld" is parameter's index.
                 while (tk != ')') { stmt(Par); if (tk == ',') next(); }
                 next();
                 if (tk != '{') fatal("bad function definition");
@@ -2131,9 +2172,10 @@ int main(int argc, char **argv)
     scnames[17] = "exit";
     scnames[18] = "__clear_cache";
 
-    // add keywords to symbol table
+    // call "next" to create symbol table entry.
+    // store the keyword's token type in the symbol table entry's "tk" field.
     for (i = Break; i <= While; i++) {
-        next(); id->tk = i;
+        next(); id->tk = i; // add keywords to symbol table
     }
 
     // add library to symbol table
