@@ -1310,6 +1310,9 @@ int *codegen(int *jitmem, int *jitmap)
     int *pc = text + 1; je = jitmem; line = 0;
     while (pc <= e) {
         i = *pc;
+        // Store mapping from IR index to native instruction buffer location
+        // "pc - text" gets the index of IR.
+        // "je" points to native instruction buffer's current location.
         jitmap[((int) pc++ - (int) text) >> 2] = (int) je;
         switch (i) {
         case LEA:
@@ -1480,9 +1483,12 @@ int *codegen(int *jitmem, int *jitmap)
     tje = je;
 
     // second pass
-    pc = text + 1;
-    while (pc <= e) {
-        je = (int *) jitmap[((int) pc - (int) text) >> 2]; i = *pc++;
+    pc = text + 1; // Point instruction pointer "pc" to the first instruction.
+    while (pc <= e) { // While instruction end is not met.
+        // Get the IR's corresponding native instruction buffer address.
+        je = (int *) jitmap[((int) pc - (int) text) >> 2];
+        i = *pc++; // Get current instruction
+        // If the instruction is one of the jumps.
         if (i == JSR || i == JMP || i == BZ || i == BNZ) {
             switch (i) {
             case JSR:
@@ -1502,6 +1508,8 @@ int *codegen(int *jitmem, int *jitmap)
             *je = (*je |
                    reloc_imm(jitmap[(tmp - (int) text) >> 2] - (int) je));
         }
+        // If the instruction has operand, increment instruction pointer to
+        // skip he operand.
         else if (i < LEV) { ++pc; }
     }
     free(iv);
