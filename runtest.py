@@ -6,7 +6,6 @@ import subprocess as sp
 import os
 import sys
 
-qemuCmd = 'qemu-arm -L /usr/arm-linux-gnueabihf'.split()
 amacc = './amacc'
 gcc = 'arm-linux-gnueabihf-gcc'
 amaccdir = 'elf'
@@ -91,4 +90,8 @@ _define_tests()
 
 
 if __name__ == '__main__':
+    try:
+        qemuCmd = os.getenv('ARM_EXEC').split()
+    except AttributeError:
+        qemuCmd = 'qemu-arm -L /usr/arm-linux-gnueabihf'.split()
     unittest.main()
