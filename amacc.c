@@ -2104,8 +2104,20 @@ int streq(char *p1, char *p2)
 }
 
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
+
+#ifdef int
+/* Eliminate clang compilation error:
+ *   first parameter of 'main' (argument count) must be of type 'int'
+ */
+#undef int
+#endif
 int main(int argc, char **argv)
 {
+/* 64-bit host support */
+#if defined(__x86_64__) || defined(__aarch64__)
+#define int long
+#endif
+
     int *freed_ast, *ast;
     int elf_fd;
     int i;
