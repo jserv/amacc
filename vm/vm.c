@@ -13,7 +13,7 @@
 int amacc_vm(int argc, char* argv[])
 {
     intptr_t *sp, *bp; // vm registers
-    const intptr_t *stack_top;
+    intptr_t *t, *ret;
     int64_t r0, cycle;
     intptr_t *args, nu;
     struct str_t *str;
@@ -35,20 +35,19 @@ int amacc_vm(int argc, char* argv[])
 
     // setup stack
     sp = (intptr_t*)sp + POOLSZ;
-
-    stack_top = sp;
     // cdecl is right to left order
-    *sp = (intptr_t)argv;
-    *--sp = argc;
+    *--sp = ts_code;
+    *--sp = (intptr_t)argv; 
+    *--sp = argc; 
+    bp = sp; 
 
     r0 = 0;
-    bp = sp;
     cycle = 0;
     while (true) {
         ++cycle;
         switch (pc->ir) {
         case LEA:
-            r0 = (int64_t)(bp + pc->arg);
+            r0 = (int64_t)(*bp + pc->arg * 4);
             break;
         case IMM:
             r0 = pc->arg; // load global address or immediate
@@ -75,9 +74,9 @@ int amacc_vm(int argc, char* argv[])
             sp = sp + pc->arg; // stack adjust
             break;
         case LEV:
-            sp = bp;
-            bp = (intptr_t*)*sp++;
-            pc = (struct code_t*)*sp++; // leave subroutine
+            sp = *bp;
+            bp = *++sp;
+            pc = *++sp;
             continue;
         case LI:
             r0 = *(int64_t*)r0; // load int
