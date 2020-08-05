@@ -10,6 +10,7 @@ amacc = './amacc'
 gcc = 'arm-linux-gnueabihf-gcc'
 amaccdir = 'elf'
 gccdir = 'out-gcc'
+amacc_vm = './vm/vm'
 
 
 def mkdir_p(path):
@@ -20,7 +21,6 @@ def mkdir_p(path):
             pass
         else:
             raise
-
 
 class TestCC_UC(unittest.TestCase):
     """ Test cases without -fsigned-char (default) """
@@ -63,6 +63,16 @@ def _generate_test(test_name, test_file, extra_cflags):
         amacc_out, amacc_err, amacc_retcode = proc.stdout, proc.stderr, proc.returncode
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
         self.assertEqual(amacc_retcode, gcc_retcode)
+
+        # generate *.ll file for test
+        amacc_params = [amacc] + extra_cflags + ['--emit-ir', test_file]
+        sp.run(qemuCmd + amacc_params)
+
+        # run amacc in vm mode
+        proc = sp.run([amacc_vm] + ["tests/" + test_file_name + ".ll"], timeout=10, stdout=sp.PIPE)
+        vm_out, vm_err, vm_retcode = proc.stdout, proc.stderr, proc.returncode
+        self.assertEqual(vm_out.decode('utf-8'), gcc_out.decode('utf-8'))
+        self.assertEqual(vm_retcode, gcc_retcode)
 
     return test
 

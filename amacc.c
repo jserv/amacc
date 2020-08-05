@@ -52,6 +52,14 @@ int *n;              // current position in emitted abstract syntax tree
                      // emitted and pushed on the stack in the proper
                      // right-to-left order.
 int ld;              // local variable depth
+int ir,lli_fd;
+
+struct sym_table{
+    int type;
+    int val;
+    char *str;
+}*global_sym_table,
+ *lli_sym_tlb;
 
 // identifier
 struct ident_s {
@@ -66,6 +74,7 @@ struct ident_s {
     int type, htype;   // data type such as char and int
     int val, hval;
     int stype;
+    int len; // for symbol len 
 } *id,  // currently parsed identifier
   *sym; // symbol table (simple list of identifiers)
 
@@ -226,16 +235,53 @@ enum {
      */
 
     /* system call shortcuts */
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
+    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,SNPR,EXIT,
     CLCA, /* clear cache, used by JIT compilation */
     INVALID
 };
 
 // types
-enum { CHAR, INT, PTR = 256, PTR2 = 512 };
+enum { CHAR, INT, STR, PTR = 256, PTR2 = 512 };
 
 // ELF generation
 char **plt_func_addr;
+
+int ir_emit(int* emit)
+{
+    int *E, *e_;
+    E = emit;
+    e_ = e;
+
+    while (E++ < e_) {
+        int len = 100;
+        char *buf = malloc(sizeof(char) * len);
+        memset(buf,'\0',len);
+        int k = snprintf(buf, len, "%%%d = %4.4s", E,
+           & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
+            "LI   LC   SI   SC   PSH  "
+            "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
+            "SHL  SHR  ADD  SUB  MUL  "
+            "OPEN READ WRIT CLOS PRTF MALC FREE "
+            "MSET MCMP MCPY MMAP "
+            "DSYM BSCH STRT DLOP DIV  MOD  SNPR EXIT CLCA" [*E * 5]);
+        if(src){
+            printf("%s", buf);
+            if (*E <= ADJ) printf(" %d\n", *(E + 1)); else printf("\n");
+        }
+        if(ir){
+            write(lli_fd, buf, k);
+            if (*E <= ADJ) {
+                memset(buf, '\0', 20);
+                k = snprintf(buf, 20, " %d\n", *++E);
+                write(lli_fd, buf, k);
+            } else {
+                char* c = "\n";
+                write(lli_fd, c, sizeof(char));
+            }
+        }
+    }
+    return 0;
+}
 
 char *append_strtab(char **strtab, char *str)
 {
@@ -247,6 +293,15 @@ char *append_strtab(char **strtab, char *str)
     res[s - str] = 0; // null terminator
     *strtab = res + nbytes;
     return res;
+}
+
+int _strlen(char *s){
+    int i;
+    char* p;
+    p = s;
+    i = 0;
+    while(*p != '\0'){ i++; p++; }
+    return i;
 }
 
 /* parse next token
@@ -284,6 +339,7 @@ void next()
              */
             id->name = pp;
             id->hash = tk;
+            id->len = p - pp;
             tk = id->tk = Id;  // token type identifier
             return;
         }
@@ -341,17 +397,7 @@ void next()
             if (src) {
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
-                while (le < e) {
-                    printf("%8.4s",
-                           & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
-                             "LI   LC   SI   SC   PSH  "
-                             "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
-                             "SHL  SHR  ADD  SUB  MUL  "
-                             "OPEN READ WRIT CLOS PRTF MALC FREE "
-                             "MSET MCMP MCPY MMAP "
-                             "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
-                    if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
-                }
+                while (le < e) { ++le; if (*le <= ADJ) ++le;}
             }
             ++line;
         case ' ':
@@ -444,6 +490,7 @@ void expr(int lev)
     int t, *b, sz, *c;
     struct ident_s *d;
     struct member_s *m;
+    int len;
 
     switch (tk) {
     case 0: fatal("unexpected EOF in expression");
@@ -451,6 +498,34 @@ void expr(int lev)
     // IMM recorded in emit sequence
     case Num: *--n = ival; *--n = Num; next(); ty = INT; break;
     case '"': // string, as a literal in data segment
+        if (ir) {
+            lli_sym_tlb->val = ival;
+            len = _strlen((char *)ival);
+            char* buf = malloc(sizeof(char) * len * 3); // more buf to convert escape characters
+            char* start_buf = buf;
+            char* ctr = (char*)lli_sym_tlb->val;
+            while (*ctr != 0) {
+                switch (*ctr) {
+                    case '\n': *buf++ = '\\'; *buf++ = '0'; *buf++ = 'A'; break; // new line
+                    case '\t': *buf++ = '\\'; *buf++ = '0'; *buf++ = '9'; break; // horizontal tab
+                    case '\v': *buf++ = '\\'; *buf++ = '0'; *buf++ = 'B'; break; // vertical tab
+                    case '\f': *buf++ = '\\'; *buf++ = '0'; *buf++ = 'C'; break; // form feed
+                    case '\r': *buf++ = '\\'; *buf++ = '0'; *buf++ = 'D'; break; // carriage return
+                    case '\0': *buf++ = '\\'; *buf++ = '0'; *buf++ = '0'; break; // an int with value 0
+                    default: *buf = *ctr; buf++; break;
+                }
+                ctr++;
+            }
+            // after end of string copy, we must add null character at the end of string
+            *buf++ = '\\'; *buf++ = '0'; *buf++ = '0'; *buf++ = '\0';
+            len = _strlen(start_buf);
+            lli_sym_tlb->str = malloc(sizeof(char) * len + 1);
+            memset(lli_sym_tlb->str, '\0', len + 1);
+            memcpy(lli_sym_tlb->str, start_buf, len);
+            lli_sym_tlb->type = STR;
+            lli_sym_tlb++;
+            free(start_buf);
+        }
         *--n = ival; *--n = Num; next();
         // continuous `"` handles C-style multiline text such as `"abc" "def"`
         while (tk == '"') next();
@@ -1106,7 +1181,16 @@ void stmt(int ctx)
                 // "+ 1" is because the code to add instruction always uses "++e".
                 id->val = (int) (e + 1); // function Pointer? offset/address
                 id->type = ty;
-                next(); ld = 0; // "ld" is parameter's index.
+                if (ir){
+                    lli_sym_tlb->type = Func;
+                    lli_sym_tlb->val = id->val;
+                    int len = id->len;
+                    lli_sym_tlb->str = malloc(sizeof(char) * len + 1);
+                    memset(lli_sym_tlb->str, '\0', sizeof(char) * len + 1);
+                    memcpy(lli_sym_tlb->str, id->name, len);
+                    lli_sym_tlb++;
+                }
+                next(); ld = 0;
                 while (tk != ')') { stmt(Par); if (tk == ',') next(); }
                 next();
                 if (tk != '{') fatal("bad function definition");
@@ -1122,7 +1206,8 @@ void stmt(int ctx)
                 }
                 *--n = ld - loc; *--n = Enter;
                 cas = 0;
-                gen(n);
+                if (ir || src) { int *emit_start = e; gen(n); ir_emit(emit_start); }
+                else { gen(n); }
                 id = sym; // unwind symbol table locals
                 while (id->tk) {
                     if (id->class == Loc || id->class == Par) {
@@ -1137,7 +1222,21 @@ void stmt(int ctx)
                 id->hclass = id->class; id->class = ctx;
                 id->htype = id->type; id->type = ty;
                 id->hval = id->val;
-                if (ctx == Glo) { id->val = (int) data; data += sizeof(int); }
+                if (ctx == Glo) {
+                    id->val = (int) data;
+                    data += sizeof(int);
+                    if (ir) {
+                        if (id->type != STR) {
+                            lli_sym_tlb->type = id->type;
+                            lli_sym_tlb->val = id->val;
+                            int l = id->len;
+                            lli_sym_tlb->str = malloc(sizeof(char) * l + 1);
+                            memset(lli_sym_tlb->str, '\0', sizeof(char) * l + 1);
+                            memcpy(lli_sym_tlb->str, id->name, l);
+                            lli_sym_tlb++;
+                        }
+                    }
+                }
                 else if (ctx == Loc) { id->val = ++ld; }
                 else if (ctx == Par) { id->val = ld++; }
                 if (ctx == Loc && tk == Assign) {
@@ -2129,6 +2228,20 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && streq(*argv, "-fsigned-char")) {
         signed_char = 1; --argc; ++argv;
     }
+    if (argc > 0 && **argv == '-' && streq(*argv, "--emit-ir")) {
+        ir = 1; --argc; ++argv;
+        int len = _strlen(*argv);
+        char* llfd_name = malloc(sizeof(char) * len + 1);
+        memcpy(llfd_name,*argv, len);
+        llfd_name[len-1] = 'l';
+        llfd_name[len] = 'l';
+        if ((lli_fd = open(llfd_name, _O_CREAT | _O_WRONLY, 0644)) < 0){
+            printf("could not open file(%s)\n", *argv);
+            free(llfd_name);
+            return -1;
+        }
+        free(llfd_name);
+    }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
         elf = 1; --argc; ++argv;
         if (argc < 1) die("no output file argument");
@@ -2137,7 +2250,7 @@ int main(int argc, char **argv)
         }
         --argc; ++argv;
     }
-    if (argc < 1) die("usage: amacc [-s] [-o object] file");
+    if (argc < 1) die("usage: amacc [-s] [--emit-ir] [-o object] file");
 
     int fd;
     if ((fd = open(*argv, 0)) < 0) {
@@ -2175,11 +2288,11 @@ int main(int argc, char **argv)
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
-        "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
+        "dlopen __aeabi_idiv __aeabi_idivmod snprintf exit __clear_cache void main";
 
     // name vector to system call
     // must match the sequence of supported calls
-    scnames = malloc(19 * sizeof(char *));
+    scnames = malloc(20 * sizeof(char *));
     scnames[ 0] = "open";    scnames[ 1] = "read";    scnames[ 2] = "write";
     scnames[ 3] = "close";   scnames[ 4] = "printf";
     scnames[ 5] = "malloc";  scnames[ 6] = "free";
@@ -2189,8 +2302,9 @@ int main(int argc, char **argv)
     scnames[14] = "dlopen";
     scnames[15] = "__aeabi_idiv";
     scnames[16] = "__aeabi_idivmod";
-    scnames[17] = "exit";
-    scnames[18] = "__clear_cache";
+    scnames[17] = "snprintf";
+    scnames[18] = "exit";
+    scnames[19] = "__clear_cache";
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
@@ -2203,13 +2317,14 @@ int main(int argc, char **argv)
         next(); id->class = Syscall; id->type = INT; id->val = i;
     }
     next(); id->tk = Char; // handle void type
-    next();
-    struct ident_s *idmain = id; // keep track of main
+    next(); struct ident_s *idmain = id; // keep track of main
 
     if (!(freep = lp = p = malloc(poolsz)))
         die("could not allocate source area");
     if ((i = read(fd, p, poolsz - 1)) <= 0)
         die("unable to read from source file");
+    if (!(lli_sym_tlb = global_sym_table = malloc(poolsz)))
+        die("could not allocate symbol area");
     p[i] = 0;
     close(fd);
 
@@ -2227,6 +2342,29 @@ int main(int argc, char **argv)
         next();
     }
 
+    // export globals
+    if (ir) {
+        int l;
+        char *buffer = malloc(sizeof(char) * 200);
+        // emit globals
+        struct sym_table *t = global_sym_table;
+        int str_cnt = 0;
+        while(t != lli_sym_tlb){
+            if (t->type == STR) {
+                int str_len = _strlen(t->str);
+                // string len, string, hash
+                l = snprintf(buffer, 200, "@.str.%d = %d \"%s\",%d\n", str_cnt, str_len, t->str, t->val);
+                str_cnt++;
+            }else{
+                // symbol name, type, hash
+                l = snprintf(buffer, 200, "@%s = %d %d\n", t->str, t->type, t->val);
+            }
+            write(lli_fd, buffer, l);
+            t++;
+        }
+        free(buffer);
+    }
+
     int ret = elf ? elf32(poolsz, (int *) idmain->val, elf_fd) :
                     jit(poolsz,   (int *) idmain->val, argc, argv);
 
@@ -2235,5 +2373,6 @@ int main(int argc, char **argv)
     free(text);
     free(sym);
     free(freed_ast);
+    if (ir && lli_fd) close(lli_fd);
     return ret;
 }
