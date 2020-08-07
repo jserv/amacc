@@ -1407,6 +1407,10 @@ int *codegen(int *jitmem, int *jitmap)
             if (!imm0) imm0 = je;
             *il++ = (int) je++ + 1;
             *iv++ = tmp;
+            // ARM EABI modulo helper function produces quotient in r0
+            // and the remainder in r1.
+            if (i == MOD)
+                *je++ = 0xe1a00001;                 // mov r0, r1
             break;
         case CLCA:
             *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
