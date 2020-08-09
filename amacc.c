@@ -1529,7 +1529,7 @@ int jit(int poolsz, int *main, int argc, char **argv)
 {
     char *jitmem;  // executable memory for JIT-compiled native code
     int retval;
-    if (src) return 1; // skip for IR listing
+    if (src) return 0; // skip for IR listing
 
     // setup JIT memory
     if (!(jitmem = mmap(0, poolsz, _PROT_EXEC | _PROT_READ | _PROT_WRITE,
