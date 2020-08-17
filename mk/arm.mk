@@ -1,7 +1,7 @@
 CROSS_COMPILE ?= arm-linux-gnueabihf-
 
 ARM_CC = $(CROSS_COMPILE)gcc
-ARM_CC := $(shell which $(ARM_CC))                                                                                                                            
+ARM_CC := $(shell which $(ARM_CC))
 ifndef ARM_CC
 $(error "no $(CROSS_COMPILE)gcc found.")
 endif
