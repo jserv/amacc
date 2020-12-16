@@ -1079,7 +1079,7 @@ void stmt(int ctx)
             next();
             break;
         }
-        /* parse statemanet such as 'int a, b, c;'
+        /* parse statement such as 'int a, b, c;'
          * "enum" finishes by "tk == ';'", so the code below will be skipped.
          * While current token is not statement end or block end.
          */
