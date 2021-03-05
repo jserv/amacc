@@ -164,7 +164,7 @@ enum {
      * LEV to fetch the bookkeeping information to resume previous execution.
      */
 
-    BZ  , /*  4 : conditional jump if general register is zero */
+    BZ  , /*  4 : conditional jump if general register is zero (jump-if-zero) */
     BNZ , /*  5 : conditional jump if general register is not zero */
 
     ENT , /*  6 */
@@ -380,7 +380,11 @@ void next()
         case '\'': // quotes start with character (string)
         case '"':
             pp = data;
+            // While current character is not `\0` and current character is
+            // not the quote character.
             while (*p != 0 && *p != tk) {
+                // If current character is '\', it is escape notation or simply
+                // '\' character.
                 if ((ival = *p++) == '\\') {
                     switch (ival = *p++) {
                     case 'n': ival = '\n'; break; // new line
@@ -391,8 +395,8 @@ void next()
                     case '0': ival = '\0'; break; // an int with value 0
                     }
                 }
-                // if it is double quotes, it is considered as a string,
-                // copying characters to data
+                // if it is double quotes (string literal), it is considered as
+                // a string, copying characters to data
                 if (tk == '"') *data++ = ival;
             }
             ++p;
@@ -434,9 +438,34 @@ void next()
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
 /* expression parsing
- * lev represents an operator
+ * lev represents an operator.
  * because each operator `token` is arranged in order of priority, so
  * large `lev` indicates a high priority.
+ *
+ * Operator precedence (lower first):
+ * Assign  =
+ * Cond    ?
+ * Lor     ||
+ * Lan     &&
+ * Or      |
+ * Xor     ^
+ * And     &
+ * Eq      ==
+ * Ne      !=
+ * Lt      <
+ * Gt      >
+ * Le      <=
+ * Ge      >=
+ * Shl     <<
+ * Shr     >>
+ * Add     +
+ * Sub     -
+ * Mul     *
+ * Div     /
+ * Mod     %
+ * Inc     ++
+ * Dec     --
+ * Brak    [
  */
 void expr(int lev)
 {
