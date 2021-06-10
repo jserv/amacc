@@ -40,9 +40,8 @@ Raspberry Pi 2/3 with GNU/Linux.
 ## Prerequisites
 * Code generator in AMaCC relies on several GNU/Linux behaviors, and it
   is necessary to have ARM/Linux installed in your build environment.
-* Install [Linaro ARM Toolchain](http://www.linaro.org/downloads/)
-    - Check "Latest Linux Targeted Binary Toolchain Releases"
-    - Select `arm-linux-gnueabihf` (32-bit Armv7-a, hard-float, little-endian)
+* Install [GNU Toolchain for the A-profile Architecture](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-a/downloads)
+    - Select `arm-linux-none-gnueabihf` (AArch32 target with hard float)
 
 * Install QEMU for ARM user emulation
 ```shell

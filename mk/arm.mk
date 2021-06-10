@@ -1,4 +1,4 @@
-CROSS_COMPILE ?= arm-linux-gnueabihf-
+CROSS_COMPILE ?= arm-none-linux-gnueabihf-
 
 ARM_CC = $(CROSS_COMPILE)gcc
 ARM_CC := $(shell which $(ARM_CC))

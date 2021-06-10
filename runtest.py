@@ -7,7 +7,7 @@ import os
 import sys
 
 amacc = './amacc'
-gcc = 'arm-linux-gnueabihf-gcc'
+gcc = 'arm-none-linux-gnueabihf-gcc'
 amaccdir = 'elf'
 gccdir = 'out-gcc'
 
