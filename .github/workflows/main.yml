@@ -1,0 +1,19 @@
+name: Github Actions
+  
+on: [push, pull_request]
+
+jobs:
+  host_x86:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        compiler: [gcc-10]
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+      - name: build artifact
+        env:
+          CC: ${{ matrix.compiler }}
+        run: |
+          sh .ci/cross-tool.sh
+          sh .ci/cross-check.sh
