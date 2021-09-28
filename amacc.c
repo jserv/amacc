@@ -821,7 +821,7 @@ void expr(int lev)
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
-                  --n[2]; *--n = And; // 2^n
+                  n[2] -= 1; *--n = And; // 2^n
                 }
                 else *--n = Mod;
             }
