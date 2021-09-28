@@ -437,6 +437,16 @@ void next()
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
+int popcount32b(int n)
+{
+    n -= n>>1 & 0x55555555;
+    n = (n>>2 & 0x33333333) + (n & 0x33333333);
+    n = (n>>4) + (n & 0x0f0f0f0f);
+    n += n>>8;
+    n += n>>16;
+    return (n & 0x1f) ;
+}
+
 /* expression parsing
  * lev represents an operator.
  * because each operator `token` is arranged in order of priority, so
@@ -776,7 +786,13 @@ void expr(int lev)
         case Mul:
             next(); expr(Inc);
             if (*n == Num && *b == Num) n[1] *= b[1];
-            else { *--n = (int) b; *--n = Mul; }
+            else {
+                *--n = (int) b;
+                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                    n[2] = popcount32b(n[2] - 1); *--n = Shl; // 2^n
+                }
+                else *--n = Mul;
+            }
             ty = INT;
             break;
         case Inc:
@@ -790,13 +806,25 @@ void expr(int lev)
         case Div:
             next(); expr(Inc);
             if (*n == Num && *b == Num) n[1] /= b[1];
-            else { *--n = (int) b; *--n = Div; }
+            else {
+                *--n = (int) b;
+                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                    n[2] = popcount32b(n[2] - 1); *--n = Shr; // 2^n
+                }
+                else *--n = Div;
+            }
             ty = INT;
             break;
         case Mod:
             next(); expr(Inc);
             if (*n == Num && *b == Num) n[1] %= b[1];
-            else { *--n = (int) b; *--n = Mod; }
+            else {
+                *--n = (int) b;
+                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                  --n[2]; *--n = And; // 2^n
+                }
+                else *--n = Mod;
+            }
             ty = INT;
             break;
         case Dot:
