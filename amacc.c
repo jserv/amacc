@@ -788,7 +788,7 @@ void expr(int lev)
             if (*n == Num && *b == Num) n[1] *= b[1];
             else {
                 *--n = (int) b;
-                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     n[2] = popcount32b(n[2] - 1); *--n = Shl; // 2^n
                 }
                 else *--n = Mul;
@@ -808,7 +808,7 @@ void expr(int lev)
             if (*n == Num && *b == Num) n[1] /= b[1];
             else {
                 *--n = (int) b;
-                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     n[2] = popcount32b(n[2] - 1); *--n = Shr; // 2^n
                 }
                 else *--n = Div;
@@ -820,7 +820,7 @@ void expr(int lev)
             if (*n == Num && *b == Num) n[1] %= b[1];
             else {
                 *--n = (int) b;
-                if (n[1] == Num && n[2] > 0 && (n[2] & n[2] - 1) == 0) {
+                if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                   --n[2]; *--n = And; // 2^n
                 }
                 else *--n = Mod;
