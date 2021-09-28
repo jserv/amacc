@@ -82,7 +82,7 @@ enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
     Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
     Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
-    Struct, Switch, For, While,
+    Struct, Switch, For, While, DoWhile,
     Assign, // operator =, keep Assign as highest priority operator
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
     Cond, // operator: ?
@@ -946,26 +946,24 @@ void gen(int *n)
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
         break;
     case While:
+    case DoWhile:
+        if (i == While) { *++e = JMP; a = ++e; }
         d = (e + 1);
-        gen((int *) n[1]); // condition
-        *++e = BZ; b = ++e;
-        gen(n + 2); // expression
-        *++e = JMP; *++e = (int) d;
-        *b = (int) (e + 1);
+        gen((int *) n[1]); // statement
+        if (i == While) *a = (int) (e + 1);
+        gen((int *) n[2]); // condition
+        *++e = BNZ; *++e = (int) d;
         break;
     case For:
-        gen((int *) n[4]);
-        a = (e + 1);
-        gen((int *) n[1]);
-        *++e = BZ; d = ++e;
-        *++e = JMP; c = ++e;
+        gen((int *) n[4]);  // init
+        *++e = JMP; a = ++e;
+        c = (e + 1);  
+        gen((int *) n[3]); // loop body
         b = (e + 1);
-        gen((int *) n[2]); // area b
-        *++e = JMP; *++e = (int) a;
-        *c = (int) (e + 1);
-        gen((int *) n[3]); // area c
-        *++e = JMP; *++e = (int) b;
-        *d = (int) (e + 1);
+        gen((int *) n[2]); // increment
+        *a = (int) (e + 1);
+        gen((int *) n[1]); // condition
+        *++e = BNZ; *++e = (int) c;
         break;
     case Switch:
         gen((int *) n[1]); // condition
@@ -1212,11 +1210,24 @@ void stmt(int ctx)
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
-        expr(Assign); a = n;
+        expr(Assign); b = n; // condition
         if (tk == ')') next();
         else fatal("close paren expected");
-        stmt(ctx); // parse body of "while"
-        *--n = (int) a; *--n = While;
+        stmt(ctx); a = n; // parse body of "while"
+        *--n = (int) b; *--n = (int) a; *--n = While;
+        return;
+    case DoWhile:
+        next();
+        stmt(ctx); a = n; // parse body of "do-while"
+        if (tk == While) next();
+        else fatal("while expected");
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        *--n = ';';
+        expr(Assign); b = n;
+        if (tk == ')') next();
+        else fatal("close paren expected");
+        *--n = (int) b; *--n = (int) a; *--n = DoWhile;
         return;
     case Switch:
         i = 0; j = 0;
@@ -2204,7 +2215,7 @@ int main(int argc, char **argv)
      * must match the sequence of enum
      */
     p = "break case char default else enum if int return "
-        "sizeof struct switch for while "
+        "sizeof struct switch for while do "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
@@ -2227,7 +2238,7 @@ int main(int argc, char **argv)
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
-    for (i = Break; i <= While; i++) {
+    for (i = Break; i <= DoWhile; i++) {
         next(); id->tk = i; // add keywords to symbol table
     }
 
