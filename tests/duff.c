@@ -1,5 +1,5 @@
 
-void copy(int *to, int *from, int count)
+void copy(char *to, char *from, int count)
 {
     int n = (count + 7) >> 3;
     switch (count & 7) {
@@ -18,10 +18,12 @@ void copy(int *to, int *from, int count)
 int main()
 {
     char *message = "This is a test of duff's device\n";
-    char *output  = "                                 ";
+    char *output  = (char *) malloc(64);
 
     copy(output, message, 33);
     printf(output);
+
+    free(output);
 
     return 0 ;
 }
