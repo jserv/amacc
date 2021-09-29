@@ -33,12 +33,12 @@ char **scnames; // system call names
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
+int *def;            // default statement patch-up pointer
 int *brks;           // break statement patch-up pointer
 int *cnts;           // continue statement patch-up pointer
-int  cntc;           // in a continue-stmt context
-int  brkc;           // in a break-stmt context
-int  swtc;           // in a switch-stmt context
-int *def;            // default statement patch-up pointer
+int  swtc;           // !0 -> in a switch-stmt context
+int  brkc;           // !0 -> in a break-stmt context
+int  cntc;           // !0 -> in a continue-stmt context
 int *tsize;          // array (indexed by type) of type sizes
 int tnew;            // next available type
 int tk;              // current token
