@@ -1,19 +1,19 @@
-/* quadrant of a circle */
-/* fixed point arithmetic with three bits mantissa */
+/* generate points for quadrant of a circle */
+/* fixed point arithmetic with three bit fraction */
 
 int *pool;
 int top;
 char **frac;
 int lx, ly;
 
-int *adj(int n)
+int *adj(int n) // stack for local array vars
 {
    int *retVal = &pool[top];
    top += n;
    return retVal;
 }
 
-int quadrilateral_area(int *x, int *y)
+int hull_area(int *x, int *y)
 {
     int area = ((x[0]*y[1] + x[1]*y[2] + x[2]*y[3] + x[3]*y[0]) -
                 (x[1]*y[0] + x[2]*y[1] + x[3]*y[2] + x[0]*y[3]));
@@ -22,7 +22,7 @@ int quadrilateral_area(int *x, int *y)
 
 void cubic_bezier(int *px, int *py, int threshold)
 {
-   if (quadrilateral_area(px, py) < threshold) {
+   if (hull_area(px, py) < threshold) {
        int i;
        for (i=0; i<4; ++i) {
            if (lx != px[i] || ly != py[i]) {
