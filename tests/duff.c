@@ -1,4 +1,3 @@
-
 void copy(char *to, char *from, int count)
 {
     int n = (count + 7) >> 3;
