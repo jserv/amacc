@@ -17,5 +17,12 @@ int main(int argc, char **argv)
         printf("\n");
     }
 
+    printf("\n");
+    for (i=1; i<=30; ++i) {
+        if (i > 10 && i < 20) continue;
+        printf("%d ", i);
+    }
+    printf("\n");
+
     return 0;
 }
