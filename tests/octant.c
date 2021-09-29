@@ -1,4 +1,4 @@
-
+/* generate points for octant of a circle */
 void octant(int radius)
 {
     int x = radius;
