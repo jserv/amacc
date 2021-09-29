@@ -1253,7 +1253,6 @@ void stmt(int ctx)
         *--n = (int) b; *--n = (int) a; *--n = DoWhile;
         return;
     case Switch:
-        ++swtc;
         i = 0; j = 0;
         if (cas) j = (int) cas;
         cas = &i;
@@ -1264,13 +1263,14 @@ void stmt(int ctx)
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
+        ++swtc;
         ++brkc;
         stmt(ctx);
         --brkc;
+        --swtc;
         b = n;
         *--n = (int) b; *--n = (int) a; *--n = Switch;
         if (j) cas = (int *) j;
-        --swtc;
         return;
     case Case:
         if (!swtc) fatal("case-stmt outside of switch");
