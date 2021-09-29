@@ -850,7 +850,7 @@ void expr(int lev)
 void gen(int *n)
 {
     int i = *n, j, k, l;
-    int *a, *b, *c, *d;
+    int *a, *b, *c, *d, *t;
 
     switch (i) {
     case Num: // get the value of integer
@@ -957,11 +957,11 @@ void gen(int *n)
         c = cnts; cnts = 0;
         gen((int *) n[1]); // loop body
         if (i == While) *a = (int) (e + 1);
-        while (cnts) { a = (int *) *cnts; *cnts = (int) (e + 1); cnts = a; }
+        while (cnts) { t = (int *) *cnts; *cnts = (int) (e + 1); cnts = t; }
         cnts = c;
         gen((int *) n[2]); // condition
         *++e = BNZ; *++e = (int) d;
-        while (brks) { a = (int *) *brks; *brks = (int) (e + 1); brks = a; }
+        while (brks) { t = (int *) *brks; *brks = (int) (e + 1); brks = t; }
         brks = b;
         break;
     case For:
@@ -971,13 +971,13 @@ void gen(int *n)
         b = brks; brks = 0;
         c = cnts; cnts = 0;
         gen((int *) n[3]); // loop body
-        while (cnts) { a = (int *) *cnts; *cnts = (int) (e + 1); cnts = a; }
+        while (cnts) { t = (int *) *cnts; *cnts = (int) (e + 1); cnts = t; }
         cnts = c;
         gen((int *) n[2]); // increment
         *a = (int) (e + 1);
         gen((int *) n[1]); // condition
         *++e = BNZ; *++e = (int) d;
-        while (brks) { a = (int *) *brks; *brks = (int) (e + 1); brks = a; }
+        while (brks) { t = (int *) *brks; *brks = (int) (e + 1); brks = t; }
         brks = b;
         break;
     case Switch:
@@ -987,7 +987,7 @@ void gen(int *n)
         gen((int *) n[2]); // case statment
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
-        while (brks) { a = (int *) * brks; *brks = (int) (e + 1); brks = a; }
+        while (brks) { t = (int *) * brks; *brks = (int) (e + 1); brks = t; }
         brks = b; def = d;
         break;
     case Case:
