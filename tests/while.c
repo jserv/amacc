@@ -16,10 +16,12 @@ int filteradd(char *data)
 {
     int sum = 0;
     do {
-        if (*data == '*') break;
-        if (*data < '0' || *data > '9') continue;
+        if (*data == '*')
+            break;
+        if (*data < '0' || *data > '9')
+            continue;
         sum += *data - '0';
-    } while(*++data != 0);
+    } while (*++data != 0);
 
     return sum;
 }

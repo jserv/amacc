@@ -2,15 +2,15 @@
 #include <stdlib.h>
 int len;
 struct foo {
-    char* p;
+    char *p;
     char c;
-    char* pad;
+    char *pad;
     int x;
 } * d;
 
-char* str;
+char *str;
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     struct foo bar, *ptr;
     char c = '1';
@@ -18,11 +18,11 @@ int main(int argc, char** argv)
     str = "I am a String!\n";
     len = 10;
     bar.x = 1;
-    struct foo* p = &bar;
+    struct foo *p = &bar;
     p->c = 'a';
 
     // FIXME: 32-bit only
-    if (*(int*)((void*)p + sizeof(struct foo) - 4) != bar.x)
+    if (*(int *) ((void *) p + sizeof(struct foo) - 4) != bar.x)
         exit(-1);
 
     printf("%zu\n", sizeof(struct foo));
