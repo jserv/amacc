@@ -27,8 +27,8 @@ into methods.
 AMaCC is capable of compiling C source files written in the following
 syntax:
 * data types: char, int, struct, and pointer
-* condition statements: if, while, for, switch, case, break, return, and
-                        general expressions
+* condition statements: if, do, while, for, switch, case, break, continue,
+                        return, and general expressions
 * compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`
 * global/local variable initializations for supported data types
     - e.g. `int i = [expr]`
