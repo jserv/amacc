@@ -48,7 +48,7 @@ void cubic_bezier(int *px, int *py, int threshold)
 
        x[1] = (px[0]+px[1])/2;        y[1] = (py[0]+py[1])/2;
        x[5] = (px[2]+px[3])/2;        y[5] = (py[2]+py[3])/2;
-   
+
        x[2] = ( x[1]+tx   )/2;        y[2] = ( y[1]+ty   )/2;
        x[4] = (tx   + x[5])/2;        y[4] = (ty   + y[5])/2;
 
