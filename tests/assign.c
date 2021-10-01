@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     a = 2;
     a *= 3 * 4;
     assert_eq(a, 24);
-    
+
     a = 10;
     a /= 5;
     assert_eq(a, 2);

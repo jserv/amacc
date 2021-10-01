@@ -33,8 +33,12 @@ char **scnames; // system call names
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
-int *brks;           // break statement patch-up pointer
 int *def;            // default statement patch-up pointer
+int *brks;           // break statement patch-up pointer
+int *cnts;           // continue statement patch-up pointer
+int  swtc;           // !0 -> in a switch-stmt context
+int  brkc;           // !0 -> in a break-stmt context
+int  cntc;           // !0 -> in a continue-stmt context
 int *tsize;          // array (indexed by type) of type sizes
 int tnew;            // next available type
 int tk;              // current token
@@ -81,8 +85,8 @@ struct member_s {
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
     Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
-    Break, Case, Char, Default, Else, Enum, If, Int, Return, Sizeof,
-    Struct, Switch, For, While,
+    Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
+    Sizeof, Struct, Switch, For, While, DoWhile,
     Assign, // operator =, keep Assign as highest priority operator
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
     Cond, // operator: ?
@@ -874,7 +878,7 @@ void expr(int lev)
 void gen(int *n)
 {
     int i = *n, j, k, l;
-    int *a, *b, *c, *d;
+    int *a, *b, *c, *d, *t;
 
     switch (i) {
     case Num: // get the value of integer
@@ -974,26 +978,35 @@ void gen(int *n)
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
         break;
     case While:
+    case DoWhile:
+        if (i == While) { *++e = JMP; a = ++e; }
         d = (e + 1);
-        gen((int *) n[1]); // condition
-        *++e = BZ; b = ++e;
-        gen(n + 2); // expression
-        *++e = JMP; *++e = (int) d;
-        *b = (int) (e + 1);
+        b = brks; brks = 0;
+        c = cnts; cnts = 0;
+        gen((int *) n[1]); // loop body
+        if (i == While) *a = (int) (e + 1);
+        while (cnts) { t = (int *) *cnts; *cnts = (int) (e + 1); cnts = t; }
+        cnts = c;
+        gen((int *) n[2]); // condition
+        *++e = BNZ; *++e = (int) d;
+        while (brks) { t = (int *) *brks; *brks = (int) (e + 1); brks = t; }
+        brks = b;
         break;
     case For:
-        gen((int *) n[4]);
-        a = (e + 1);
-        gen((int *) n[1]);
-        *++e = BZ; d = ++e;
-        *++e = JMP; c = ++e;
-        b = (e + 1);
-        gen((int *) n[2]); // area b
-        *++e = JMP; *++e = (int) a;
-        *c = (int) (e + 1);
-        gen((int *) n[3]); // area c
-        *++e = JMP; *++e = (int) b;
-        *d = (int) (e + 1);
+        gen((int *) n[4]);  // init
+        *++e = JMP; a = ++e;
+        d = (e + 1);  
+        b = brks; brks = 0;
+        c = cnts; cnts = 0;
+        gen((int *) n[3]); // loop body
+        while (cnts) { t = (int *) *cnts; *cnts = (int) (e + 1); cnts = t; }
+        cnts = c;
+        gen((int *) n[2]); // increment
+        *a = (int) (e + 1);
+        gen((int *) n[1]); // condition
+        *++e = BNZ; *++e = (int) d;
+        while (brks) { t = (int *) *brks; *brks = (int) (e + 1); brks = t; }
+        brks = b;
         break;
     case Switch:
         gen((int *) n[1]); // condition
@@ -1002,7 +1015,7 @@ void gen(int *n)
         gen((int *) n[2]); // case statment
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
-        while (brks) { a = (int *) * brks; *brks = (int) (e + 1); brks = a; }
+        while (brks) { t = (int *) * brks; *brks = (int) (e + 1); brks = t; }
         brks = b; def = d;
         break;
     case Case:
@@ -1019,6 +1032,10 @@ void gen(int *n)
     case Break:
         // set jump locate
         *++e = JMP; *++e = (int) brks; brks = e;
+        break;
+    case Continue:
+        // set jump locate
+        *++e = JMP; *++e = (int) cnts; cnts = e;
         break;
     case Default:
         def = e + 1;
@@ -1240,11 +1257,28 @@ void stmt(int ctx)
         next();
         if (tk == '(') next();
         else fatal("open paren expected");
-        expr(Assign); a = n;
+        expr(Assign); b = n; // condition
         if (tk == ')') next();
         else fatal("close paren expected");
-        stmt(ctx); // parse body of "while"
-        *--n = (int) a; *--n = While;
+        ++brkc; ++cntc;
+        stmt(ctx); a = n; // parse body of "while"
+        --brkc; --cntc;
+        *--n = (int) b; *--n = (int) a; *--n = While;
+        return;
+    case DoWhile:
+        next();
+        ++brkc; ++cntc;
+        stmt(ctx); a = n; // parse body of "do-while"
+        --brkc; --cntc;
+        if (tk == While) next();
+        else fatal("while expected");
+        if (tk == '(') next();
+        else fatal("open paren expected");
+        *--n = ';';
+        expr(Assign); b = n;
+        if (tk == ')') next();
+        else fatal("close paren expected");
+        *--n = (int) b; *--n = (int) a; *--n = DoWhile;
         return;
     case Switch:
         i = 0; j = 0;
@@ -1257,12 +1291,17 @@ void stmt(int ctx)
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
+        ++swtc;
+        ++brkc;
         stmt(ctx);
+        --brkc;
+        --swtc;
         b = n;
         *--n = (int) b; *--n = (int) a; *--n = Switch;
         if (j) cas = (int *) j;
         return;
     case Case:
+        if (!swtc) fatal("case-stmt outside of switch");
         i = *cas;
         next();
         expr(Or);
@@ -1277,12 +1316,21 @@ void stmt(int ctx)
         *--n = (int) b;*--n = (int) a; *--n = Case;
         return;
     case Break:
+        if (!brkc) { fatal("misplaced break statement"); }
         next();
         if (tk == ';') next();
         else fatal("semicolon expected");
         *--n = Break;
         return;
+    case Continue:
+        if (!cntc) { fatal("misplaced continue statement"); }
+        next();
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        *--n = Continue;
+        return;
     case Default:
+        if (!swtc) fatal("default-stmt outside of switch");
         next();
         if (tk == ':') next();
         else fatal("colon expected");
@@ -1324,7 +1372,9 @@ void stmt(int ctx)
         }
         b = n;
         if (tk == ')') next(); else fatal("close paren expected");
+        ++brkc; ++cntc;
         stmt(ctx); c = n;
+        --brkc; --cntc;
         *--n = (int) d; *--n = (int) c; *--n = (int) b; *--n = (int) a;
         *--n = For;
         return;
@@ -2231,8 +2281,8 @@ int main(int argc, char **argv)
     /* Resgister keywords and system calls to symbol stack
      * must match the sequence of enum
      */
-    p = "break case char default else enum if int return "
-        "sizeof struct switch for while "
+    p = "break continue case char default else enum if int return "
+        "sizeof struct switch for while do "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
@@ -2255,7 +2305,7 @@ int main(int argc, char **argv)
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
-    for (i = Break; i <= While; i++) {
+    for (i = Break; i <= DoWhile; i++) {
         next(); id->tk = i; // add keywords to symbol table
     }
 
