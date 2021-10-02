@@ -88,6 +88,7 @@ enum {
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
     Sizeof, Struct, Switch, For, While, DoWhile,
     Assign, // operator =, keep Assign as highest priority operator
+    OrAssign, XorAssign, AndAssign, ShlAssign, ShrAssign, // |=, ^=, &=, <<=, >>=
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
     Cond, // operator: ?
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
@@ -417,16 +418,22 @@ void next()
                   else tk = Sub; return;
         case '!': if (*p == '=') { ++p; tk = Ne; } return;
         case '<': if (*p == '=') { ++p; tk = Le; }
-                  else if (*p == '<') { ++p; tk = Shl; }
+                  else if (*p == '<') {
+                      ++p; if (*p == '=') { ++p ; tk = ShlAssign; } else tk = Shl;
+                  }
                   else tk = Lt; return;
         case '>': if (*p == '=') { ++p; tk = Ge; }
-                  else if (*p == '>') { ++p; tk = Shr; }
+                  else if (*p == '>') {
+                      ++p; if (*p == '=') { ++p ; tk = ShrAssign; } else tk = Shr;
+                  }
                   else tk = Gt; return;
         case '|': if (*p == '|') { ++p; tk = Lor; }
+                  else if (*p == '=') { ++p; tk = OrAssign; }
                   else tk = Or; return;
         case '&': if (*p == '&') { ++p; tk = Lan; }
+                  else if (*p == '=') { ++p; tk = AndAssign; }
                   else tk = And; return;
-        case '^': tk = Xor; return;
+        case '^': if (*p == '=') { ++p; tk = XorAssign; } else tk = Xor; return;
         case '*': if (*p == '=') { ++p; tk = MulAssign; }
                   else tk = Mul; return;
         case '%': if (*p == '=') { ++p; tk = ModAssign; }
@@ -537,7 +544,7 @@ void expr(int lev)
                 if (tk == ',') {
                     next();
                     if (tk == ')') fatal("unexpected comma in function call");
-		} else if (tk != ')') fatal("missing comma in function call");
+                } else if (tk != ')') fatal("missing comma in function call");
             }
             next();
             // function or system call id
@@ -646,7 +653,12 @@ void expr(int lev)
             // get the value of the right part `expr` as the result of `a=expr`
             expr(Assign); *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             break;
-        case AddAssign: // right associated
+        case  OrAssign: // right associated
+        case XorAssign:
+        case AndAssign:
+        case ShlAssign:
+        case ShrAssign:
+        case AddAssign:
         case SubAssign:
         case MulAssign:
         case DivAssign:
@@ -657,7 +669,13 @@ void expr(int lev)
                                     ty >= PTR ? tsize[ty - PTR] : 1;
             next(); c = n; expr(otk);
             if (*n == Num) n[1] *= sz;
-            *--n = (int) c; *--n = Add + (otk - AddAssign);
+            *--n = (int) c;
+            if (otk < ShlAssign) {
+                *--n = Or + (otk - OrAssign);
+            }
+            else {
+                *--n = Shl + (otk - ShlAssign);
+            }
             *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             ty = INT;
             break;
@@ -707,7 +725,7 @@ void expr(int lev)
         case Ne:
             next(); expr(Lt);
             if (*n == Num && *b == Num) n[1] = b[1] != n[1];
-	    else { *--n = (int) b; *--n = Ne; }
+            else { *--n = (int) b; *--n = Ne; }
             ty = INT;
             break;
         case Lt:
@@ -885,7 +903,7 @@ void gen(int *n)
         // Point "b" to the jump address field to be patched later.
         *++e = BZ; b = ++e;
         gen((int *) n[2]); // expression
-	// Patch the jump address field pointed to by "b" to hold the address
+        // Patch the jump address field pointed to by "b" to hold the address
         // of false branch. "+ 3" counts the "JMP" instruction added below.
         //
         // Add "JMP" instruction after true branch to jump over false branch.
