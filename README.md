@@ -29,7 +29,8 @@ syntax:
 * data types: char, int, struct, and pointer
 * condition statements: if, do, while, for, switch, case, break, continue,
                         return, and general expressions
-* compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`
+* compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`,
+                        `|=`, `^=`, `&=`, `<<=`, `>>=`
 * global/local variable initializations for supported data types
     - e.g. `int i = [expr]`
     - New variables are allowed to be declared within functions anywhere.
