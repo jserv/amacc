@@ -13,7 +13,7 @@ int assert_eq(int a, int b)
 int main(int argc, char **argv)
 {
     /* Value test */
-    int a;
+    int a, b;
     a = 1;
     a += 101;
     assert_eq(a, 102);
@@ -46,5 +46,28 @@ int main(int argc, char **argv)
     a = 4;
     a %= 3;
     assert_eq(a, 1);
+
+    a = 1;
+    a <<= 2;
+    assert_eq(a, 4);
+
+    a = 4;
+    a >>= 2;
+    assert_eq(a, 1);
+
+    a = 17;
+    a |= 14;
+    assert_eq(a, 31);
+   
+    /* precedence test */
+    a = 0xff;
+    b = 1;
+    a ^= b | 2;
+    assert_eq(a, 0xfc);
+
+    a = 17;
+    a &= 7;
+    assert_eq(a, 1);
+
     return 0;
 }
