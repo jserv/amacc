@@ -84,9 +84,9 @@ struct member_s {
 // ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
+    Func, Syscall, Glo, Par, Loc, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
-    Sizeof, Struct, Switch, For, While, DoWhile,
+    Sizeof, Struct, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
     OrAssign, XorAssign, AndAssign, ShlAssign, ShrAssign, // |=, ^=, &=, <<=, >>=
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
@@ -877,6 +877,9 @@ void gen(int *n)
     case Loc: // get the value of variable
         *++e = LEA; *++e = n[1];
         break;
+    case Label: // target of goto
+        *((int *)n[1]) = (int) (e+1) ;
+        break;
     case Load:
         gen(n + 2); // load the value
         if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
@@ -1026,6 +1029,10 @@ void gen(int *n)
     case Continue:
         // set jump locate
         *++e = JMP; *++e = (int) cnts; cnts = e;
+        break;
+    case Goto:
+        if (*((int *)n[1]) == 0) fatal("label address not assigned");
+        *++e = JMP; *++e = *((int *)n[1]);
         break;
     case Default:
         def = e + 1;
@@ -1181,7 +1188,22 @@ void stmt(int ctx)
                 // (ld - loc) indicates memory size to allocate
                 *--n = ';';
                 while (tk != '}') {
-                    int *t = n; stmt(Loc);
+                    int *t = n;
+                    if (tk == Id) { // check for label
+                        char *ss = p;
+                        while (*ss == ' ' || *ss == '\t') ++ss;
+                        if (*ss == ':') {
+                            // Local Label can overide global Identifier
+                            // so if id->class = Glo, use hclass to save
+                            if (id->class != 0) fatal("invalid label");
+                            // id->class = Label;
+                            a = &id->val ;
+                            *--n = (int) a; *--n = Label;
+                            *--n = (int) t; *--n = '{'; t = n;
+                            next(); next();
+                        }
+                    }
+                    stmt(Loc);
                     if (t != n) { *--n = (int) t; *--n = '{'; }
                 }
                 *--n = ld - loc; *--n = Enter;
@@ -1214,15 +1236,6 @@ void stmt(int ctx)
             if (ctx != Par && tk == ',') next();
         }
         return;
-    /* if (...) <statement> [else <statement>]
-     *     if (...)           <cond>
-     *                        JZ a
-     *         <statement>    <statement>
-     *     else:              JMP b
-     * a:
-     *     <statement>        <statement>
-     * b:                     b:
-     */
     case If:
         next();
         if (tk == '(') next();
@@ -1235,14 +1248,6 @@ void stmt(int ctx)
         if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
         *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
         return;
-    /* while (...) <statement>
-     * a:                     a:
-     *     while (<cond>)         <cond>
-     *                            JZ b
-     *         <statement>        <statement>
-     *                            JMP a
-     * b:                     b:
-     */
     case While:
         next();
         if (tk == '(') next();
@@ -1281,11 +1286,9 @@ void stmt(int ctx)
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
-        ++swtc;
-        ++brkc;
+        ++swtc; ++brkc;
         stmt(ctx);
-        --brkc;
-        --swtc;
+        --swtc; --brkc;
         b = n;
         *--n = (int) b; *--n = (int) a; *--n = Switch;
         if (j) cas = (int *) j;
@@ -1358,7 +1361,7 @@ void stmt(int ctx)
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
-            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
+            f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
         b = n;
         if (tk == ')') next(); else fatal("close paren expected");
@@ -1367,6 +1370,15 @@ void stmt(int ctx)
         --brkc; --cntc;
         *--n = (int) d; *--n = (int) c; *--n = (int) b; *--n = (int) a;
         *--n = For;
+        return;
+    case Goto:
+        next();
+        if (tk == Id && (id->class == Label || id->class == 0)) {
+            // id->class == Label or 0 if Label not yet encountered
+            *--n = (int) &id->val; *--n = Goto; next(); }
+        else fatal("goto needs label");
+        if (tk == ';') next();
+        else fatal("semicolon expected");
         return;
     // stmt -> '{' stmt '}'
     case '{':
@@ -2272,7 +2284,7 @@ int main(int argc, char **argv)
      * must match the sequence of enum
      */
     p = "break continue case char default else enum if int return "
-        "sizeof struct switch for while do "
+        "sizeof struct switch for while do goto "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
@@ -2295,7 +2307,7 @@ int main(int argc, char **argv)
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
-    for (i = Break; i <= DoWhile; i++) {
+    for (i = Break; i <= Goto; i++) {
         next(); id->tk = i; // add keywords to symbol table
     }
 
