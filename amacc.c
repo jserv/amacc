@@ -593,7 +593,7 @@ void expr(int lev)
         expr(Inc); // dereference has the same precedence as Inc(++)
         if (ty >= PTR) ty -= PTR;
         else fatal("bad dereference");
-        if (ty >= CHAR && ty <= PTR) {
+        if (ty >= CHAR && ty < PTR2) {
             *--n = ty; *--n = Load;
         } else fatal("unexpected type");
         break;
@@ -1060,6 +1060,24 @@ void gen(int *n)
     }
 }
 
+void check_label(int **tt)
+{
+    if (tk == Id) { // check for label
+        char *ss = p;
+        while (*ss == ' ' || *ss == '\t') ++ss;
+        if (*ss == ':') {
+            if (id->class != 0 ||
+                !(id->type == 0 || id->type == -1)) {
+                fatal("invalid label");
+            }
+            id->type = -1 ; // hack for id->class deficiency
+            *--n = (int) id; *--n = Label;
+            *--n = (int) *tt; *--n = '{'; *tt = n;
+            next(); next();
+        }
+    }
+}
+
 // statement parsing (syntax analysis, except for declarations)
 void stmt(int ctx)
 {
@@ -1197,22 +1215,7 @@ void stmt(int ctx)
                 // (ld - loc) indicates memory size to allocate
                 *--n = ';';
                 while (tk != '}') {
-                    int *t = n;
-                    if (tk == Id) { // check for label
-                        char *ss = p;
-                        while (*ss == ' ' || *ss == '\t') ++ss;
-                        if (*ss == ':') {
-                            if (id->class != 0 || 
-                                !(id->type == 0 || id->type == -1)) {
-                                fatal("invalid label");
-                            }
-                            id->type = -1 ; // hack for id->class deficiency
-                            *--n = (int) id; *--n = Label;
-                            *--n = (int) t; *--n = '{'; t = n;
-                            next(); next();
-                        }
-                    }
-                    stmt(Loc);
+                    int *t = n; check_label(&t); stmt(Loc);
                     if (t != n) { *--n = (int) t; *--n = '{'; }
                 }
                 *--n = ld - loc; *--n = Enter;
@@ -1253,6 +1256,15 @@ void stmt(int ctx)
             if (ctx != Par && tk == ',') next();
         }
         return;
+    /* if (...) <statement> [else <statement>]
+     *     if (...)           <cond>
+     *                        JZ a
+     *         <statement>    <statement>
+     *     else:              JMP b
+     * a:
+     *     <statement>        <statement>
+     * b:                     b:
+     */
     case If:
         next();
         if (tk == '(') next();
@@ -1265,6 +1277,14 @@ void stmt(int ctx)
         if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
         *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
         return;
+    /* while (...) <statement>
+     * a:                     a:
+     *     while (<cond>)         <cond>
+     *                            JZ b
+     *         <statement>        <statement>
+     *                            JMP a
+     * b:                     b:
+     */
     case While:
         next();
         if (tk == '(') next();
@@ -1303,9 +1323,11 @@ void stmt(int ctx)
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
-        ++swtc; ++brkc;
+        ++swtc;
+        ++brkc;
         stmt(ctx);
-        --swtc; --brkc;
+        --brkc;
+        --swtc;
         b = n;
         *--n = (int) b; *--n = (int) a; *--n = Switch;
         if (j) cas = (int *) j;
@@ -1378,7 +1400,7 @@ void stmt(int ctx)
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
-            f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
+            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
         }
         b = n;
         if (tk == ')') next(); else fatal("close paren expected");
@@ -1403,7 +1425,9 @@ void stmt(int ctx)
     case '{':
         next();
         *--n = ';';
-        while (tk != '}') { a = n; stmt(ctx); *--n = (int) a; *--n = '{'; }
+        while (tk != '}') {
+            a = n; check_label(&a); stmt(ctx); *--n = (int) a; *--n = '{';
+        }
         next();
         return;
     // stmt -> ';'

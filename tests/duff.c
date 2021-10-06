@@ -29,13 +29,12 @@ void fastcopy(char *to, char *from, int count)
 
     switch (count & 7) {
         case 7: goto r7;
-        case 6: goto r6:
+        case 6: goto r6;
         case 5: goto r5;
         case 4: goto r4;
         case 3: goto r3;
         case 2: goto r2;
         case 1: goto r1;
-        case 0: ;
     }
 
     do {
@@ -60,7 +59,7 @@ int main()
     printf(output);
 
     fastcopy(output2, message, 33);
-    printf(output2;
+    printf(output2);
 
     free(output2);
     free(output);
