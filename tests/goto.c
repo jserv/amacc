@@ -22,4 +22,6 @@ D:  printf("D");
     if (*data++ != '$') goto C;
  
     printf("\n");
+
+    return 0;
 }
