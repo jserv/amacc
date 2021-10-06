@@ -881,12 +881,10 @@ void gen(int *n)
     case Label: // target of goto
         d = e + 1;
         label = (struct ident_s *) n[1];
-        if (label->class == 0) {
-            b = (int *) label->val;
-            while (b != 0) { t = (int *) *b; *b = (int) d; b = t; }
-            label->val = (int) d; label->class = Label;
-        }
-        else fatal("duplicate label definition");
+        if (label->class != 0) fatal("duplicate label definition");
+        b = (int *) label->val;
+        while (b != 0) { t = (int *) *b; *b = (int) d; b = t; }
+        label->val = (int) d; label->class = Label;
         break;
     case Load:
         gen(n + 2); // load the value
@@ -1228,7 +1226,7 @@ void stmt(int ctx)
                         id->type = id->htype;
                         id->val = id->hval;
                     }
-                    else if (id->class == Label) {
+                    else if (id->class == Label) { // clear id for next func
                         id->class = 0; id->val = 0; id->type = 0;
                     }
                     else if (id->class == 0 && id->type == -1) {
