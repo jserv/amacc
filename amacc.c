@@ -344,10 +344,12 @@ void next()
              * (the "&" at the beginning of the whole expression).
              */
             if (src) {
+                int jmplabel;
+                int *t = le;
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    printf("%8.4s",
+                    printf("%04d: %8.4s", (le-t),
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
@@ -355,7 +357,15 @@ void next()
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
                              "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
-                    if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
+                    if (*le <= ADJ) {
+                        ++le;
+                        if (*le > (int) t && *le < (int) e) {
+                            jmplabel = (le-t) + ((*le - (int) le)>>2) - 1;
+                            printf(" %04d\n", jmplabel);
+                        }
+                        else printf(" %d\n", *le);
+                    }
+                    else printf("\n");
                 }
             }
             ++line;
