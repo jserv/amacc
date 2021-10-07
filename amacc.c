@@ -1254,15 +1254,6 @@ void stmt(int ctx)
             if (ctx != Par && tk == ',') next();
         }
         return;
-    /* if (...) <statement> [else <statement>]
-     *     if (...)           <cond>
-     *                        JZ a
-     *         <statement>    <statement>
-     *     else:              JMP b
-     * a:
-     *     <statement>        <statement>
-     * b:                     b:
-     */
     case If:
         next();
         if (tk == '(') next();
@@ -1275,14 +1266,6 @@ void stmt(int ctx)
         if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
         *--n = (int)d; *--n = (int) b; *--n = (int) a; *--n = Cond;
         return;
-    /* while (...) <statement>
-     * a:                     a:
-     *     while (<cond>)         <cond>
-     *                            JZ b
-     *         <statement>        <statement>
-     *                            JMP a
-     * b:                     b:
-     */
     case While:
         next();
         if (tk == '(') next();
@@ -1321,11 +1304,9 @@ void stmt(int ctx)
         a = n;
         if (tk == ')') next();
         else fatal("close paren expected");
-        ++swtc;
-        ++brkc;
+        ++swtc; ++brkc;
         stmt(ctx);
-        --brkc;
-        --swtc;
+        --swtc; --brkc;
         b = n;
         *--n = (int) b; *--n = (int) a; *--n = Switch;
         if (j) cas = (int *) j;
@@ -1386,7 +1367,7 @@ void stmt(int ctx)
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
-            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
+            f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
         d = n;
         if (tk == ';') next();
