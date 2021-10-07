@@ -1060,19 +1060,18 @@ void gen(int *n)
 
 void check_label(int **tt)
 {
-    if (tk == Id) { // check for label
-        char *ss = p;
-        while (*ss == ' ' || *ss == '\t') ++ss;
-        if (*ss == ':') {
-            if (id->class != 0 ||
-                !(id->type == 0 || id->type == -1)) {
-                fatal("invalid label");
-            }
-            id->type = -1 ; // hack for id->class deficiency
-            *--n = (int) id; *--n = Label;
-            *--n = (int) *tt; *--n = '{'; *tt = n;
-            next(); next();
+    if (tk != Id) return;
+    char *ss = p;
+    while (*ss == ' ' || *ss == '\t') ++ss;
+    if (*ss == ':') {
+        if (id->class != 0 ||
+            !(id->type == 0 || id->type == -1)) {
+            fatal("invalid label");
         }
+        id->type = -1 ; // hack for id->class deficiency
+        *--n = (int) id; *--n = Label;
+        *--n = (int) *tt; *--n = '{'; *tt = n;
+        next(); next();
     }
 }
 
