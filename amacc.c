@@ -879,10 +879,9 @@ void gen(int *n)
         *++e = LEA; *++e = n[1];
         break;
     case Label: // target of goto
-        d = e + 1;
         label = (struct ident_s *) n[1];
         if (label->class != 0) fatal("duplicate label definition");
-        b = (int *) label->val;
+        d = e + 1; b = (int *) label->val;
         while (b != 0) { t = (int *) *b; *b = (int) d; b = t; }
         label->val = (int) d; label->class = Label;
         break;
