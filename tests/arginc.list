@@ -2,10 +2,10 @@
 2: {
 3:     return argc - 2;
 4: }
-    ENT  0
-    LEA  3
-    LI  
-    PSH 
-    IMM  2
-    SUB 
-    LEV 
+0000:     ENT  0
+0002:     LEA  3
+0004:     LI  
+0005:     PSH 
+0006:     IMM  2
+0008:     SUB 
+0009:     LEV 
