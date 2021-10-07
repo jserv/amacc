@@ -344,11 +344,11 @@ void next()
              * (the "&" at the beginning of the whole expression).
              */
             if (src) {
-                int *t = le, off;
+                int *base = le, off;
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    off = le-t; // IR instruction offset
+                    off = le-base; // IR instruction offset
                     printf("%04d: %8.4s", off,
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
@@ -359,7 +359,7 @@ void next()
                              "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
                     if (*le <= ADJ) {
                         ++le;
-                        if (*le > (int) t && *le < (int) e)
+                        if (*le > (int) base && *le < (int) e)
                             printf(" %04d\n", off + ((*le - (int) le)>>2) + 1);
                         else
                             printf(" %d\n", *le);
