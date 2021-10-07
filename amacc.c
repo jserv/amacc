@@ -344,12 +344,12 @@ void next()
              * (the "&" at the beginning of the whole expression).
              */
             if (src) {
-                int jmplabel;
-                int *t = le;
+                int *t = le, off;
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    printf("%04d: %8.4s", (le-t),
+                    off = le-t; // IR instruction offset
+                    printf("%04d: %8.4s", off,
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
@@ -359,11 +359,10 @@ void next()
                              "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
                     if (*le <= ADJ) {
                         ++le;
-                        if (*le > (int) t && *le < (int) e) {
-                            jmplabel = (le-t) + ((*le - (int) le)>>2) - 1;
-                            printf(" %04d\n", jmplabel);
-                        }
-                        else printf(" %d\n", *le);
+                        if (*le > (int) t && *le < (int) e)
+                            printf(" %04d\n", off + ((*le - (int) le)>>2) + 1);
+                        else
+                            printf(" %d\n", *le);
                     }
                     else printf("\n");
                 }
