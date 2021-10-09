@@ -84,9 +84,9 @@ struct member_s {
 // ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Glo, Par, Loc, Id, Load, Enter,
+    Func, Syscall, Main, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
-    Sizeof, Struct, Switch, For, While, DoWhile,
+    Sizeof, Struct, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
     OrAssign, XorAssign, AndAssign, ShlAssign, ShrAssign, // |=, ^=, &=, <<=, >>=
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
@@ -602,7 +602,7 @@ void expr(int lev)
         expr(Inc); // dereference has the same precedence as Inc(++)
         if (ty >= PTR) ty -= PTR;
         else fatal("bad dereference");
-        if (ty >= CHAR && ty <= PTR) {
+        if (ty >= CHAR && ty < PTR2) {
             *--n = ty; *--n = Load;
         } else fatal("unexpected type");
         break;
@@ -878,6 +878,7 @@ void gen(int *n)
 {
     int i = *n, j, k, l;
     int *a, *b, *c, *d, *t;
+    struct ident_s *label;
 
     switch (i) {
     case Num: // get the value of integer
@@ -885,6 +886,13 @@ void gen(int *n)
         break;
     case Loc: // get the value of variable
         *++e = LEA; *++e = n[1];
+        break;
+    case Label: // target of goto
+        label = (struct ident_s *) n[1];
+        if (label->class != 0) fatal("duplicate label definition");
+        d = e + 1; b = (int *) label->val;
+        while (b != 0) { t = (int *) *b; *b = (int) d; b = t; }
+        label->val = (int) d; label->class = Label;
         break;
     case Load:
         gen(n + 2); // load the value
@@ -1036,6 +1044,11 @@ void gen(int *n)
         // set jump locate
         *++e = JMP; *++e = (int) cnts; cnts = e;
         break;
+    case Goto:
+        label = (struct ident_s *) n[1];
+        *++e = JMP; *++e = label->val;
+        if (label->class == 0) label->val = (int) e; // Define label address later
+        break;
     case Default:
         def = e + 1;
         gen((int *) n[1]); break;
@@ -1050,6 +1063,23 @@ void gen(int *n)
         if (i != ';') {
             printf("%d: compiler error gen=%d\n", line, i); exit(-1);
         }
+    }
+}
+
+void check_label(int **tt)
+{
+    if (tk != Id) return;
+    char *ss = p;
+    while (*ss == ' ' || *ss == '\t') ++ss;
+    if (*ss == ':') {
+        if (id->class != 0 ||
+            !(id->type == 0 || id->type == -1)) {
+            fatal("invalid label");
+        }
+        id->type = -1 ; // hack for id->class deficiency
+        *--n = (int) id; *--n = Label;
+        *--n = (int) *tt; *--n = '{'; *tt = n;
+        next(); next();
     }
 }
 
@@ -1190,7 +1220,7 @@ void stmt(int ctx)
                 // (ld - loc) indicates memory size to allocate
                 *--n = ';';
                 while (tk != '}') {
-                    int *t = n; stmt(Loc);
+                    int *t = n; check_label(&t); stmt(Loc);
                     if (t != n) { *--n = (int) t; *--n = '{'; }
                 }
                 *--n = ld - loc; *--n = Enter;
@@ -1202,6 +1232,14 @@ void stmt(int ctx)
                         id->class = id->hclass;
                         id->type = id->htype;
                         id->val = id->hval;
+                    }
+                    else if (id->class == Label) { // clear id for next func
+                        id->class = 0; id->val = 0; id->type = 0;
+                    }
+                    else if (id->class == 0 && id->type == -1) {
+                        printf("%d: label %.*s not defined\n",
+                               line, id->hash & 0x3f, id->name);
+                        exit(-1);
                     }
                     id++;
                 }
@@ -1358,11 +1396,24 @@ void stmt(int ctx)
         *--n = (int) d; *--n = (int) c; *--n = (int) b; *--n = (int) a;
         *--n = For;
         return;
+    case Goto:
+        next();
+        if (tk == Id && (id->type == 0 || id->type == -1) &&
+            (id->class == Label || id->class == 0)) {
+            id->type = -1 ; // hack for id->class deficiency
+            *--n = (int) id; *--n = Goto; next();
+        }
+        else fatal("goto needs label");
+        if (tk == ';') next();
+        else fatal("semicolon expected");
+        return;
     // stmt -> '{' stmt '}'
     case '{':
         next();
         *--n = ';';
-        while (tk != '}') { a = n; stmt(ctx); *--n = (int) a; *--n = '{'; }
+        while (tk != '}') {
+            a = n; check_label(&a); stmt(ctx); *--n = (int) a; *--n = '{';
+        }
         next();
         return;
     // stmt -> ';'
@@ -2262,7 +2313,7 @@ int main(int argc, char **argv)
      * must match the sequence of enum
      */
     p = "break continue case char default else enum if int return "
-        "sizeof struct switch for while do "
+        "sizeof struct switch for while do goto "
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
@@ -2285,17 +2336,17 @@ int main(int argc, char **argv)
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
-    for (i = Break; i <= DoWhile; i++) {
-        next(); id->tk = i; // add keywords to symbol table
+    for (i = Break; i <= Goto; i++) {
+        next(); id->tk = i; id->class = Keyword; // add keywords to symbol table
     }
 
     // add library to symbol table
     for (i = OPEN; i < INVALID; i++) {
         next(); id->class = Syscall; id->type = INT; id->val = i;
     }
-    next(); id->tk = Char; // handle void type
+    next(); id->tk = Char; id->class = Keyword; // handle void type
     next();
-    struct ident_s *idmain = id; // keep track of main
+    struct ident_s *idmain = id; id->class = Main; // keep track of main
 
     if (!(freep = lp = p = malloc(poolsz)))
         die("could not allocate source area");
