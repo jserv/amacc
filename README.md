@@ -1,25 +1,25 @@
 # AMaCC = Arguably Minimalist Arm C Compiler
 
 ## Introduction
-AMaCC is built from scratch, targeted at 32-bit ARM architecture.
+AMaCC is built from scratch, targeted at 32-bit Arm architecture.
 It is a stripped down version of C meant as a pedagogical tool for
 learning about compilers, linkers, and loaders.
 
 There are 2 execution modes AMaCC implements:
-* Just-in-Time compiler (JITC) for ARM backend
+* Just-in-Time compiler (JITC) for Arm backend
 * Generate valid GNU/Linux executables with Executable and Linkable Format (ELF)
 
 It is worth mentioning that AMaCC is designed to compile a subset of C
 required to self-host with the above execution modes. For example,
 global variables and, in particular, global arrays are there.
 
-A simple stack based AST is generated through cooperating stmt() and expr()
+A simple stack based AST is generated through cooperating `stmt()` and `expr()`
 parsing functions, both of which are fed by a token generating function.
-The expr() function does some literal constant optimizations. The AST is
-transformed into a stack-based VM Intermediate Representation via a gen()
+The `expr()` function does some literal constant optimizations. The AST is
+transformed into a stack-based VM Intermediate Representation via a `gen()`
 function.  The IR can be examined through a command-line option.  Finally,
-a codegen() function is used to generate ARM32 instructions from the IR
-which can be executed via either jit() or elf32() executable generation.
+a `codegen()` function is used to generate ARM32 instructions from the IR
+which can be executed via either `jit()` or `elf32()` executable generation.
 
 AMACC mixes classical recursive descent and operator precedence parsing.
 An operator precedence parser is actually quite a bit faster than
@@ -39,22 +39,22 @@ syntax:
       are not routinely used, and can be easily worked around with
       simple alternative constructs.
 * global/local variable initializations for supported data types
-    - e.g. `int i = [expr]`
+    - e.g., `int i = [expr]`
     - New variables are allowed to be declared within functions anywhere.
     - item-by-item array initialization is supported
     - but aggregate array declaration and initialization is yet to be supported
-      e.g. int foo[2][2] = { { 1, 0 }, { 0, 1 } };
+      e.g., `int foo[2][2] = { { 1, 0 }, { 0, 1 } };`
 
 The architecture support targets armv7hf with Linux ABI, verified on
 Raspberry Pi 2/3/4 with GNU/Linux.
 
 ## Prerequisites
 * Code generator in AMaCC relies on several GNU/Linux behaviors, and it
-  is necessary to have ARM/Linux installed in your build environment.
+  is necessary to have Arm/Linux installed in your build environment.
 * Install [GNU Toolchain for the A-profile Architecture](https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-a/downloads)
     - Select `arm-linux-none-gnueabihf` (AArch32 target with hard float)
 
-* Install QEMU for ARM user emulation
+* Install QEMU for Arm user emulation
 ```shell
 sudo apt-get install qemu-user
 ```
