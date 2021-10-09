@@ -78,6 +78,6 @@ int main(int argc, char **argv)
 
     c = ( ++a, ++b );
     assert_eq(c, 12);
-    
+
     return 0;
 }
