@@ -41,7 +41,7 @@ check: $(EXEC) $(TEST_OBJ)
 	$(call pass); \
 	fi
 	$(VECHO) "[ Compatibility with GCC/Arm   ] "
-	$(Q)$(PYTHON) runtest.py || echo
+	$(Q)$(PYTHON) scripts/runtest.py || echo
 
 $(OBJ_DIR)/$(BIN): $(BIN)
 	$(VECHO) "  SelfCC\t$@\n"
