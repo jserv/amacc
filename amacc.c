@@ -232,6 +232,7 @@ enum {
 
     /* system call shortcuts */
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
+    CLCA, /* clear cache, used by JIT compilation */
     INVALID
 };
 
@@ -534,14 +535,8 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func) {
-                /* if (d->class == 0) { // assume func is in a dl for now
-                    // if we find that this function is defined
-                    // later in the source code, back out of
-                    // the dynamic library assumption
-                }
-                else */ fatal("bad function call");
-            }
+            if (d->class != Syscall && d->class != Func)
+                fatal("bad function call");
             next();
             t = 0; b = 0; // parameters count
             while (tk != ')') {
@@ -2254,7 +2249,7 @@ int main(int argc, char **argv)
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
-        "dlopen __aeabi_idiv __aeabi_idivmod exit void main";
+        "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
 
     // name vector to system call
     // must match the sequence of supported calls
