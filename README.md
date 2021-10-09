@@ -16,7 +16,7 @@ global variables and, in particular, global arrays are there.
 A simple stack based AST is generated through cooperating stmt() and expr()
 parsing functions, both of which are fed by a token generating function.
 The expr() function does some literal constant optimizations. The AST is
-transformed into a stack-based  Intermediate Representation (IR) via a gen()
+transformed into a stack-based VM Intermediate Representation via a gen()
 function.  The IR can be examined through a command-line option.  Finally,
 a codegen() function is used to generate ARM32 instructions from the IR
 which can be executed via either jit() or elf32() executable generation.
