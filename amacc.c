@@ -2176,7 +2176,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     *(int *) to =  1; to += 4; *(int *) to = libc - dynstr_addr; to += 4;
     *(int *) to =  1; to += 4; *(int *) to = ldso - dynstr_addr; to += 4;
     *(int *) to =  1; to += 4; *(int *) to = libgcc_s - dynstr_addr; to += 4;
-    *(int *) to =  0; to += 8;
+    *(int *) to =  0;
 
     /* Generate code again bacause address of .plt function slots must
      * be confirmed before codegen() to make sure the code is correct.
