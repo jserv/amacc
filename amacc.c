@@ -522,8 +522,8 @@ void expr(int lev)
      */
     case Sizeof:
         next();
-        if (tk == '(') next();
-        else fatal("open paren expected in sizeof");
+        if (tk != '(') fatal("open paren expected in sizeof");
+        next();
         ty = INT;
         switch (tk) {
         case Int: next(); break;
@@ -535,8 +535,8 @@ void expr(int lev)
         }
         // multi-level pointers, plus `PTR` for each level
         while (tk == Mul) { next(); ty += PTR; }
-        if (tk == ')') next();
-        else fatal("close paren expected in sizeof");
+        if (tk != ')') fatal("close paren expected in sizeof");
+        next();
         *--n = ty >= PTR ? sizeof(int) : tsize[ty]; *--n = Num;
         ty = INT;
         break;
@@ -586,32 +586,32 @@ void expr(int lev)
             }
             // t: pointer
             while (tk == Mul) { next(); t += PTR; }
-            if (tk == ')') next();
-            else fatal("bad cast");
+            if (tk != ')') fatal("bad cast");
+            next();
             expr(Inc); // cast has precedence as Inc(++)
             ty = t;
         }
         else {
             expr(Assign);
-            if (tk == ')') next();
-            else fatal("close paren expected");
+            if (tk != ')') fatal("close paren expected");
+            next();
         }
         break;
     case Mul: // "*", dereferencing the pointer operation
         next();
         expr(Inc); // dereference has the same precedence as Inc(++)
-        if (ty >= PTR) ty -= PTR;
-        else fatal("bad dereference");
-        if (ty >= CHAR && ty < PTR2) {
-            *--n = ty; *--n = Load;
-        } else fatal("unexpected type");
+        if (ty < PTR) fatal("bad dereference");
+        ty -= PTR;
+        if (ty < CHAR || ty >= PTR2) fatal("unexpected type");
+        *--n = ty; *--n = Load;
         break;
     case And: // "&", take the address operation
         /* when "token" is a variable, it takes the address first and
          * then LI/LC, so `--e` becomes the address of "a".
          */
         next(); expr(Inc);
-        if (*n == Load) n += 2; else fatal("bad address-of");
+        if (*n != Load) fatal("bad address-of");
+        n += 2;
         ty += PTR;
         break;
     case '!': // "!x" is equivalent to "x == 0"
@@ -643,7 +643,8 @@ void expr(int lev)
     case Inc:
     case Dec:
         t = tk; next(); expr(Inc);
-        if (*n == Load) *n = t; else fatal("bad lvalue in pre-increment");
+        if (*n != Load) fatal("bad lvalue in pre-increment");
+        *n = t;
         break;
     default: fatal("bad expression");
     }
@@ -658,7 +659,7 @@ void expr(int lev)
             next();
             // the left part is processed by the variable part of `tk=ID`
             // and pushes the address
-            if (*n != Load) { fatal("bad lvalue in assignment");}
+            if (*n != Load) fatal("bad lvalue in assignment");
             // get the value of the right part `expr` as the result of `a=expr`
             expr(Assign); *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             break;
@@ -690,8 +691,8 @@ void expr(int lev)
             break;
         case Cond: // `x?a:b` is similar to if except that it relies on else
             next(); expr(Assign);
-            if (tk == ':') next();
-            else fatal("conditional missing colon"); c = n;
+            if (tk != ':') fatal("conditional missing colon");
+            next(); c = n;
             expr(Cond); --n;
             *n = (int) (n + 1); *--n = (int) c; *--n = (int) b; *--n = Cond;
             break;
@@ -813,7 +814,8 @@ void expr(int lev)
         case Inc:
         case Dec:
             sz = ty >= PTR2 ? sizeof(int) : ty >= PTR ? tsize[ty - PTR] : 1;
-            if (*n == Load) *n = tk; else fatal("bad lvalue in post-increment");
+            if (*n != Load) fatal("bad lvalue in post-increment");
+            *n = tk;
             *--n = sz; *--n = Num;
             *--n = (int) b; *--n = (tk == Inc) ? Sub : Add;
             next();
@@ -849,8 +851,8 @@ void expr(int lev)
             break;
         case Brak:
             next(); expr(Assign);
-            if (tk == ']') next();
-            else fatal("close bracket expected");
+            if (tk != ']') fatal("close bracket expected");
+            next();
             if (t < PTR) fatal("pointer type expected");
             sz = (t = t - PTR) >= PTR ? sizeof(int) : tsize[t];
             if (sz > 1) {
@@ -1263,11 +1265,11 @@ void stmt(int ctx)
         return;
     case If:
         next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
+        if (tk != '(') fatal("open paren expected");
+        next();
         expr(Assign); a = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
+        if (tk != ')') fatal("close paren expected");
+        next();
         stmt(ctx);
         b = n;
         if (tk == Else) { next(); stmt(ctx); d = n; } else d = 0;
@@ -1275,11 +1277,11 @@ void stmt(int ctx)
         return;
     case While:
         next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
+        if (tk != '(') fatal("open paren expected");
+        next();
         expr(Assign); b = n; // condition
-        if (tk == ')') next();
-        else fatal("close paren expected");
+        if (tk != ')') fatal("close paren expected");
+        next();
         ++brkc; ++cntc;
         stmt(ctx); a = n; // parse body of "while"
         --brkc; --cntc;
@@ -1290,14 +1292,14 @@ void stmt(int ctx)
         ++brkc; ++cntc;
         stmt(ctx); a = n; // parse body of "do-while"
         --brkc; --cntc;
-        if (tk == While) next();
-        else fatal("while expected");
-        if (tk == '(') next();
-        else fatal("open paren expected");
+        if (tk != While) fatal("while expected");
+        next();
+        if (tk != '(') fatal("open paren expected");
+        next();
         *--n = ';';
         expr(Assign); b = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
+        if (tk != ')') fatal("close paren expected");
+        next();
         *--n = (int) b; *--n = (int) a; *--n = DoWhile;
         return;
     case Switch:
@@ -1305,12 +1307,12 @@ void stmt(int ctx)
         if (cas) j = (int) cas;
         cas = &i;
         next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
+        if (tk != '(') fatal("open paren expected");
+        next();
         expr(Assign);
         a = n;
-        if (tk == ')') next();
-        else fatal("close paren expected");
+        if (tk != ')') fatal("close paren expected");
+        next();
         ++swtc; ++brkc;
         stmt(ctx);
         --swtc; --brkc;
@@ -1327,31 +1329,31 @@ void stmt(int ctx)
         if (*n != Num) fatal("bad case immediate");
         j = n[1]; n[1] -= i; *cas = j;
         *--n = ';';
-        if (tk == ':') next();
-        else fatal("colon expected");
+        if (tk != ':') fatal("colon expected");
+        next();
         stmt(ctx);
         b = n;
         *--n = (int) b;*--n = (int) a; *--n = Case;
         return;
     case Break:
-        if (!brkc) { fatal("misplaced break statement"); }
+        if (!brkc) fatal("misplaced break statement");
         next();
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
         *--n = Break;
         return;
     case Continue:
-        if (!cntc) { fatal("misplaced continue statement"); }
+        if (!cntc) fatal("misplaced continue statement");
         next();
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
         *--n = Continue;
         return;
     case Default:
         if (!swtc) fatal("default-stmt outside of switch");
         next();
-        if (tk == ':') next();
-        else fatal("colon expected");
+        if (tk != ':') fatal("colon expected");
+        next();
         stmt(ctx); a = n;
         *--n = (int) a; *--n = Default;
         return;
@@ -1360,8 +1362,8 @@ void stmt(int ctx)
         a = 0; next();
         if (tk != ';') { expr(Assign); a = n; }
         *--n = (int) a; *--n = Return;
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
         return;
     /* For iteration is implemented as:
      * Init -> Cond -> Bz to end -> Jmp to Body
@@ -1369,27 +1371,28 @@ void stmt(int ctx)
      */
     case For:
         next();
-        if (tk == '(') next();
-        else fatal("open paren expected");
+        if (tk != '(') fatal("open paren expected");
+        next();
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
             f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
         d = n;
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
         *--n = ';';
         expr(Assign); a = n; // Point to entry of for cond
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
             f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
         }
         b = n;
-        if (tk == ')') next(); else fatal("close paren expected");
+        if (tk != ')') fatal("close paren expected");
+        next();
         ++brkc; ++cntc;
         stmt(ctx); c = n;
         --brkc; --cntc;
@@ -1398,14 +1401,13 @@ void stmt(int ctx)
         return;
     case Goto:
         next();
-        if (tk == Id && (id->type == 0 || id->type == -1) &&
-            (id->class == Label || id->class == 0)) {
-            id->type = -1 ; // hack for id->class deficiency
-            *--n = (int) id; *--n = Goto; next();
-        }
-        else fatal("goto needs label");
-        if (tk == ';') next();
-        else fatal("semicolon expected");
+        if (tk != Id || (id->type != 0 && id->type != -1)
+                     || (id->class != Label && id->class != 0))
+            fatal("goto needs label");
+        id->type = -1; // hack for id->class deficiency
+        *--n = (int) id; *--n = Goto; next();
+        if (tk != ';') fatal("semicolon expected");
+        next();
         return;
     // stmt -> '{' stmt '}'
     case '{':
@@ -1424,7 +1426,8 @@ void stmt(int ctx)
     default:
         // general statements are considered assignment statements/expressions
         expr(Assign);
-        if (tk == ';') next(); else fatal("semicolon expected");
+        if (tk != ';') fatal("semicolon expected");
+        next();
     }
 }
 
