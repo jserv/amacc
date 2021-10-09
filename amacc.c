@@ -2159,7 +2159,6 @@ int elf32(int poolsz, int *main, int elf_fd)
     // PT_DYNAMIC for .dynamic
     gen_phdr(to, PT_DYNAMIC, pt_dyn_off, (int) pt_dyn,
             pt_dyn_size , PF_R | PF_W, 0x4);
-    to += PHDR_ENT_SIZE;
 
     // .dynamic (embedded in PT_LOAD of data)
     to = pt_dyn;
