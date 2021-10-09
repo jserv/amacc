@@ -1229,7 +1229,7 @@ void stmt(int ctx)
                     }
                     else if (id->class == 0 && id->type == -1) {
                         printf("%d: label %.*s not defined\n",
-                               line, id->hash & 0x1f, id->name);
+                               line, id->hash & 0x3f, id->name);
                         exit(-1);
                     }
                     id++;
