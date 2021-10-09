@@ -2,22 +2,26 @@
 
 ## Introduction
 AMaCC is built from scratch, targeted at 32-bit ARM architecture.
-It is a considerably stripped down version of C and it is meant as
-pedagogical tool for learning about compilers, linkers, and loaders.
+It is a stripped down version of C meant as a pedagogical tool for
+learning about compilers, linkers, and loaders.
 
 There are 2 execution modes AMaCC implements:
 * Just-in-Time compiler (JITC) for ARM backend
 * Generate valid GNU/Linux executables with Executable and Linkable Format (ELF)
 
-It is worth mentioning that AMaCC is designed to compile the minimal
-subset of C required to self-host with the above execution modes. For
-example, global variables and, in particular, global arrays are there.
+It is worth mentioning that AMaCC is designed to compile a subset of C
+required to self-host with the above execution modes. For example,
+global variables and, in particular, global arrays are there.
 
-Intermediate code generation is integrated into the parsing since it
-is generating code for a stack-based machine and that also follows the
-sequence of actions performed when parsing.
+A simple stack based AST is generated through cooperating stmt() and expr()
+parsing functions, both of which are fed by a token generating function.
+The expr() function does some literal constant optimizations. The AST is
+transformed into a stack-based VM Intermediate Representation via a gen()
+function.  The IR can be examined through a command-line option.  Finally,
+a codegen() function is used to generate ARM32 instructions from the IR
+which can be executed via either jit() or elf32() executable generation.
 
-It mixes classical recursive descent and operator precedence parser.
+AMACC mixes classical recursive descent and operator precedence parsing.
 An operator precedence parser is actually quite a bit faster than
 recursive descent parser (RDP) for expressions when operator precedence
 is defined using grammar productions that would otherwise get turned
@@ -26,14 +30,20 @@ into methods.
 ## Compatibility
 AMaCC is capable of compiling C source files written in the following
 syntax:
-* data types: char, int, struct, and pointer
-* condition statements: if, do, while, for, switch, case, break, continue,
-                        return, and general expressions
-* compound assignments: `+=`, `-=`, `*=`, `/=`, `%=`,
-                        `|=`, `^=`, `&=`, `<<=`, `>>=`
+
+* support for all C89 statements.
+* support for all C89 expression operators.
+* data types: char, int, enum, struct, and multi-level pointers
+    - type modifiers, qualifiers, and storage class specifiers are
+      currently unsupported, though many keywords of this nature
+      are not routinely used, and can be easily worked around with
+      simple alternative constructs.
 * global/local variable initializations for supported data types
     - e.g. `int i = [expr]`
     - New variables are allowed to be declared within functions anywhere.
+    - item-by-item array initialization is supported
+    - but aggregate array declaration and initialization is yet to be supported
+      e.g. int foo[2][2] = { { 1, 0 }, { 0, 1 } };
 
 The architecture support targets armv7hf with Linux ABI, verified on
 Raspberry Pi 2/3/4 with GNU/Linux.
