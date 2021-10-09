@@ -602,6 +602,7 @@ void expr(int lev)
         }
         else {
             expr(Assign);
+            while (tk == ',') { next(); expr(Assign) ; }
             if (tk != ')') fatal("close parentheses expected");
             next();
         }
@@ -1451,7 +1452,7 @@ void stmt(int ctx)
     default:
         // general statements are considered assignment statements/expressions
         expr(Assign);
-        if (tk != ';') fatal("semicolon expected");
+        if (tk != ';' && tk != ',') fatal("semicolon expected");
         next();
     }
 }
