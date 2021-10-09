@@ -457,14 +457,14 @@ void next()
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
-int popcount32b(int n)
+int popcount32b(int xx)
 {
-    n -= n>>1 & 0x55555555;
-    n = (n>>2 & 0x33333333) + (n & 0x33333333);
-    n = (n>>4) + (n & 0x0f0f0f0f);
-    n += n>>8;
-    n += n>>16;
-    return (n & 0x1f) ;
+    xx -= xx >> 1 & 0x55555555;
+    xx = (xx >> 2 & 0x33333333) + (xx & 0x33333333);
+    xx = (xx >> 4) + (xx & 0x0f0f0f0f);
+    n += xx >> 8;
+    n += xx >> 16;
+    return (xx & 0x1f) ;
 }
 
 /* expression parsing
@@ -852,7 +852,7 @@ void expr(int lev)
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
-                  n[2] -= 1; *--n = And; // 2^n
+                    --n[2]; *--n = And; // 2^n
                 }
                 else *--n = Mod;
             }
