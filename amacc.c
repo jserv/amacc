@@ -344,11 +344,11 @@ void next()
              * (the "&" at the beginning of the whole expression).
              */
             if (src) {
-                int *base = le, off;
+                int *base = le;
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    off = le-base; // IR instruction offset
+                    int off = le-base; // Func IR instruction memory offset
                     printf("%04d: %8.4s", off,
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
