@@ -531,7 +531,7 @@ void expr(int lev)
      */
     case Sizeof:
         next();
-        if (tk != '(') fatal("open paren expected in sizeof");
+        if (tk != '(') fatal("open parentheses expected in sizeof");
         next();
         ty = INT;
         switch (tk) {
@@ -544,7 +544,7 @@ void expr(int lev)
         }
         // multi-level pointers, plus `PTR` for each level
         while (tk == Mul) { next(); ty += PTR; }
-        if (tk != ')') fatal("close paren expected in sizeof");
+        if (tk != ')') fatal("close parentheses expected in sizeof");
         next();
         *--n = ty >= PTR ? sizeof(int) : tsize[ty]; *--n = Num;
         ty = INT;
@@ -602,7 +602,7 @@ void expr(int lev)
         }
         else {
             expr(Assign);
-            if (tk != ')') fatal("close paren expected");
+            if (tk != ')') fatal("close parentheses expected");
             next();
         }
         break;
@@ -1101,10 +1101,8 @@ void check_label(int **tt)
     char *ss = p;
     while (*ss == ' ' || *ss == '\t') ++ss;
     if (*ss == ':') {
-        if (id->class != 0 ||
-            !(id->type == 0 || id->type == -1)) {
+        if (id->class != 0 || !(id->type == 0 || id->type == -1))
             fatal("invalid label");
-        }
         id->type = -1 ; // hack for id->class deficiency
         *--n = (int) id; *--n = Label;
         *--n = (int) *tt; *--n = '{'; *tt = n;
@@ -1292,10 +1290,10 @@ void stmt(int ctx)
         return;
     case If:
         next();
-        if (tk != '(') fatal("open paren expected");
+        if (tk != '(') fatal("open parentheses expected");
         next();
         expr(Assign); a = n;
-        if (tk != ')') fatal("close paren expected");
+        if (tk != ')') fatal("close parentheses expected");
         next();
         stmt(ctx);
         b = n;
@@ -1304,10 +1302,10 @@ void stmt(int ctx)
         return;
     case While:
         next();
-        if (tk != '(') fatal("open paren expected");
+        if (tk != '(') fatal("open parentheses expected");
         next();
         expr(Assign); b = n; // condition
-        if (tk != ')') fatal("close paren expected");
+        if (tk != ')') fatal("close parentheses expected");
         next();
         ++brkc; ++cntc;
         stmt(ctx); a = n; // parse body of "while"
@@ -1321,11 +1319,11 @@ void stmt(int ctx)
         --brkc; --cntc;
         if (tk != While) fatal("while expected");
         next();
-        if (tk != '(') fatal("open paren expected");
+        if (tk != '(') fatal("open parentheses expected");
         next();
         *--n = ';';
         expr(Assign); b = n;
-        if (tk != ')') fatal("close paren expected");
+        if (tk != ')') fatal("close parentheses expected");
         next();
         *--n = (int) b; *--n = (int) a; *--n = DoWhile;
         return;
@@ -1334,11 +1332,11 @@ void stmt(int ctx)
         if (cas) j = (int) cas;
         cas = &i;
         next();
-        if (tk != '(') fatal("open paren expected");
+        if (tk != '(') fatal("open parentheses expected");
         next();
         expr(Assign);
         a = n;
-        if (tk != ')') fatal("close paren expected");
+        if (tk != ')') fatal("close parentheses expected");
         next();
         ++swtc; ++brkc;
         stmt(ctx);
@@ -1348,7 +1346,7 @@ void stmt(int ctx)
         if (j) cas = (int *) j;
         return;
     case Case:
-        if (!swtc) fatal("case-stmt outside of switch");
+        if (!swtc) fatal("case-statement outside of switch");
         i = *cas;
         next();
         expr(Or);
@@ -1377,7 +1375,7 @@ void stmt(int ctx)
         *--n = Continue;
         return;
     case Default:
-        if (!swtc) fatal("default-stmt outside of switch");
+        if (!swtc) fatal("default-statement outside of switch");
         next();
         if (tk != ':') fatal("colon expected");
         next();
@@ -1398,7 +1396,7 @@ void stmt(int ctx)
      */
     case For:
         next();
-        if (tk != '(') fatal("open paren expected");
+        if (tk != '(') fatal("open parentheses expected");
         next();
         *--n = ';';
         expr(Assign);
@@ -1418,7 +1416,7 @@ void stmt(int ctx)
             f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
         }
         b = n;
-        if (tk != ')') fatal("close paren expected");
+        if (tk != ')') fatal("close parentheses expected");
         next();
         ++brkc; ++cntc;
         stmt(ctx); c = n;
@@ -1430,7 +1428,7 @@ void stmt(int ctx)
         next();
         if (tk != Id || (id->type != 0 && id->type != -1)
                      || (id->class != Label && id->class != 0))
-            fatal("goto needs label");
+            fatal("goto expects label");
         id->type = -1; // hack for id->class deficiency
         *--n = (int) id; *--n = Goto; next();
         if (tk != ';') fatal("semicolon expected");
@@ -1566,7 +1564,7 @@ int *codegen(int *jitmem, int *jitmap)
                 tmp = (int) plt_func_addr[i - OPEN];
             } else {
                 void *handle = dlopen("libgcc_s.so.1", 1);
-                if (!handle) fatal("libgcc_s.so.1 open error!");
+                if (!handle) fatal("failed to open libgcc_s.so.1");
                 tmp = (int) dlsym(handle, scnames[i - OPEN]);
             }
             *je++ = 0xe49d0004 | (1 << 12); // pop r1
