@@ -348,7 +348,7 @@ void next()
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    int off = le-base; // Func IR instruction memory offset
+                    int off = le - base; // Func IR instruction memory offset
                     printf("%04d: %8.4s", off,
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
@@ -360,7 +360,7 @@ void next()
                     if (*le <= ADJ) {
                         ++le;
                         if (*le > (int) base && *le < (int) e)
-                            printf(" %04d\n", off + ((*le - (int) le)>>2) + 1);
+                            printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
                         else
                             printf(" %d\n", *le);
                     }
@@ -457,14 +457,13 @@ void next()
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
-int popcount32b(int xx)
+// https://stackoverflow.com/questions/109023/how-to-count-the-number-of-set-bits-in-a-32-bit-integer
+int popcount(int i)
 {
-    xx -= xx >> 1 & 0x55555555;
-    xx = (xx >> 2 & 0x33333333) + (xx & 0x33333333);
-    xx = (xx >> 4) + (xx & 0x0f0f0f0f);
-    n += xx >> 8;
-    n += xx >> 16;
-    return (xx & 0x1f) ;
+    i = i - ((i >> 1) & 0x55555555); // add pairs of bits
+    i = (i & 0x33333333) + ((i >> 2) & 0x33333333); // quads
+    i = (i + (i >> 4)) & 0x0F0F0F0F; // groups of 8
+    return (i * 0x01010101) >> 24; // horizontal sum of bytes
 }
 
 /* expression parsing
@@ -821,7 +820,7 @@ void expr(int lev)
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
-                    n[2] = popcount32b(n[2] - 1); *--n = Shl; // 2^n
+                    n[2] = popcount(n[2] - 1); *--n = Shl; // 2^n
                 }
                 else *--n = Mul;
             }
@@ -842,7 +841,7 @@ void expr(int lev)
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
-                    n[2] = popcount32b(n[2] - 1); *--n = Shr; // 2^n
+                    n[2] = popcount(n[2] - 1); *--n = Shr; // 2^n
                 }
                 else *--n = Div;
             }
