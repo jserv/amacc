@@ -1856,14 +1856,14 @@ int gen_shdr(char *ptr, int type, int name, int offset, int addr,
 int gen_sym(char *ptr, int name, char info,
             int shndx, int size, int value)
 {
-    struct Elf32_Sym *sym = (struct Elf32_Sym *) ptr;
-    sym->st_name = name;
-    sym->st_info = info;
-    sym->st_other = 0;
-    // sym->st_shndx = shndx;
-    memcpy(&(sym->st_shndx), (char *) &shndx, 2);
-    sym->st_value = value;
-    sym->st_size = size;
+    struct Elf32_Sym *s = (struct Elf32_Sym *) ptr;
+    s->st_name = name;
+    s->st_info = info;
+    s->st_other = 0;
+    // s->st_shndx = shndx;
+    memcpy(&(s->st_shndx), (char *) &shndx, 2);
+    s->st_value = value;
+    s->st_size = size;
     return sym_idx++;
 }
 
