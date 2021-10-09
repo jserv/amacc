@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     a = 17;
     a |= 14;
     assert_eq(a, 31);
-   
+
     /* precedence test */
     a = 0xff;
     b = 1;
