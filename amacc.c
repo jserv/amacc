@@ -94,7 +94,7 @@ enum {
     Lor, Lan, Or, Xor, And, // operator: ||, &&, |, ^, &
     Eq, Ne, Lt, Gt, Le, Ge, // operator: ==, !=, <, >, <=, >=
     Shl, Shr, Add, Sub, Mul, Div, Mod, // operator: <<, >>, +, -, *, /, %
-    Inc, Dec, Dot, Arrow, Brak, // operator: ++, --, ., ->, [
+    Inc, Dec, Dot, Arrow, Bracket, // operator: ++, --, ., ->, [
 };
 
 // opcodes
@@ -447,7 +447,7 @@ void next()
                   else tk = Mul; return;
         case '%': if (*p == '=') { ++p; tk = ModAssign; }
                   else tk = Mod; return;
-        case '[': tk = Brak; return;
+        case '[': tk = Bracket; return;
         case '?': tk = Cond; return;
         case '.': tk = Dot; return;
         default: return;
@@ -494,7 +494,7 @@ int popcount(int i)
  * Mod     %
  * Inc     ++
  * Dec     --
- * Brak    [
+ * Bracket [
  */
 void expr(int lev)
 {
@@ -876,7 +876,7 @@ void expr(int lev)
             *--n = Load;
             next();
             break;
-        case Brak:
+        case Bracket:
             next(); expr(Assign);
             if (tk != ']') fatal("close bracket expected");
             next();
