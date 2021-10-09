@@ -344,10 +344,12 @@ void next()
              * (the "&" at the beginning of the whole expression).
              */
             if (src) {
+                int *base = le;
                 printf("%d: %.*s", line, p - lp, lp);
                 lp = p;
                 while (le < e) {
-                    printf("%8.4s",
+                    int off = le-base; // Func IR instruction memory offset
+                    printf("%04d: %8.4s", off,
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
@@ -355,7 +357,14 @@ void next()
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
                              "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
-                    if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
+                    if (*le <= ADJ) {
+                        ++le;
+                        if (*le > (int) base && *le < (int) e)
+                            printf(" %04d\n", off + ((*le - (int) le)>>2) + 1);
+                        else
+                            printf(" %d\n", *le);
+                    }
+                    else printf("\n");
                 }
             }
             ++line;
