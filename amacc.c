@@ -232,7 +232,6 @@ enum {
 
     /* system call shortcuts */
     OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
-    CLCA, /* clear cache, used by JIT compilation */
     INVALID
 };
 
@@ -354,7 +353,7 @@ void next()
                              "SHL  SHR  ADD  SUB  MUL  "
                              "OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
-                             "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
+                             "DSYM BSCH STRT DLOP DIV  MOD  EXIT" [*++le * 5]);
                     if (*le <= ADJ) printf(" %d\n", *++le); else printf("\n");
                 }
             }
@@ -535,8 +534,14 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func)
-                fatal("bad function call");
+            if (d->class != Syscall && d->class != Func) {
+                /* if (d->class == 0) { // assume func is in a dl for now
+                    // if we find that this function is defined
+                    // later in the source code, back out of
+                    // the dynamic library assumption
+                }
+                else */ fatal("bad function call");
+            }
             next();
             t = 0; b = 0; // parameters count
             while (tk != ')') {
@@ -1490,14 +1495,6 @@ int *codegen(int *jitmem, int *jitmap)
             if (i == MOD)
                 *je++ = 0xe1a00001;                 // mov r0, r1
             break;
-        case CLCA:
-            *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
-                                                    // ldr r1, [sp]
-            *je++ = 0xe3a0780f; *je++ = 0xe2877002; // mov r7, #0xf0000
-                                                    // add r7, r7, #2
-            *je++ = 0xe3a02000; *je++ = 0xef000000; // mov r2, #0
-                                                    // svc 0
-            break;
         default:
             if (EQ <= i && i <= GE) {
                 *je++ = 0xe49d1004; *je++ = 0xe1510000; // pop {r1}; cmp r1, r0
@@ -2257,11 +2254,11 @@ int main(int argc, char **argv)
         "open read write close printf malloc free "
         "memset memcmp memcpy mmap "
         "dlsym bsearch __libc_start_main "
-        "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
+        "dlopen __aeabi_idiv __aeabi_idivmod exit void main";
 
     // name vector to system call
     // must match the sequence of supported calls
-    scnames = malloc(19 * sizeof(char *));
+    scnames = malloc(18 * sizeof(char *));
     scnames[ 0] = "open";    scnames[ 1] = "read";    scnames[ 2] = "write";
     scnames[ 3] = "close";   scnames[ 4] = "printf";
     scnames[ 5] = "malloc";  scnames[ 6] = "free";
@@ -2272,7 +2269,6 @@ int main(int argc, char **argv)
     scnames[15] = "__aeabi_idiv";
     scnames[16] = "__aeabi_idivmod";
     scnames[17] = "exit";
-    scnames[18] = "__clear_cache";
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
