@@ -36,7 +36,7 @@ syntax:
     - New variables are allowed to be declared within functions anywhere.
 
 The architecture support targets armv7hf with Linux ABI, verified on
-Raspberry Pi 2/3 with GNU/Linux.
+Raspberry Pi 2/3/4 with GNU/Linux.
 
 ## Prerequisites
 * Code generator in AMaCC relies on several GNU/Linux behaviors, and it
