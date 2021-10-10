@@ -1459,7 +1459,7 @@ void stmt(int ctx)
 
 void die(char *msg) { printf("%s\n", msg); exit(-1); }
 
-int reloc_imm(int offset) { return ((((offset) - 8) >> 2) & 0x00ffffff); }
+int reloc_imm(int offset) { return (((offset) - 8) >> 2) & 0x00ffffff; }
 int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
