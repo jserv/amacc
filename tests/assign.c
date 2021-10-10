@@ -72,11 +72,11 @@ int main(int argc, char **argv)
     /* comma operator tests */
     a = 0;
     b = 10;
-    a++, b++ ;
+    a++, b++;
     assert_eq(a, 1);
     assert_eq(b, 11);
 
-    c = ( ++a, ++b );
+    c = (++a, ++b);
     assert_eq(c, 12);
 
     return 0;

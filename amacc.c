@@ -602,7 +602,7 @@ void expr(int lev)
         }
         else {
             expr(Assign);
-            while (tk == ',') { next(); expr(Assign) ; }
+            while (tk == ',') { next(); expr(Assign); }
             if (tk != ')') fatal("close parentheses expected");
             next();
         }
