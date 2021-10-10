@@ -73,6 +73,12 @@ struct ident_s {
 } *id,  // currently parsed identifier
   *sym; // symbol table (simple list of identifiers)
 
+struct extfunc_s {
+    struct ident_s *id;
+    int addr;
+} *dlcache;
+char *scratchbuf;
+
 struct member_s {
     struct ident_s *id;
     int offset;
@@ -84,7 +90,7 @@ struct member_s {
 // ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Main, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
+    Func, Syscall, Usrcall, Main, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
     Sizeof, Struct, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
@@ -231,7 +237,8 @@ enum {
      */
 
     /* system call shortcuts */
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
+    USRC,OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,
+    MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
     CLCA, /* clear cache, used by JIT compilation */
     INVALID
 };
@@ -354,10 +361,10 @@ void next()
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  "
-                             "OPEN READ WRIT CLOS PRTF MALC FREE "
+                             "USRC OPEN READ WRIT CLOS PRTF MALC FREE "
                              "MSET MCMP MCPY MMAP "
                              "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
-                    if (*le <= ADJ) {
+                    if (*le <= ADJ || *le == USRC) {
                         ++le;
                         if (*le > (int) base && *le < (int) e)
                             printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
@@ -466,6 +473,12 @@ int popcount(int i)
     return (i * 0x01010101) >> 24; // horizontal sum of bytes
 }
 
+int streq(char *p1, char *p2)
+{
+    while (*p1 && *p2 && *p1 == *p2) { ++p1; ++p2; }
+    return (*p1 > *p2) == (*p2  > *p1);
+}
+
 /* expression parsing
  * lev represents an operator.
  * because each operator `token` is arranged in order of priority, so
@@ -502,6 +515,7 @@ void expr(int lev)
     int t, *b, sz, *c;
     struct ident_s *d;
     struct member_s *m;
+    struct extfunc_s *ef;
 
     switch (tk) {
     case 0: fatal("unexpected EOF in expression");
@@ -553,8 +567,26 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func)
-                fatal("bad function call");
+            if (d->class < Func || d->class > Usrcall) {
+                if (d->class != 0) fatal("bad function call");
+                memcpy(scratchbuf, d->name, d->hash & 0x3f);
+                scratchbuf[d->hash & 0x3f] = 0; // null terminator
+                for (ef = dlcache; ef->id != 0; ++ef) {
+                    if (streq(scratchbuf, ef->id->name)) {
+                        t = ef->addr;
+                        break;
+                    }
+                }
+                if (ef->id == 0) {
+                    if (t = (int) dlsym(0, scratchbuf)) {
+                        ef->id = d; ef->addr = t;
+                    }
+                    else fatal("bad function call");
+                }
+                d->class = Usrcall;
+                d->val = t;
+                d->type = INT;
+            }
             next();
             t = 0; b = 0; // parameters count
             while (tk != ')') {
@@ -994,8 +1026,9 @@ void gen(int *n)
     case Mul:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
     case Div:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = DIV; break;
     case Mod:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MOD; break;
-    case Syscall:
     case Func:
+    case Syscall:
+    case Usrcall:
         c = b = (int *) n[1]; k = 0; l = 1;
         // how many parameters
         while (b && l) { ++k; if (!(int *) *b) l = 0; else b = (int *) *b; }
@@ -1010,7 +1043,9 @@ void gen(int *n)
             gen(b + 1); *++e = PSH; --j; b = (int *) a[j];
         }
         free(a);
-        if (i == Func) *++e = JSR; *++e = n[2];
+        if (i == Usrcall) *++e = USRC;
+        if (i == Func) *++e = JSR;
+        *++e = n[2];
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
         break;
     case While:
@@ -1586,6 +1621,8 @@ int *codegen(int *jitmem, int *jitmap)
             *je++ = 0xe3a02000; *je++ = 0xef000000; // mov r2, #0
                                                     // svc 0
             break;
+        case USRC:
+            tmp = *pc++; goto usrcall;
         default:
             if (EQ <= i && i <= GE) {
                 *je++ = 0xe49d1004; *je++ = 0xe1510000; // pop {r1}; cmp r1, r0
@@ -1600,6 +1637,7 @@ int *codegen(int *jitmem, int *jitmap)
             else if (i >= OPEN && i <= EXIT) {
                 tmp = (int) (elf ? plt_func_addr[i - OPEN] :
                                    dlsym(0, scnames[i - OPEN]));
+usrcall:
                 if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
                 i = *pc;
                 if (i > 10) die("codegen: no support for 10+ arguments");
@@ -2266,12 +2304,6 @@ int elf32(int poolsz, int *main, int elf_fd)
     return 0;
 }
 
-int streq(char *p1, char *p2)
-{
-    while (*p1 && *p1 == *p2) { ++p1; ++p2; }
-    return (*p1 > *p2) == (*p2  > *p1);
-}
-
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 
 #ifdef int
@@ -2326,6 +2358,10 @@ int main(int argc, char **argv)
         die("could not malloc() members area");
     if (!(freed_ast = ast = malloc(poolsz)))
         die("could not allocate abstract syntax tree area");
+    if (!(dlcache = malloc(PTR * sizeof(struct extfunc_s))))
+        die("could not malloc() dlcache area");
+    if (!(scratchbuf = malloc(64)))
+        die("could not malloc() scratchbuf area");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
@@ -2333,6 +2369,7 @@ int main(int argc, char **argv)
 
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
+    memset(dlcache, 0, PTR * sizeof(struct extfunc_s));
     memset(ast, 0, poolsz);
     ast = (int *) ((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
 
@@ -2400,9 +2437,14 @@ int main(int argc, char **argv)
                     jit(poolsz,   (int *) idmain->val, argc, argv);
 
     free(freep);
-    free(freedata);
-    free(text);
-    free(sym);
+    free(scratchbuf);
+    free(dlcache);
     free(freed_ast);
+    free(members);
+    free(tsize);
+    free(freedata);
+    free(sym);
+    free(text);
+
     return ret;
 }
