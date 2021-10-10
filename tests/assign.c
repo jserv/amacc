@@ -13,7 +13,7 @@ int assert_eq(int a, int b)
 int main(int argc, char **argv)
 {
     /* Value test */
-    int a, b;
+    int a, b, c;
     a = 1;
     a += 101;
     assert_eq(a, 102);
@@ -68,6 +68,16 @@ int main(int argc, char **argv)
     a = 17;
     a &= 7;
     assert_eq(a, 1);
+
+    /* comma operator tests */
+    a = 0;
+    b = 10;
+    a++, b++ ;
+    assert_eq(a, 1);
+    assert_eq(b, 11);
+
+    c = ( ++a, ++b );
+    assert_eq(c, 12);
 
     return 0;
 }
