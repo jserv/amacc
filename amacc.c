@@ -634,6 +634,7 @@ void expr(int lev)
         }
         else {
             expr(Assign);
+            while (tk == ',') { next(); expr(Assign); }
             if (tk != ')') fatal("close parentheses expected");
             next();
         }
@@ -1148,10 +1149,9 @@ void check_label(int **tt)
 // statement parsing (syntax analysis, except for declarations)
 void stmt(int ctx)
 {
-    int *a, *b, *c, *d, *f;
+    int *a, *b, *c, *d;
     int i, j;
-    int bt, ty;
-    struct member_s *m;
+    int bt;
 
     switch (tk) {
     case Enum:
@@ -1221,7 +1221,7 @@ void stmt(int ctx)
                         // then type plus `PTR` indicates what kind of pointer
                         while (tk == Mul) { next(); ty += PTR; }
                         if (tk != Id) fatal("bad struct member definition");
-                        m = malloc(sizeof(struct member_s));
+                        struct member_s *m = malloc(sizeof(struct member_s));
                         m->id = id;
                         m->offset = i;
                         m->type = ty;
@@ -1436,7 +1436,7 @@ void stmt(int ctx)
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
-            f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
+            int *f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
         d = n;
         if (tk != ';') fatal("semicolon expected");
@@ -1448,7 +1448,7 @@ void stmt(int ctx)
         *--n = ';';
         expr(Assign);
         while (tk == ',') {
-            f = n; next(); expr(Assign); *-- n = (int) f; *--n = '{';
+            int *g = n; next(); expr(Assign); *--n = (int) g; *--n = '{';
         }
         b = n;
         if (tk != ')') fatal("close parentheses expected");
@@ -1486,14 +1486,14 @@ void stmt(int ctx)
     default:
         // general statements are considered assignment statements/expressions
         expr(Assign);
-        if (tk != ';') fatal("semicolon expected");
+        if (tk != ';' && tk != ',') fatal("semicolon expected");
         next();
     }
 }
 
 void die(char *msg) { printf("%s\n", msg); exit(-1); }
 
-int reloc_imm(int offset) { return ((((offset) - 8) >> 2) & 0x00ffffff); }
+int reloc_imm(int offset) { return (((offset) - 8) >> 2) & 0x00ffffff; }
 int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
@@ -1505,7 +1505,6 @@ int *codegen(int *jitmem, int *jitmap)
     immloc = il = malloc(1024 * 4);
     int *iv = malloc(1024 * 4);
     int *imm0 = 0;
-    int genpool = 0;
 
     // first pass: emit native code
     int *pc = text + 1; je = jitmem; line = 0;
@@ -1658,6 +1657,7 @@ usrcall:
             }
         }
 
+        int genpool = 0;
         if (imm0) {
             if (i == LEV) genpool = 1;
             else if ((int) je > (int) imm0 + 3000) {
