@@ -264,16 +264,11 @@ char *append_strtab(char **strtab, char *str)
 
 char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
-int streq(char *p1, char *p2)
+void ef_add(char *name, int addr) // add external function
 {
-    return !strcmp(p1, p2);
-}
-
-void ef_add(char *nm, int addr) // add external function
-{
-    ef_cache[ef_count] = (struct ef_s *) malloc(sizeof(struct ef_s)) ;
-    ef_cache[ef_count]->ef_name = (char *) malloc(strlen(nm)+1);
-    strcpy(ef_cache[ef_count]->ef_name, nm);
+    ef_cache[ef_count] = malloc(sizeof(struct ef_s)) ;
+    ef_cache[ef_count]->ef_name = malloc(strlen(name)+1);
+    strcpy(ef_cache[ef_count]->ef_name, name);
     ef_cache[ef_count]->ef_addr = addr;
     ++ef_count;
 }
@@ -283,19 +278,19 @@ int ef_getaddr(int idx) // get address of indexed external function
     return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->ef_addr);
 }
 
-int ef_getidx(char *nm) // get index of external function
+int ef_getidx(char *name) // get index of external function
 {
     int i;
-    for (i=0; i<ef_count; ++i)
-        if (streq(ef_cache[i]->ef_name, nm))
+    for (i = 0; i < ef_count; ++i)
+        if (!strcmp(ef_cache[i]->ef_name, name))
             break;
 
     if (i == ef_count) {
         int dladdr;
 
-        /* Hack(ish): Call dlsym() during parse instead of codegen */
-        if ((dladdr = (int) dlsym(0, nm))) {
-            ef_add(nm, dladdr);
+        /* Hack(ish) for ELF: Call dlsym() during parse instead of codegen */
+        if ((dladdr = (int) dlsym(0, name))) {
+            ef_add(name, dladdr);
         }
         else {
             /* search other libraries */
@@ -304,8 +299,8 @@ int ef_getidx(char *nm) // get index of external function
                 if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
             }
 
-            if ((dladdr = (int) dlsym(divmod_handle, nm))) {
-                ef_add(nm, dladdr);
+            if ((dladdr = (int) dlsym(divmod_handle, name))) {
+                ef_add(name, dladdr);
             }
             else fatal("bad function call");
         }
@@ -1955,10 +1950,10 @@ enum {
     DYN_NUM = 15
 };
 
-void elf32_init(int psz)
+void elf32_init(int poolsz)
 {
     int i;
-    freebuf = (char *) malloc(psz);
+    freebuf = malloc(poolsz);
     char *o = (char *) (((int) freebuf + PAGE_SIZE - 1)  & -PAGE_SIZE);
 
     /* We must assign the plt_func_addr[x] a non-zero value, and also,
@@ -1969,6 +1964,9 @@ void elf32_init(int psz)
     plt_func_addr = malloc(sizeof(char *) * PTR);
     for (i = 0; i < PTR; ++i)
         plt_func_addr[i] = o + i * 16;
+
+    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
+        die("could not malloc() external function cache");
 
     ef_getidx("__libc_start_main");
 }
@@ -2115,7 +2113,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     int shstrtab_off = interp_off + interp_str_size;
     int shstrtab_size = 0;
 
-    int *shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
+    int *shdr_names = malloc(sizeof(int) * SHDR_NUM);
     if (!shdr_names) die("elf32: could not malloc shdr_names table");
 
     shdr_names[SNONE] = append_strtab(&data, "") - shstrtab_addr;
@@ -2140,7 +2138,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     char *ldso = append_strtab(&data, "libdl.so.2");
     char *libgcc_s = append_strtab(&data, "libgcc_s.so.1");
 
-    int *func_entries = (int *) malloc(sizeof(int) * FUNC_NUM);
+    int *func_entries = malloc(sizeof(int) * FUNC_NUM);
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
     for (i = 0; i < FUNC_NUM; ++i)
@@ -2369,7 +2367,7 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
         src = 1; --argc; ++argv;
     }
-    if (argc > 0 && **argv == '-' && streq(*argv, "-fsigned-char")) {
+    if (argc > 0 && **argv == '-' && !strcmp(*argv, "-fsigned-char")) {
         signed_char = 1; --argc; ++argv;
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
@@ -2400,8 +2398,6 @@ int main(int argc, char **argv)
         die("could not malloc() members area");
     if (!(freed_ast = ast = malloc(poolsz)))
         die("could not allocate abstract syntax tree area");
-    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
-        die("could not malloc() dlcache area");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
@@ -2409,7 +2405,6 @@ int main(int argc, char **argv)
 
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
-    memset(ef_cache, 0, PTR * sizeof(struct ef_s *));
     memset(ast, 0, poolsz);
     ast = (int *) ((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
 
@@ -2432,7 +2427,7 @@ int main(int argc, char **argv)
     next();
     struct ident_s *idmain = id; id->class = Main; // keep track of main
 
-    // call after ef_cache allocation and before source code parsing
+    // call before source code parsing
     if (elf) elf32_init(poolsz);
 
     if (!(freep = lp = p = malloc(poolsz)))
