@@ -294,7 +294,7 @@ int ef_getidx(char *nm) // get index of external function
         int dladdr;
 
         /* Hack(ish): Call dlsym() during parse instead of codegen */
-        if (dladdr = (int) dlsym(0, nm)) {
+        if ((dladdr = (int) dlsym(0, nm))) {
             ef_add(nm, dladdr);
         }
         else {
@@ -304,7 +304,7 @@ int ef_getidx(char *nm) // get index of external function
                 if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
             }
 
-            if (dladdr = (int) dlsym(divmod_handle, nm)) {
+            if ((dladdr = (int) dlsym(divmod_handle, nm))) {
                 ef_add(nm, dladdr);
             }
             else fatal("bad function call");
@@ -713,8 +713,6 @@ void expr(int lev)
         break;
     case Div:
     case Mod:
-        /* register shared library function(s) */
-        ef_getidx((tk == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
         break;
     // processing ++x and --x. x-- and x++ is handled later
     case Inc:
@@ -762,6 +760,9 @@ void expr(int lev)
             }
             else {
                 *--n = Shl + (otk - ShlAssign);
+                // Compound-op bypasses literal const optimizations
+                if (otk == DivAssign) ef_getidx("__aeabi_idiv");
+                if (otk == ModAssign) ef_getidx("__aeabi_idivmod");
             }
             *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             ty = INT;
@@ -911,7 +912,10 @@ void expr(int lev)
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     n[2] = popcount(n[2] - 1); *--n = Shr; // 2^n
                 }
-                else *--n = Div;
+                else {
+                    *--n = Div;
+                    ef_getidx("__aeabi_idiv");
+                }
             }
             ty = INT;
             break;
@@ -923,7 +927,10 @@ void expr(int lev)
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     --n[2]; *--n = And; // 2^n
                 }
-                else *--n = Mod;
+                else {
+                    *--n = Mod;
+                    ef_getidx("__aeabi_idivmod");
+                }
             }
             ty = INT;
             break;
