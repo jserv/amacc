@@ -1965,9 +1965,6 @@ void elf32_init(int poolsz)
     for (i = 0; i < PTR; ++i)
         plt_func_addr[i] = o + i * 16;
 
-    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
-        die("could not malloc() external function cache");
-
     ef_getidx("__libc_start_main");
 }
 
@@ -2398,6 +2395,8 @@ int main(int argc, char **argv)
         die("could not malloc() members area");
     if (!(freed_ast = ast = malloc(poolsz)))
         die("could not allocate abstract syntax tree area");
+    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
+        die("could not malloc() external function cache");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
