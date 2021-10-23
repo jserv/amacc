@@ -30,7 +30,6 @@
 
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
-char **scnames; // system call names
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
@@ -80,8 +79,6 @@ struct ef_s {
     int ef_addr;
 } *ef_cache;
 int ef_count;
-
-char *scratchbuf;
 void *divmod_handle;
 
 struct member_s {
@@ -251,6 +248,7 @@ enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 
 // ELF generation
 char **plt_func_addr;
+char *freebuf;
 
 char *append_strtab(char **strtab, char *str)
 {
@@ -279,32 +277,40 @@ void ef_add(char *nm, int addr) // add external function
     ++ef_count;
 }
 
-int ef_getaddr(char *nm)
+int ef_getaddr(int idx) // get address of indexed external function
+{
+    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx].ef_addr);
+}
+
+int ef_getidx(char *nm) // get index of external function
 {
     int i;
     for (i=0; i<ef_count; ++i)
         if (streq(ef_cache[i].ef_name, nm))
-            return ef_cache[i].ef_addr;
+            break;
 
-    /* Hack(ish): Call dlsym() during parse instead of codegen */
-    if (i = (int) dlsym(0, nm)) {
-        ef_add(nm, i);
-        return i;
+    if (i == ef_count) {
+        int dladdr;
+
+        /* Hack(ish): Call dlsym() during parse instead of codegen */
+        if (dladdr = (int) dlsym(0, nm)) {
+            ef_add(nm, dladdr);
+        }
+        else {
+            /* search other libraries */
+            if (!divmod_handle) {
+                divmod_handle = dlopen("libgcc_s.so.1", 1);
+                if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
+            }
+
+            if (dladdr = (int) dlsym(divmod_handle, nm)) {
+                ef_add(nm, dladdr);
+            }
+            else fatal("bad function call");
+        }
     }
 
-    /* search other libraries */
-    if (!divmod_handle) {
-        divmod_handle = dlopen("libgcc_s.so.1", 1);
-        if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
-    }
-
-    if (i = (int) dlsym(divmod_handle, nm)) {
-        ef_add(nm, i);
-        return i;
-    }
-    else fatal("bad function call");
-
-    return 0; // unreachable return statement
+    return i;
 }
 
 /* parse next token
@@ -604,9 +610,11 @@ void expr(int lev)
         if (tk == '(') {
             if (d->class < Func || d->class > Clca) {
                 if (d->class != 0) fatal("bad function call");
-                memcpy(scratchbuf, d->name, d->hash & 0x3f);
-                scratchbuf[d->hash & 0x3f] = 0; // null terminator
-                t = ef_getaddr(scratchbuf) ;
+                int namelen = d->hash & 0x3f;
+                char ch = d->name[namelen];
+                d->name[namelen] = 0;
+                t = ef_getidx(d->name) ;
+                d->name[namelen] = ch;
                 d->class = Syscall;
                 d->val = t;
                 d->type = INT;
@@ -705,7 +713,7 @@ void expr(int lev)
     case Div:
     case Mod:
         /* register shared library function(s) */
-        ef_getaddr((tk == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
+        ef_getidx((tk == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
         break;
     // processing ++x and --x. x-- and x++ is handled later
     case Inc:
@@ -1152,7 +1160,7 @@ void gen(int *n)
                 if (*e != LEV) *++e = LEV; break;
     default:
         if (i != ';') {
-            printf("%d: compiler error gen=%d\n", line, i); exit(-1);
+            printf("%d: compiler error gen=%x\n", line, i); exit(-1);
         }
     }
 }
@@ -1620,7 +1628,8 @@ int *codegen(int *jitmem, int *jitmap)
         case DIV:
         case MOD:
             *je++ = 0xe52d0004;                     // push {r0}
-            tmp = ef_getaddr((i == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
+            int ti = ef_getidx((i == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
+            tmp = ef_getaddr(ti);
             *je++ = 0xe49d0004 | (1 << 12); // pop r1
             *je++ = 0xe49d0004 | (0 << 12); // pop r0
             *je++ = 0xe28fe000;                          // add lr, pc, #0
@@ -1633,7 +1642,7 @@ int *codegen(int *jitmem, int *jitmap)
                 *je++ = 0xe1a00001;                 // mov r0, r1
             break;
         case SYSC:
-            tmp = *pc++; /* goto usrcall; */
+            tmp = ef_getaddr(*pc++);  // look up address from ef index
             if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
             i = *pc;
             if (i > 10) die("codegen: no support for 10+ arguments");
@@ -1938,13 +1947,31 @@ enum {
     DYN_NUM = 15
 };
 
+void elf32_init(int psz)
+{
+    int i;
+    freebuf = (char *) malloc(psz);
+    char *o = (char *) (((int) freebuf + PAGE_SIZE - 1)  & -PAGE_SIZE);
+
+    /* We must assign the plt_func_addr[x] a non-zero value, and also,
+     * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
+     * (4 instruction * 4 bytes), so the first codegen and second codegen
+     * have consistent code_size. Dummy address at this point.
+     */
+    plt_func_addr = malloc(sizeof(char *) * PTR);
+    for (i = 0; i < PTR; ++i)
+        plt_func_addr[i] = o + i * 16;
+
+    ef_getidx("__libc_start_main");
+}
+
 int elf32(int poolsz, int *main, int elf_fd)
 {
-    char *freebuf, *freecode;
+    char *freecode;
     int i;
 
     char *code = freecode = malloc(poolsz);
-    char *buf = freebuf = malloc(poolsz);
+    char *buf = freebuf;
     int *jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
     char *o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
@@ -1954,15 +1981,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     shdr_idx = 0;
     sym_idx = 0;
 
-    /* We must assign the plt_func_addr[x] a non-zero value, and also,
-     * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
-     * (4 instruction * 4 bytes), so the first codegen and second codegen
-     * have consistent code_size. Dummy address at this point.
-     */
     int FUNC_NUM = ef_count;
-    plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
-    for (i = 0; i < FUNC_NUM; i++)
-        plt_func_addr[i] = o + i * 16;
 
     /* Run __libc_start_main() and pass main trampoline.
      *
@@ -2375,11 +2394,6 @@ int main(int argc, char **argv)
         die("could not allocate abstract syntax tree area");
     if (!(ef_cache = malloc(PTR * sizeof(struct ef_s))))
         die("could not malloc() dlcache area");
-    if (!(scnames = malloc(PTR * sizeof(char *))))
-        die("could not malloc() dlcache area");
-
-    if (!(scratchbuf = malloc(64)))
-        die("could not malloc() scratchbuf area");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
@@ -2410,8 +2424,8 @@ int main(int argc, char **argv)
     next();
     struct ident_s *idmain = id; id->class = Main; // keep track of main
 
-    // Make sure __libc_start_main is first ELF function declaration
-    if (elf) ef_getaddr("__libc_start_main");
+    // call after ef_cache allocation and before source code parsing
+    if (elf) elf32_init(poolsz);
 
     if (!(freep = lp = p = malloc(poolsz)))
         die("could not allocate source area");
@@ -2438,7 +2452,6 @@ int main(int argc, char **argv)
                     jit(poolsz,   (int *) idmain->val, argc, argv);
 
     free(freep);
-    free(scratchbuf);
     free(ef_cache);
     free(freed_ast);
     free(members);
