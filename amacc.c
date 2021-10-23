@@ -77,7 +77,7 @@ struct ident_s {
 struct ef_s {
     char *ef_name;
     int ef_addr;
-} *ef_cache;
+} **ef_cache;
 int ef_count;
 void *divmod_handle;
 
@@ -271,22 +271,23 @@ int streq(char *p1, char *p2)
 
 void ef_add(char *nm, int addr) // add external function
 {
-    ef_cache[ef_count].ef_name = (char *) malloc(strlen(nm)+1);
-    strcpy(ef_cache[ef_count].ef_name, nm);
-    ef_cache[ef_count].ef_addr = addr;
+    ef_cache[ef_count] = (struct ef_s *) malloc(sizeof(struct ef_s)) ;
+    ef_cache[ef_count]->ef_name = (char *) malloc(strlen(nm)+1);
+    strcpy(ef_cache[ef_count]->ef_name, nm);
+    ef_cache[ef_count]->ef_addr = addr;
     ++ef_count;
 }
 
 int ef_getaddr(int idx) // get address of indexed external function
 {
-    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx].ef_addr);
+    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->ef_addr);
 }
 
 int ef_getidx(char *nm) // get index of external function
 {
     int i;
     for (i=0; i<ef_count; ++i)
-        if (streq(ef_cache[i].ef_name, nm))
+        if (streq(ef_cache[i]->ef_name, nm))
             break;
 
     if (i == ef_count) {
@@ -1160,7 +1161,7 @@ void gen(int *n)
                 if (*e != LEV) *++e = LEV; break;
     default:
         if (i != ';') {
-            printf("%d: compiler error gen=%x\n", line, i); exit(-1);
+            printf("%d: compiler error gen=%d\n", line, i); exit(-1);
         }
     }
 }
@@ -2136,7 +2137,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
     for (i = 0; i < FUNC_NUM; ++i)
-        func_entries[i] = append_strtab(&data, ef_cache[i].ef_name) - dynstr_addr;
+        func_entries[i] = append_strtab(&data, ef_cache[i]->ef_name) - dynstr_addr;
 
     int dynstr_size = data - dynstr_addr;
     o += dynstr_size;
@@ -2392,7 +2393,7 @@ int main(int argc, char **argv)
         die("could not malloc() members area");
     if (!(freed_ast = ast = malloc(poolsz)))
         die("could not allocate abstract syntax tree area");
-    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s))))
+    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
         die("could not malloc() dlcache area");
 
     memset(sym, 0, poolsz);
@@ -2401,7 +2402,7 @@ int main(int argc, char **argv)
 
     memset(tsize,   0, PTR * sizeof(int));
     memset(members, 0, PTR * sizeof(struct member_s *));
-    memset(ef_cache, 0, PTR * sizeof(struct ef_s));
+    memset(ef_cache, 0, PTR * sizeof(struct ef_s *));
     memset(ast, 0, poolsz);
     ast = (int *) ((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
 
@@ -2452,9 +2453,7 @@ int main(int argc, char **argv)
                     jit(poolsz,   (int *) idmain->val, argc, argv);
 
     free(freep);
-    free(ef_cache);
     free(freed_ast);
-    free(members);
     free(tsize);
     free(freedata);
     free(sym);
