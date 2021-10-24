@@ -273,39 +273,34 @@ void ef_add(char *name, int addr) // add external function
     ++ef_count;
 }
 
-int ef_getaddr(int idx) // get address of indexed external function
+int ef_getaddr(int idx) // get address external function
 {
     return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->ef_addr);
 }
 
-int ef_getidx(char *name) // get index of external function
+int ef_getidx(char *name) // get cache index of external function
 {
     int i;
     for (i = 0; i < ef_count; ++i)
         if (!strcmp(ef_cache[i]->ef_name, name))
             break;
 
-    if (i == ef_count) {
+    if (i == ef_count) { // add new external lib func to cache
         int dladdr;
-
-        /* Hack(ish) for ELF: Call dlsym() during parse instead of codegen */
         if ((dladdr = (int) dlsym(0, name))) {
             ef_add(name, dladdr);
-        }
-        else {
+        } else {
             /* search other libraries */
             if (!divmod_handle) {
                 divmod_handle = dlopen("libgcc_s.so.1", 1);
                 if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
             }
-
             if ((dladdr = (int) dlsym(divmod_handle, name))) {
                 ef_add(name, dladdr);
             }
             else fatal("bad function call");
         }
     }
-
     return i;
 }
 
@@ -609,10 +604,9 @@ void expr(int lev)
                 int namelen = d->hash & 0x3f;
                 char ch = d->name[namelen];
                 d->name[namelen] = 0;
-                t = ef_getidx(d->name) ;
+                d->val = ef_getidx(d->name) ;
                 d->name[namelen] = ch;
                 d->class = Syscall;
-                d->val = t;
                 d->type = INT;
             }
             next();
@@ -906,8 +900,7 @@ void expr(int lev)
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     n[2] = popcount(n[2] - 1); *--n = Shr; // 2^n
-                }
-                else {
+                } else {
                     *--n = Div;
                     ef_getidx("__aeabi_idiv");
                 }
@@ -921,8 +914,7 @@ void expr(int lev)
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     --n[2]; *--n = And; // 2^n
-                }
-                else {
+                } else {
                     *--n = Mod;
                     ef_getidx("__aeabi_idivmod");
                 }
@@ -1955,7 +1947,6 @@ void elf32_init(int poolsz)
     int i;
     freebuf = malloc(poolsz);
     char *o = (char *) (((int) freebuf + PAGE_SIZE - 1)  & -PAGE_SIZE);
-
     /* We must assign the plt_func_addr[x] a non-zero value, and also,
      * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
      * (4 instruction * 4 bytes), so the first codegen and second codegen
@@ -1965,14 +1956,14 @@ void elf32_init(int poolsz)
     for (i = 0; i < PTR; ++i)
         plt_func_addr[i] = o + i * 16;
 
-    ef_getidx("__libc_start_main");
+    ef_getidx("__libc_start_main"); // slot 0 of external func cache
 }
 
 int elf32(int poolsz, int *main, int elf_fd)
 {
-    char *freecode;
     int i;
-
+    int FUNC_NUM = ef_count;
+    char *freecode;
     char *code = freecode = malloc(poolsz);
     char *buf = freebuf;
     int *jitmap = (int *) (code + (poolsz >> 1));
@@ -1983,8 +1974,6 @@ int elf32(int poolsz, int *main, int elf_fd)
     phdr_idx = 0;
     shdr_idx = 0;
     sym_idx = 0;
-
-    int FUNC_NUM = ef_count;
 
     /* Run __libc_start_main() and pass main trampoline.
      *
@@ -2426,8 +2415,7 @@ int main(int argc, char **argv)
     next();
     struct ident_s *idmain = id; id->class = Main; // keep track of main
 
-    // call before source code parsing
-    if (elf) elf32_init(poolsz);
+    if (elf) elf32_init(poolsz); // call before source code parsing
 
     if (!(freep = lp = p = malloc(poolsz)))
         die("could not allocate source area");
@@ -2452,7 +2440,6 @@ int main(int argc, char **argv)
 
     int ret = elf ? elf32(poolsz, (int *) idmain->val, elf_fd) :
                     jit(poolsz,   (int *) idmain->val, argc, argv);
-
     free(freep);
     free(freed_ast);
     free(tsize);
