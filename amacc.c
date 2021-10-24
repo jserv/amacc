@@ -91,7 +91,7 @@ struct member_s {
 // ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Main, Clca, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
+    Func, Syscall, Main, ClearCache, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
     Sizeof, Struct, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
@@ -227,7 +227,7 @@ enum {
     EQ  , /* 17 */  NE  , /* 18 */
     LT  , /* 19 */  GT  , /* 20 */  LE  , /* 21 */ GE  , /* 22 */
     SHL , /* 23 */  SHR , /* 24 */
-    ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */ DIV, /* 28 */ MOD,
+    ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */ DIV, /* 28 */ MOD, /* 29 */
     /* arithmetic instructions
      * Each operator has two arguments: the first one is stored on the top
      * of the stack while the second is stored in general register.
@@ -237,8 +237,8 @@ enum {
      * the calculation.
      */
 
-    SYSC, /* system call */
-    CLCA, /* clear cache, used by JIT compilation */
+    SYSC, /* 30 system call */
+    CLCA, /* 31 clear cache, used by JIT compilation */
     INVALID
 };
 
@@ -401,15 +401,15 @@ void next()
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  DIV  MOD  "
                              "SYSC CLCA" [*++le * 5]);
-                    if (*le == SYSC) {
-                        printf(" %s\n", ef_cache[*(++le)]->ef_name);
-                    }
-                    else if (*le <= ADJ) {
+                    if (*le <= ADJ) {
                         ++le;
                         if (*le > (int) base && *le <= (int) e)
                             printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
                         else
                             printf(" %d\n", *le);
+                    }
+                    else if (*le == SYSC) {
+                        printf(" %s\n", ef_cache[*(++le)]->ef_name);
                     }
                     else printf("\n");
                 }
@@ -598,7 +598,7 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class < Func || d->class > Clca) {
+            if (d->class < Func || d->class > ClearCache) {
                 if (d->class != 0) fatal("bad function call");
                 int namelen = d->hash & 0x3f;
                 char ch = d->name[namelen];
@@ -1057,7 +1057,7 @@ void gen(int *n)
     case Mod:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MOD; break;
     case Func:
     case Syscall:
-    case Clca:
+    case ClearCache:
         c = b = (int *) n[1]; k = 0; l = 1;
         // how many parameters
         while (b && l) { ++k; if (!(int *) *b) l = 0; else b = (int *) *b; }
@@ -2408,7 +2408,7 @@ int main(int argc, char **argv)
     }
 
     // add __clear_cache to symbol table
-    next(); id->class = Clca; id->type = INT; id->val = CLCA;
+    next(); id->class = ClearCache; id->type = INT; id->val = CLCA;
 
     next(); id->tk = Char; id->class = Keyword; // handle void type
     next();
