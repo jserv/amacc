@@ -79,7 +79,6 @@ struct ef_s {
     int ef_addr;
 } **ef_cache;
 int ef_count;
-void *divmod_handle;
 
 struct member_s {
     struct ident_s *id;
@@ -290,11 +289,8 @@ int ef_getidx(char *name) // get cache index of external function
         if ((dladdr = (int) dlsym(0, name))) {
             ef_add(name, dladdr);
         } else {
-            /* search other libraries */
-            if (!divmod_handle) {
-                divmod_handle = dlopen("libgcc_s.so.1", 1);
-                if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
-            }
+            void *divmod_handle = dlopen("libgcc_s.so.1", 1);
+            if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
             if ((dladdr = (int) dlsym(divmod_handle, name))) {
                 ef_add(name, dladdr);
             }
