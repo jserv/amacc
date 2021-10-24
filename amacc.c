@@ -406,7 +406,7 @@ void next()
                     }
                     else if (*le <= ADJ) {
                         ++le;
-                        if (*le > (int) base && *le < (int) e)
+                        if (*le > (int) base && *le <= (int) e)
                             printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
                         else
                             printf(" %d\n", *le);
