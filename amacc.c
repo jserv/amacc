@@ -401,7 +401,10 @@ void next()
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  DIV  MOD  "
                              "SYSC CLCA" [*++le * 5]);
-                    if (*le <= ADJ || *le == SYSC) {
+                    if (*le == SYSC) {
+                        printf(" %s\n", ef_cache[*(++le)]->ef_name);
+                    }
+                    else if (*le <= ADJ) {
                         ++le;
                         if (*le > (int) base && *le < (int) e)
                             printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
