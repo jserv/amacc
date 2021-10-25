@@ -75,8 +75,8 @@ struct ident_s {
 
 // (library) external functions
 struct ef_s {
-    char *ef_name;
-    int ef_addr;
+    char *name;
+    int addr;
 } **ef_cache;
 int ef_count;
 
@@ -266,22 +266,22 @@ char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 void ef_add(char *name, int addr) // add external function
 {
     ef_cache[ef_count] = malloc(sizeof(struct ef_s)) ;
-    ef_cache[ef_count]->ef_name = malloc(strlen(name)+1);
-    strcpy(ef_cache[ef_count]->ef_name, name);
-    ef_cache[ef_count]->ef_addr = addr;
+    ef_cache[ef_count]->name = malloc(strlen(name)+1);
+    strcpy(ef_cache[ef_count]->name, name);
+    ef_cache[ef_count]->addr = addr;
     ++ef_count;
 }
 
 int ef_getaddr(int idx) // get address external function
 {
-    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->ef_addr);
+    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->addr);
 }
 
 int ef_getidx(char *name) // get cache index of external function
 {
     int i;
     for (i = 0; i < ef_count; ++i)
-        if (!strcmp(ef_cache[i]->ef_name, name))
+        if (!strcmp(ef_cache[i]->name, name))
             break;
 
     if (i == ef_count) { // add new external lib func to cache
@@ -409,7 +409,7 @@ void next()
                             printf(" %d\n", *le);
                     }
                     else if (*le == SYSC) {
-                        printf(" %s\n", ef_cache[*(++le)]->ef_name);
+                        printf(" %s\n", ef_cache[*(++le)]->name);
                     }
                     else printf("\n");
                 }
@@ -2127,7 +2127,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
     for (i = 0; i < FUNC_NUM; ++i)
-        func_entries[i] = append_strtab(&data, ef_cache[i]->ef_name) - dynstr_addr;
+        func_entries[i] = append_strtab(&data, ef_cache[i]->name) - dynstr_addr;
 
     int dynstr_size = data - dynstr_addr;
     o += dynstr_size;
