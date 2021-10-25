@@ -1961,7 +1961,6 @@ void elf32_init(int poolsz)
 int elf32(int poolsz, int *main, int elf_fd)
 {
     int i;
-    int FUNC_NUM = ef_count;
     char *freecode;
     char *code = freecode = malloc(poolsz);
     char *buf = freebuf;
@@ -2050,13 +2049,13 @@ int elf32(int poolsz, int *main, int elf_fd)
     o += code_size;
 
     // .rel.plt (embedded in PT_LOAD of text)
-    int rel_size = REL_ENT_SIZE * FUNC_NUM;
+    int rel_size = REL_ENT_SIZE * ef_count;
     int rel_off = code_off + code_size;
     char *rel_addr = code_addr + code_size;
     o += rel_size;
 
     // .plt (embedded in PT_LOAD of text)
-    int plt_size = 20 + PLT_ENT_SIZE * FUNC_NUM; // 20 is the size of .plt entry code to .got
+    int plt_size = 20 + PLT_ENT_SIZE * ef_count; // 20 is the size of .plt entry code to .got
     int plt_off = rel_off + rel_size;
     char *plt_addr = rel_addr + rel_size;
     o += plt_size;
@@ -2123,10 +2122,10 @@ int elf32(int poolsz, int *main, int elf_fd)
     char *ldso = append_strtab(&data, "libdl.so.2");
     char *libgcc_s = append_strtab(&data, "libgcc_s.so.1");
 
-    int *func_entries = malloc(sizeof(int) * FUNC_NUM);
+    int *func_entries = malloc(sizeof(int) * ef_count);
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
-    for (i = 0; i < FUNC_NUM; ++i)
+    for (i = 0; i < ef_count; ++i)
         func_entries[i] = append_strtab(&data, ef_cache[i]->name) - dynstr_addr;
 
     int dynstr_size = data - dynstr_addr;
@@ -2138,10 +2137,10 @@ int elf32(int poolsz, int *main, int elf_fd)
     memset(data, 0, SYM_ENT_SIZE);
     data += SYM_ENT_SIZE;
 
-    for (i = 0; i < FUNC_NUM; ++i)
+    for (i = 0; i < ef_count; ++i)
         append_func_sym(&data, func_entries[i]);
 
-    int dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
+    int dynsym_size = SYM_ENT_SIZE * (ef_count + 1);
     o += dynsym_size;
 
     // .got (embedded in PT_LOAD of data)
@@ -2153,8 +2152,8 @@ int elf32(int poolsz, int *main, int elf_fd)
     char *to_got_movt = data;  // linking, plt must jump here.
     data += 4;  // reserved 2 and 3 entry for interp
     // .got function slot
-    char **got_func_slot = malloc(sizeof(char *) * FUNC_NUM);
-    for (i = 0; i < FUNC_NUM; i++) {
+    char **got_func_slot = malloc(sizeof(char *) * ef_count);
+    for (i = 0; i < ef_count; i++) {
         got_func_slot[i] = data;
         *(int *) data = (int) plt_addr; data += 4;
     }
@@ -2179,7 +2178,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     *(int *) to = 0xe59ef000; to += 4;  // ldr pc, [lr]
 
     // We must preserve ip for code below, dyn link use this as return address
-    for (i = 0; i < FUNC_NUM; i++) {
+    for (i = 0; i < ef_count; i++) {
         plt_func_addr[i] = to;
         // movt ip addr_to_got
         *(int *) to = 0xe300c000 | (0xfff & (int) (got_func_slot[i])) |
@@ -2195,7 +2194,7 @@ int elf32(int poolsz, int *main, int elf_fd)
 
     // .rel.plt
     to = rel_addr;
-    for (i = 0; i < FUNC_NUM; i++) {
+    for (i = 0; i < ef_count; i++) {
         *(int *) to = (int) got_func_slot[i]; to += 4;
         *(int *) to = 0x16 | (i + 1) << 8 ; to += 4;
         // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
