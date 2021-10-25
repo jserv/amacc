@@ -291,10 +291,9 @@ int ef_getidx(char *name) // get cache index of external function
         } else {
             void *divmod_handle = dlopen("libgcc_s.so.1", 1);
             if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
-            if ((dladdr = (int) dlsym(divmod_handle, name))) {
-                ef_add(name, dladdr);
-            }
-            else fatal("bad function call");
+            dladdr = (int) dlsym(divmod_handle, name);
+            if (!dladdr) fatal("bad function call");
+            ef_add(name, dladdr);
         }
     }
     return i;
@@ -357,8 +356,7 @@ void next()
                        ((tk >= '0' && tk <= '9') ||
                         (tk >= 'a' && tk <= 'f') || (tk >= 'A' && tk <= 'F')))
                     ival = ival * 16 + (tk & 15) + (tk >= 'A' ? 9 : 0);
-            }
-            else { // considered octal
+            } else { // considered octal
                 while (*p >= '0' && *p <= '7')
                     ival = ival * 8 + *p++ - '0';
             }
@@ -652,8 +650,7 @@ void expr(int lev)
             next();
             expr(Inc); // cast has precedence as Inc(++)
             ty = t;
-        }
-        else {
+        } else {
             expr(Assign);
             while (tk == ',') { next(); expr(Assign); }
             if (tk != ')') fatal("close parentheses expected");
@@ -745,8 +742,7 @@ void expr(int lev)
             *--n = (int) c;
             if (otk < ShlAssign) {
                 *--n = Or + (otk - OrAssign);
-            }
-            else {
+            } else {
                 *--n = Shl + (otk - ShlAssign);
                 // Compound-op bypasses literal const optimizations
                 if (otk == DivAssign) ef_getidx("__aeabi_idiv");
@@ -1667,8 +1663,7 @@ int *codegen(int *jitmem, int *jitmap)
                 else je[1] = je[1] | 1;
                 je += 2;
                 break;
-            }
-            else {
+            } else {
                 printf("code generation failed for %d!\n", i);
                 free(iv);
                 return 0;
