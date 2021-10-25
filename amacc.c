@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <memory.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -29,7 +30,6 @@
 
 char *freep, *p, *lp; // current position in source code
 char *freedata, *data, *_data;   // data/bss pointer
-char **scnames; // system call names
 
 int *e, *le, *text;  // current position in emitted code
 int *cas;            // case statement patch-up pointer
@@ -73,6 +73,13 @@ struct ident_s {
 } *id,  // currently parsed identifier
   *sym; // symbol table (simple list of identifiers)
 
+// (library) external functions
+struct ef_s {
+    char *name;
+    int addr;
+} **ef_cache;
+int ef_count;
+
 struct member_s {
     struct ident_s *id;
     int offset;
@@ -84,7 +91,7 @@ struct member_s {
 // ( >= 128 so not to collide with ASCII-valued tokens)
 enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
-    Func, Syscall, Main, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
+    Func, Syscall, Main, ClearCache, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
     Sizeof, Struct, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
@@ -220,7 +227,7 @@ enum {
     EQ  , /* 17 */  NE  , /* 18 */
     LT  , /* 19 */  GT  , /* 20 */  LE  , /* 21 */ GE  , /* 22 */
     SHL , /* 23 */  SHR , /* 24 */
-    ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */
+    ADD , /* 25 */  SUB , /* 26 */  MUL , /* 27 */ DIV, /* 28 */ MOD, /* 29 */
     /* arithmetic instructions
      * Each operator has two arguments: the first one is stored on the top
      * of the stack while the second is stored in general register.
@@ -230,9 +237,8 @@ enum {
      * the calculation.
      */
 
-    /* system call shortcuts */
-    OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,MCPY,MMAP,DSYM,BSCH,STRT,DLOP,DIV,MOD,EXIT,
-    CLCA, /* clear cache, used by JIT compilation */
+    SYSC, /* 30 system call */
+    CLCA, /* 31 clear cache, used by JIT compilation */
     INVALID
 };
 
@@ -241,6 +247,7 @@ enum { CHAR, INT, PTR = 256, PTR2 = 512 };
 
 // ELF generation
 char **plt_func_addr;
+char *freebuf;
 
 char *append_strtab(char **strtab, char *str)
 {
@@ -252,6 +259,45 @@ char *append_strtab(char **strtab, char *str)
     res[s - str] = 0; // null terminator
     *strtab = res + nbytes;
     return res;
+}
+
+char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
+
+void ef_add(char *name, int addr) // add external function
+{
+    ef_cache[ef_count] = malloc(sizeof(struct ef_s)) ;
+    ef_cache[ef_count]->name = malloc(strlen(name)+1);
+    strcpy(ef_cache[ef_count]->name, name);
+    ef_cache[ef_count]->addr = addr;
+    ++ef_count;
+}
+
+int ef_getaddr(int idx) // get address external function
+{
+    return (elf ? (int) plt_func_addr[idx] : ef_cache[idx]->addr);
+}
+
+int ef_getidx(char *name) // get cache index of external function
+{
+    int i;
+    for (i = 0; i < ef_count; ++i)
+        if (!strcmp(ef_cache[i]->name, name))
+            break;
+
+    if (i == ef_count) { // add new external lib func to cache
+        int dladdr;
+        if ((dladdr = (int) dlsym(0, name))) {
+            ef_add(name, dladdr);
+        } else {
+            void *divmod_handle = dlopen("libgcc_s.so.1", 1);
+            if (!divmod_handle) fatal("failed to open libgcc_s.so.1");
+            if ((dladdr = (int) dlsym(divmod_handle, name))) {
+                ef_add(name, dladdr);
+            }
+            else fatal("bad function call");
+        }
+    }
+    return i;
 }
 
 /* parse next token
@@ -353,16 +399,17 @@ void next()
                            & "LEA  IMM  JMP  JSR  BZ   BNZ  ENT  ADJ  LEV  "
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
-                             "SHL  SHR  ADD  SUB  MUL  "
-                             "OPEN READ WRIT CLOS PRTF MALC FREE "
-                             "MSET MCMP MCPY MMAP "
-                             "DSYM BSCH STRT DLOP DIV  MOD  EXIT CLCA" [*++le * 5]);
+                             "SHL  SHR  ADD  SUB  MUL  DIV  MOD  "
+                             "SYSC CLCA" [*++le * 5]);
                     if (*le <= ADJ) {
                         ++le;
-                        if (*le > (int) base && *le < (int) e)
+                        if (*le > (int) base && *le <= (int) e)
                             printf(" %04d\n", off + ((*le - (int) le) >> 2) + 1);
                         else
                             printf(" %d\n", *le);
+                    }
+                    else if (*le == SYSC) {
+                        printf(" %s\n", ef_cache[*(++le)]->name);
                     }
                     else printf("\n");
                 }
@@ -454,8 +501,6 @@ void next()
         }
     }
 }
-
-char fatal(char *msg) { printf("%d: %s\n", line, msg); exit(-1); }
 
 // https://stackoverflow.com/questions/109023/how-to-count-the-number-of-set-bits-in-a-32-bit-integer
 int popcount(int i)
@@ -553,8 +598,16 @@ void expr(int lev)
         d = id; next();
         // function call
         if (tk == '(') {
-            if (d->class != Syscall && d->class != Func)
-                fatal("bad function call");
+            if (d->class < Func || d->class > ClearCache) {
+                if (d->class != 0) fatal("bad function call");
+                int namelen = d->hash & 0x3f;
+                char ch = d->name[namelen];
+                d->name[namelen] = 0;
+                d->val = ef_getidx(d->name) ;
+                d->name[namelen] = ch;
+                d->class = Syscall;
+                d->type = INT;
+            }
             next();
             t = 0; b = 0; // parameters count
             while (tk != ')') {
@@ -695,6 +748,9 @@ void expr(int lev)
             }
             else {
                 *--n = Shl + (otk - ShlAssign);
+                // Compound-op bypasses literal const optimizations
+                if (otk == DivAssign) ef_getidx("__aeabi_idiv");
+                if (otk == ModAssign) ef_getidx("__aeabi_idivmod");
             }
             *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
             ty = INT;
@@ -843,8 +899,10 @@ void expr(int lev)
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     n[2] = popcount(n[2] - 1); *--n = Shr; // 2^n
+                } else {
+                    *--n = Div;
+                    ef_getidx("__aeabi_idiv");
                 }
-                else *--n = Div;
             }
             ty = INT;
             break;
@@ -855,8 +913,10 @@ void expr(int lev)
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
                     --n[2]; *--n = And; // 2^n
+                } else {
+                    *--n = Mod;
+                    ef_getidx("__aeabi_idivmod");
                 }
-                else *--n = Mod;
             }
             ty = INT;
             break;
@@ -995,8 +1055,9 @@ void gen(int *n)
     case Mul:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
     case Div:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = DIV; break;
     case Mod:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MOD; break;
-    case Syscall:
     case Func:
+    case Syscall:
+    case ClearCache:
         c = b = (int *) n[1]; k = 0; l = 1;
         // how many parameters
         while (b && l) { ++k; if (!(int *) *b) l = 0; else b = (int *) *b; }
@@ -1011,7 +1072,9 @@ void gen(int *n)
             gen(b + 1); *++e = PSH; --j; b = (int *) a[j];
         }
         free(a);
-        if (i == Func) *++e = JSR; *++e = n[2];
+        if (i == Syscall) *++e = SYSC;
+        if (i == Func) *++e = JSR;
+        *++e = n[2];
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
         break;
     case While:
@@ -1559,13 +1622,8 @@ int *codegen(int *jitmem, int *jitmap)
         case DIV:
         case MOD:
             *je++ = 0xe52d0004;                     // push {r0}
-            if (elf) {
-                tmp = (int) plt_func_addr[i - OPEN];
-            } else {
-                void *handle = dlopen("libgcc_s.so.1", 1);
-                if (!handle) fatal("failed to open libgcc_s.so.1");
-                tmp = (int) dlsym(handle, scnames[i - OPEN]);
-            }
+            int ti = ef_getidx((i == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
+            tmp = ef_getaddr(ti);
             *je++ = 0xe49d0004 | (1 << 12); // pop r1
             *je++ = 0xe49d0004 | (0 << 12); // pop r0
             *je++ = 0xe28fe000;                          // add lr, pc, #0
@@ -1576,6 +1634,20 @@ int *codegen(int *jitmem, int *jitmap)
             // and the remainder in r1.
             if (i == MOD)
                 *je++ = 0xe1a00001;                 // mov r0, r1
+            break;
+        case SYSC:
+            tmp = ef_getaddr(*pc++);  // look up address from ef index
+            if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
+            i = *pc;
+            if (i > 10) die("codegen: no support for 10+ arguments");
+            while (i > 0) *je++ = 0xe49d0004 | (--i << 12); // pop r(i-1)
+            i = *pc++;
+            if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
+            *je++ = 0xe28fe000;                          // add lr, pc, #0
+            if (!imm0) imm0 = je;
+            *il++ = (int) je++ + 1;
+            *iv++ = tmp;
+            if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
             break;
         case CLCA:
             *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
@@ -1594,22 +1666,6 @@ int *codegen(int *jitmem, int *jitmap)
                 if (i == EQ || i == LT || i == GT) je[0] = je[0] | 1;
                 else je[1] = je[1] | 1;
                 je += 2;
-                break;
-            }
-            else if (i >= OPEN && i <= EXIT) {
-                tmp = (int) (elf ? plt_func_addr[i - OPEN] :
-                                   dlsym(0, scnames[i - OPEN]));
-                if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
-                i = *pc;
-                if (i > 10) die("codegen: no support for 10+ arguments");
-                while (i > 0) *je++ = 0xe49d0004 | (--i << 12); // pop r(i-1)
-                i = *pc++;
-                if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
-                *je++ = 0xe28fe000;                          // add lr, pc, #0
-                if (!imm0) imm0 = je;
-                *il++ = (int) je++ + 1;
-                *iv++ = tmp;
-                if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
                 break;
             }
             else {
@@ -1680,7 +1736,7 @@ int *codegen(int *jitmem, int *jitmap)
         }
         // If the instruction has operand, increment instruction pointer to
         // skip he operand.
-        else if (i < LEV) { ++pc; }
+        else if (i <= ADJ || i == SYSC) { ++pc; }
     }
     free(iv);
     return tje;
@@ -1885,13 +1941,29 @@ enum {
     DYN_NUM = 15
 };
 
+void elf32_init(int poolsz)
+{
+    int i;
+    freebuf = malloc(poolsz);
+    char *o = (char *) (((int) freebuf + PAGE_SIZE - 1)  & -PAGE_SIZE);
+    /* We must assign the plt_func_addr[x] a non-zero value, and also,
+     * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
+     * (4 instruction * 4 bytes), so the first codegen and second codegen
+     * have consistent code_size. Dummy address at this point.
+     */
+    plt_func_addr = malloc(sizeof(char *) * PTR);
+    for (i = 0; i < PTR; ++i)
+        plt_func_addr[i] = o + i * 16;
+
+    ef_getidx("__libc_start_main"); // slot 0 of external func cache
+}
+
 int elf32(int poolsz, int *main, int elf_fd)
 {
-    char *freebuf, *freecode;
     int i;
-
+    char *freecode;
     char *code = freecode = malloc(poolsz);
-    char *buf = freebuf = malloc(poolsz);
+    char *buf = freebuf;
     int *jitmap = (int *) (code + (poolsz >> 1));
     memset(buf, 0, poolsz);
     char *o = buf = (char *) (((int) buf + PAGE_SIZE - 1)  & -PAGE_SIZE);
@@ -1900,16 +1972,6 @@ int elf32(int poolsz, int *main, int elf_fd)
     phdr_idx = 0;
     shdr_idx = 0;
     sym_idx = 0;
-
-    /* We must assign the plt_func_addr[x] a non-zero value, and also,
-     * plt_func_addr[i] and plt_func_addr[i-1] has an offset of 16
-     * (4 instruction * 4 bytes), so the first codegen and second codegen
-     * have consistent code_size.
-     */
-    int FUNC_NUM = EXIT - OPEN + 1;
-    plt_func_addr = malloc(sizeof(char *) * FUNC_NUM);
-    for (i = 0; i < FUNC_NUM; i++)
-        plt_func_addr[i] = o + i * 16;
 
     /* Run __libc_start_main() and pass main trampoline.
      *
@@ -1987,13 +2049,13 @@ int elf32(int poolsz, int *main, int elf_fd)
     o += code_size;
 
     // .rel.plt (embedded in PT_LOAD of text)
-    int rel_size = REL_ENT_SIZE * FUNC_NUM;
+    int rel_size = REL_ENT_SIZE * ef_count;
     int rel_off = code_off + code_size;
     char *rel_addr = code_addr + code_size;
     o += rel_size;
 
     // .plt (embedded in PT_LOAD of text)
-    int plt_size = 20 + PLT_ENT_SIZE * FUNC_NUM; // 20 is the size of .plt entry code to .got
+    int plt_size = 20 + PLT_ENT_SIZE * ef_count; // 20 is the size of .plt entry code to .got
     int plt_off = rel_off + rel_size;
     char *plt_addr = rel_addr + rel_size;
     o += plt_size;
@@ -2035,7 +2097,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     int shstrtab_off = interp_off + interp_str_size;
     int shstrtab_size = 0;
 
-    int *shdr_names = (int *) malloc(sizeof(int) * SHDR_NUM);
+    int *shdr_names = malloc(sizeof(int) * SHDR_NUM);
     if (!shdr_names) die("elf32: could not malloc shdr_names table");
 
     shdr_names[SNONE] = append_strtab(&data, "") - shstrtab_addr;
@@ -2060,11 +2122,11 @@ int elf32(int poolsz, int *main, int elf_fd)
     char *ldso = append_strtab(&data, "libdl.so.2");
     char *libgcc_s = append_strtab(&data, "libgcc_s.so.1");
 
-    int *func_entries = (int *) malloc(sizeof(int) * (EXIT + 1));
+    int *func_entries = malloc(sizeof(int) * ef_count);
     if (!func_entries) die("elf32: could not malloc func_entries table");
 
-    for (i = OPEN; i <= EXIT; i++)
-        func_entries[i] = append_strtab(&data, scnames[i - OPEN]) - dynstr_addr;
+    for (i = 0; i < ef_count; ++i)
+        func_entries[i] = append_strtab(&data, ef_cache[i]->name) - dynstr_addr;
 
     int dynstr_size = data - dynstr_addr;
     o += dynstr_size;
@@ -2075,10 +2137,10 @@ int elf32(int poolsz, int *main, int elf_fd)
     memset(data, 0, SYM_ENT_SIZE);
     data += SYM_ENT_SIZE;
 
-    for (i = OPEN; i <= EXIT; i++)
+    for (i = 0; i < ef_count; ++i)
         append_func_sym(&data, func_entries[i]);
 
-    int dynsym_size = SYM_ENT_SIZE * (FUNC_NUM + 1);
+    int dynsym_size = SYM_ENT_SIZE * (ef_count + 1);
     o += dynsym_size;
 
     // .got (embedded in PT_LOAD of data)
@@ -2090,8 +2152,8 @@ int elf32(int poolsz, int *main, int elf_fd)
     char *to_got_movt = data;  // linking, plt must jump here.
     data += 4;  // reserved 2 and 3 entry for interp
     // .got function slot
-    char **got_func_slot = malloc(sizeof(char *) * FUNC_NUM);
-    for (i = 0; i < FUNC_NUM; i++) {
+    char **got_func_slot = malloc(sizeof(char *) * ef_count);
+    for (i = 0; i < ef_count; i++) {
         got_func_slot[i] = data;
         *(int *) data = (int) plt_addr; data += 4;
     }
@@ -2116,7 +2178,7 @@ int elf32(int poolsz, int *main, int elf_fd)
     *(int *) to = 0xe59ef000; to += 4;  // ldr pc, [lr]
 
     // We must preserve ip for code below, dyn link use this as return address
-    for (i = 0; i < FUNC_NUM; i++) {
+    for (i = 0; i < ef_count; i++) {
         plt_func_addr[i] = to;
         // movt ip addr_to_got
         *(int *) to = 0xe300c000 | (0xfff & (int) (got_func_slot[i])) |
@@ -2132,7 +2194,7 @@ int elf32(int poolsz, int *main, int elf_fd)
 
     // .rel.plt
     to = rel_addr;
-    for (i = 0; i < FUNC_NUM; i++) {
+    for (i = 0; i < ef_count; i++) {
         *(int *) to = (int) got_func_slot[i]; to += 4;
         *(int *) to = 0x16 | (i + 1) << 8 ; to += 4;
         // 0x16 R_ARM_JUMP_SLOT | .dymstr index << 8
@@ -2189,8 +2251,8 @@ int elf32(int poolsz, int *main, int elf_fd)
     }
     if ((int *) je >= jitmap) die("elf32: jitmem too small");
 
-    // Relocate _start() stub.
-    *((int *) (code + 0x28)) = reloc_bl(plt_func_addr[STRT - OPEN] - code_addr - 0x28);
+    // Relocate __libc_start_main() and main().
+    *((int *) (code + 0x28)) = reloc_bl(plt_func_addr[0] - code_addr - 0x28);
     *((int *) (code + 0x44)) =
         reloc_bl(jitmap[((int) main - (int) text) >> 2] - (int) code - 0x44);
 
@@ -2266,12 +2328,6 @@ int elf32(int poolsz, int *main, int elf_fd)
     return 0;
 }
 
-int streq(char *p1, char *p2)
-{
-    while (*p1 && *p1 == *p2) { ++p1; ++p2; }
-    return (*p1 > *p2) == (*p2  > *p1);
-}
-
 enum { _O_CREAT = 64, _O_WRONLY = 1 };
 
 #ifdef int
@@ -2295,7 +2351,7 @@ int main(int argc, char **argv)
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
         src = 1; --argc; ++argv;
     }
-    if (argc > 0 && **argv == '-' && streq(*argv, "-fsigned-char")) {
+    if (argc > 0 && **argv == '-' && !strcmp(*argv, "-fsigned-char")) {
         signed_char = 1; --argc; ++argv;
     }
     if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
@@ -2326,6 +2382,8 @@ int main(int argc, char **argv)
         die("could not malloc() members area");
     if (!(freed_ast = ast = malloc(poolsz)))
         die("could not allocate abstract syntax tree area");
+    if (!(ef_cache = malloc(PTR * sizeof(struct ef_s *))))
+        die("could not malloc() external function cache");
 
     memset(sym, 0, poolsz);
     memset(e, 0, poolsz);
@@ -2340,26 +2398,7 @@ int main(int argc, char **argv)
      * must match the sequence of enum
      */
     p = "break continue case char default else enum if int return "
-        "sizeof struct switch for while do goto "
-        "open read write close printf malloc free "
-        "memset memcmp memcpy mmap "
-        "dlsym bsearch __libc_start_main "
-        "dlopen __aeabi_idiv __aeabi_idivmod exit __clear_cache void main";
-
-    // name vector to system call
-    // must match the sequence of supported calls
-    scnames = malloc(19 * sizeof(char *));
-    scnames[ 0] = "open";    scnames[ 1] = "read";    scnames[ 2] = "write";
-    scnames[ 3] = "close";   scnames[ 4] = "printf";
-    scnames[ 5] = "malloc";  scnames[ 6] = "free";
-    scnames[ 7] = "memset";  scnames[ 8] = "memcmp";  scnames[ 9] = "memcpy";
-    scnames[10] = "mmap";    scnames[11] = "dlsym";   scnames[12] = "bsearch";
-    scnames[13] = "__libc_start_main";
-    scnames[14] = "dlopen";
-    scnames[15] = "__aeabi_idiv";
-    scnames[16] = "__aeabi_idivmod";
-    scnames[17] = "exit";
-    scnames[18] = "__clear_cache";
+        "sizeof struct switch for while do goto __clear_cache void main";
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
@@ -2367,13 +2406,14 @@ int main(int argc, char **argv)
         next(); id->tk = i; id->class = Keyword; // add keywords to symbol table
     }
 
-    // add library to symbol table
-    for (i = OPEN; i < INVALID; i++) {
-        next(); id->class = Syscall; id->type = INT; id->val = i;
-    }
+    // add __clear_cache to symbol table
+    next(); id->class = ClearCache; id->type = INT; id->val = CLCA;
+
     next(); id->tk = Char; id->class = Keyword; // handle void type
     next();
     struct ident_s *idmain = id; id->class = Main; // keep track of main
+
+    if (elf) elf32_init(poolsz); // call before source code parsing
 
     if (!(freep = lp = p = malloc(poolsz)))
         die("could not allocate source area");
@@ -2398,11 +2438,12 @@ int main(int argc, char **argv)
 
     int ret = elf ? elf32(poolsz, (int *) idmain->val, elf_fd) :
                     jit(poolsz,   (int *) idmain->val, argc, argv);
-
     free(freep);
-    free(freedata);
-    free(text);
-    free(sym);
     free(freed_ast);
+    free(tsize);
+    free(freedata);
+    free(sym);
+    free(text);
+
     return ret;
 }
