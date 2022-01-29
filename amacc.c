@@ -854,7 +854,7 @@ void expr(int lev)
             if (sz > 1 && *n == Num) {
                 *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul;
             }
-            if (*n == Num && *b == Num) n[1] -= b[1];
+            if (*n == Num && *b == Num) n[1] = b[1] - n[1];
             else {
                 *--n = (int) b; *--n = Sub;
                 if (t == ty && sz > 1) {
@@ -1918,10 +1918,10 @@ int gen_sym(char *ptr, int name, char info,
     return sym_idx++;
 }
 
-int append_func_sym(char **data, int name)
+int append_func_sym(char **sdata, int name)
 {
-    int idx = gen_sym(*data, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
-    *data += SYM_ENT_SIZE;
+    int idx = gen_sym(*sdata, name, ELF32_ST_INFO(STB_GLOBAL, STT_FUNC), 0, 0, 0);
+    *sdata += SYM_ENT_SIZE;
     return idx;
 }
 
