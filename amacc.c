@@ -1510,7 +1510,8 @@ void stmt(int ctx)
     default:
         // general statements are considered assignment statements/expressions
         expr(Assign);
-        if (tk != ';' && tk != ',') fatal("semicolon expected");
+        while (tk == ',') { next(); expr(Assign); }
+        if (tk != ';') fatal("semicolon expected");
         next();
     }
 }
