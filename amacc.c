@@ -890,7 +890,7 @@ void expr(int lev)
             break;
         case Div:
             next(); expr(Inc);
-            if (*n == Num && *b == Num) n[1] /= b[1];
+            if (*n == Num && *b == Num) n[1] = b[1] / n[1];
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
@@ -904,7 +904,7 @@ void expr(int lev)
             break;
         case Mod:
             next(); expr(Inc);
-            if (*n == Num && *b == Num) n[1] %= b[1];
+            if (*n == Num && *b == Num) n[1] = b[1] % n[1];
             else {
                 *--n = (int) b;
                 if (n[1] == Num && n[2] > 0 && (n[2] & (n[2] - 1)) == 0) {
