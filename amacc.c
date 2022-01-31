@@ -49,6 +49,7 @@ int line;            // current line number
 int src;             // print source and assembly flag
 int signed_char;     // use `signed char` for `char`
 int elf;             // print ELF format
+int peephole;        // helper for peephole optimization
 int *n;              // current position in emitted abstract syntax tree
                      // With an AST, the compiler is not limited to generate
                      // code on the fly with parsing.
@@ -239,6 +240,10 @@ enum {
 
     SYSC, /* 30 system call */
     CLCA, /* 31 clear cache, used by JIT compilation */
+
+    PD , /* 32 Hide next instruction from peephole opt */
+    P0 , /* 33 Inform peephole opt that R0 holds a return value */
+
     INVALID
 };
 
@@ -398,7 +403,7 @@ void next()
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  DIV  MOD  "
-                             "SYSC CLCA" [*++le * 5]);
+                             "SYSC CLCA PD   P0  " [*++le * 5]);
                     if (*le <= ADJ) {
                         ++le;
                         if (*le > (int) base && *le <= (int) e)
@@ -1049,8 +1054,16 @@ void gen(int *n)
     case Add:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = ADD; break;
     case Sub:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = SUB; break;
     case Mul:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
-    case Div:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = DIV; break;
-    case Mod:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MOD; break;
+    case Div:  gen((int *) n[1]);
+               if (peephole) *++e = PD;
+               *++e = PSH; gen(n + 2); *++e = DIV;
+               if (peephole) *++e = P0;
+               break;
+    case Mod:  gen((int *) n[1]);
+               if (peephole) *++e = PD;
+               *++e = PSH; gen(n + 2); *++e = MOD;
+               if (peephole) *++e = P0;
+               break;
     case Func:
     case Syscall:
     case ClearCache:
@@ -1065,13 +1078,16 @@ void gen(int *n)
         if (j > 0) --j;
         // push parameters
         while (j >= 0 && k > 0) {
-            gen(b + 1); *++e = PSH; --j; b = (int *) a[j];
+            gen(b + 1);
+            if (peephole && i != ClearCache) *++e = PD;
+            *++e = PSH; --j; b = (int *) a[j];
         }
         free(a);
         if (i == Syscall) *++e = SYSC;
         if (i == Func) *++e = JSR;
         *++e = n[2];
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
+        if (peephole && i != ClearCache) *++e = P0;
         break;
     case While:
     case DoWhile:
@@ -1522,7 +1538,7 @@ int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
 {
-    int i, tmp;
+    int i, ii, tmp;
     int *je, *tje;    // current position in emitted native code
     int *immloc, *il;
 
@@ -1537,6 +1553,7 @@ int *codegen(int *jitmem, int *jitmap)
         // Store mapping from IR index to native instruction buffer location
         // "pc - text" gets the index of IR.
         // "je" points to native instruction buffer's current location.
+        if (peephole && i == ENT) while((int)je & 0x0f) *je++ = 0xe1a00000; // mov r0, r0
         jitmap[((int) pc++ - (int) text) >> 2] = (int) je;
         switch (i) {
         case LEA:
@@ -1607,7 +1624,7 @@ int *codegen(int *jitmem, int *jitmap)
             *je++ = 0xe49d1004; *je++ = 0xe1a00051; // pop {r1}; asr r0, r1, r0
             break;
         case ADD:
-            *je++ = 0xe49d1004; *je++ = 0xe0800001; // pop {r1}; add r0, r0, r1
+            *je++ = 0xe49d1004; *je++ = 0xe0810000; // pop {r1}; add r0, r1, r0
             break;
         case SUB:
             *je++ = 0xe49d1004; *je++ = 0xe0410000; // pop {r1}; sub r0, r1, r0
@@ -1617,33 +1634,47 @@ int *codegen(int *jitmem, int *jitmap)
             break;
         case DIV:
         case MOD:
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
             *je++ = 0xe52d0004;                     // push {r0}
             int ti = ef_getidx((i == DIV) ? "__aeabi_idiv" : "__aeabi_idivmod");
             tmp = ef_getaddr(ti);
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
             *je++ = 0xe49d0004 | (1 << 12); // pop r1
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
             *je++ = 0xe49d0004 | (0 << 12); // pop r0
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
             *je++ = 0xe28fe000;                          // add lr, pc, #0
             if (!imm0) imm0 = je;
             *il++ = (int) je++ + 1;
             *iv++ = tmp;
             // ARM EABI modulo helper function produces quotient in r0
             // and the remainder in r1.
-            if (i == MOD)
+            if (i == MOD) {
+                if (peephole) *je++ = 0xe1a01001;   // mov r1, r1
                 *je++ = 0xe1a00001;                 // mov r0, r1
+            }
             break;
         case SYSC:
             tmp = ef_getaddr(*pc++);  // look up address from ef index
             if (*pc++ != ADJ) die("codegen: no ADJ after native proc");
-            i = *pc;
-            if (i > 10) die("codegen: no support for 10+ arguments");
-            while (i > 0) *je++ = 0xe49d0004 | (--i << 12); // pop r(i-1)
-            i = *pc++;
-            if (i > 4) *je++ = 0xe92d03f0;               // push {r4-r9}
-            *je++ = 0xe28fe000;                          // add lr, pc, #0
+            ii = *pc;
+            if (ii > 10) die("codegen: no support for 10+ arguments");
+            while (ii > 0) {
+                if (peephole) *je++ = 0xe1a01001; // mov r1, r1
+                *je++ = 0xe49d0004 | (--ii << 12); // pop r(ii-1)
+            }
+            ii = *pc++;
+            if (ii > 4) {
+                if (peephole) *je++ = 0xe1a01001; // mov r1, r1
+                *je++ = 0xe92d03f0;               // push {r4-r9}
+            }
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
+            *je++ = 0xe28fe000;                   // add lr, pc, #0
             if (!imm0) imm0 = je;
             *il++ = (int) je++ + 1;
             *iv++ = tmp;
-            if (i > 4) *je++ = 0xe28dd018;              // add sp, sp, #24
+            if (peephole) *je++ = 0xe1a01001;     // mov r1, r1
+            if (ii > 4) *je++ = 0xe28dd018;        // add sp, sp, #24
             break;
         case CLCA:
             *je++ = 0xe59d0004; *je++ = 0xe59d1000; // ldr r0, [sp, #4]
@@ -1652,6 +1683,12 @@ int *codegen(int *jitmem, int *jitmap)
                                                     // add r7, r7, #2
             *je++ = 0xe3a02000; *je++ = 0xef000000; // mov r2, #0
                                                     // svc 0
+            break;
+        case PD:
+            *je++ = 0xe1a01001; // mov r1, r1
+            break;
+        case P0:
+            *je++ = 0xe1a0d00d; // mov sp, sp
             break;
         default:
             if (EQ <= i && i <= GE) {
@@ -1672,8 +1709,8 @@ int *codegen(int *jitmem, int *jitmap)
 
         int genpool = 0;
         if (imm0) {
-            if (i == LEV) genpool = 1;
-            else if ((int) je > (int) imm0 + 3000) {
+            if (i == LEV || i == JMP) genpool = 1;
+            else if ((int) je > (int) imm0 + 3072) {
                 tje = je++; genpool = 2;
             }
         }
@@ -2343,21 +2380,26 @@ int main(int argc, char **argv)
     int i;
 
     --argc; ++argv;
-    if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
-        src = 1; --argc; ++argv;
-    }
-    if (argc > 0 && **argv == '-' && !strcmp(*argv, "-fsigned-char")) {
-        signed_char = 1; --argc; ++argv;
-    }
-    if (argc > 0 && **argv == '-' && (*argv)[1] == 'o') {
-        elf = 1; --argc; ++argv;
-        if (argc < 1) die("no output file argument");
-        if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
-            printf("could not open(%s)\n", *argv); return -1;
+    while (argc > 0 && **argv == '-') {
+        if ((*argv)[1] == 's') {
+            src = 1; --argc; ++argv;
         }
-        --argc; ++argv;
+        if (!strcmp(*argv, "-fsigned-char")) {
+            signed_char = 1; --argc; ++argv;
+        }
+        if ((*argv)[1] == 'p') {
+            peephole = 1; --argc; ++argv;
+        }
+        if ((*argv)[1] == 'o') {
+            elf = 1; --argc; ++argv;
+            if (argc < 1) die("no output file argument");
+            if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
+                printf("could not open(%s)\n", *argv); return -1;
+            }
+            --argc; ++argv;
+        }
     }
-    if (argc < 1) die("usage: amacc [-s] [-o object] file");
+    if (argc < 1) die("usage: amacc [-s] [-p] [-fsigned-char] [-o object] file");
 
     int fd;
     if ((fd = open(*argv, 0)) < 0) {

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+if [ "$#" != "1" ]; then
+    echo "Usage: peep <amacc ELF executable file>"
+    echo "'amacc -p -o foo foo.c' must have been used to compile the executable"
+    echo "This command overwrites the executable file with an optimized version"
+    exit
+fi
+PPATH="`dirname \"$0\"`"
+if [[ ! -x $PPATH/../squint ]] ;
+   then echo "A 'squint' executable must exist.";
+   else $PPATH/../squint $1 `readelf -a $1 2>/dev/null | awk '/\.text.*PROGBITS/ { print $6, $7 }'`;
+fi
