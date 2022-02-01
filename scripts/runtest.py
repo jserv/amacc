@@ -7,7 +7,7 @@ import os
 import sys
 
 amacc = './amacc'
-gcc = 'arm-none-linux-gnueabihf-gcc'
+gcc = os.getenv("CROSS_COMPILE", "arm-none-linux-gnueabihf-") + "gcc"
 amaccdir = 'elf'
 gccdir = 'out-gcc'
 
