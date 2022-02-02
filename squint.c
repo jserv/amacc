@@ -1428,8 +1428,7 @@ void rename_register1(int *instInfo, int *funcBegin, int *funcEnd)
 #define MAX_REN_REG 8
    int *scan;
    int offset[MAX_REN_REG];
-   int *protected[MAX_REN_REG];
-   int i, j, k, numReg = 0;
+   int i, numReg = 0;
 
    /* Abort trivial reg renaming if function calls exist */
    for (scan = funcBegin; scan <= funcEnd; ++scan)
@@ -1475,91 +1474,22 @@ void rename_register1(int *instInfo, int *funcBegin, int *funcEnd)
 
    if (numReg == 0) return;
 
-   /* needed for second pass transformations */
-   for (i = 0; i < numReg; ++i) protected[i] = 0;
+   /* create registers for frame vars */
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
+      scan = skip_nop(scan, 1);
 
-   for (k = 0; k < 2; ++k) { // requires two passes
-      create_inst_info(instInfo, funcBegin, funcEnd); // dependency info
-
-      /* create registers for frame vars */
-      for (scan = funcBegin; scan <= funcEnd; ++scan) {
-         scan = skip_nop(scan, 1);
-
-         if (k == 1) {
-            for (i = 0; i < numReg; ++i)
-               if (scan == protected[i]) break;
-            if (i != numReg) continue;
+      if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
+         int off = (*scan & 0xfff);
+         if  ((*scan & (1<<23)) == 0) off = -off;
+         for (i = 0; i < numReg; ++i) {
+            if (offset[i] == off) break;
          }
-
-         if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
-            int rd;
-            int *rdu, *rdd;
-            int regSet, mask;
-            int off = (*scan & 0xfff);
-            if  ((*scan & (1<<23)) == 0) off = -off;
-
-            for (i = 0; i < numReg; ++i) {
-               if (offset[i] == off) break;
-            }
-            if (i == numReg) continue; // this frame var not mapped
-
-            rd = (*scan >> 12) & 0xf;
-
-            if ((*scan & 0x0f3f0000) == 0x051b0000) { // ldr[b] rX, [fp, #X]
-               rdd = find_def(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
-               rdu = find_use(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
-               if (rdd == 0) rdd = &instInfo[funcEnd-funcBegin];
-               *scan = NOP;
-               while (rdu != 0 && rdd != 0 && rdu <= rdd) { // rename loop
-                  scan = &funcBegin[rdu-instInfo];
-                  if ((*scan & 0x0f2f0000) == 0x050b0000) { // frame var memop
-                     int off2 = (*scan & 0xfff);
-                     if ((*scan & (1<<23)) == 0) off2 = -off2;
-                     for (j = 0; j < numReg; ++j) {
-                        if (offset[j] == off2) break;
-                     }
-                     if (j != numReg) {
-                        if ((*scan & 0x0f3f0000) == 0x051b0000) // ldr [fp, #X]
-                           *scan = NOP;
-                        else // str [fp, #x]
-                           *scan = 0xe1a00000 | (*scan & 0x0000f000) | (BR+j);
-                        goto nextUse;
-                     }
-                  }
-                  regSet = 0;
-                  mask = (*rdu & RI_Active);
-                  if (*rdu & RI_hasD) // don't overwite dest reg
-                     mask &= ~((*rdu & RI_RdDest) ? RI_RdAct : RI_RnAct);
-
-                  if ((mask & RI_RmAct) && (*scan & RI_Rm) == rd)
-                     regSet |= (BR+i);
-                  else
-                     mask &= ~RI_RmAct;
-
-                  if ((mask & RI_RsAct) && ((*scan & RI_Rs) >> 8) == rd)
-                     regSet |= ((BR+i) << 8);
-                  else
-                     mask &= ~RI_RsAct;
-
-                  if ((mask & RI_RdAct) && ((*scan & RI_Rd) >> 12) == rd)
-                     regSet |= ((BR+i) << 12);
-                  else
-                     mask &= ~RI_RdAct;
-
-                  if ((mask & RI_RnAct) && ((*scan & RI_Rn) >> 16) == rd)
-                     regSet |= ((BR+i) << 16);
-                  else
-                     mask &= ~RI_RnAct;
-
-                  if (mask & RI_Active) // rename registers
-                     *scan = (*scan & ~activeRegMask[mask >> 4]) | regSet;
-nextUse:
-                  rdu = find_use(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
-               }
-            }
-            else { // str[b] rX, [fp, #X]
-               *scan = 0xe1a00000 | ((BR+i) << 12) | ((*scan >> 12) & 0xf);
-            }
+         if (i == numReg) continue; // this frame var not mapped
+         if ((*scan & 0x0f3f0000) == 0x051b0000) { // ldr[b] rX, [fp, #X]
+            *scan = 0xe1a00000 | (*scan & 0x0000f000) | (BR+i);
+         }
+         else { // str[b] rd, [fp, #X] -> mov rX, rd
+            *scan = 0xe1a00000 | ((BR+i) << 12) | ((*scan >> 12) & 0xf);
          }
       }
    }
