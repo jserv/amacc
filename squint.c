@@ -15,20 +15,19 @@
 #include <unistd.h>
 #include <string.h>
 
-
 /* Register Use/Def Analysis
 
    For each ARM instruction, create an integer descriptor describing
    register usage.  Since the stack simultaneously behaves like a
    single register *and* an 'infinite' register file, we also need to
    keep track of stack usage. We only track user-assignable registers
-   here, and exclude the behavior of the fp, sp, lr, pc whose behavior
-   is constrained via both hardware and ABI conventions.  We do not
-   track specific memory addresses, but do track use/def via memory op.
+   here, and (mostly) exclude the behavior of the fp, sp, lr, pc whose
+   behavior is constrained via both hardware and ABI conventions.  We
+   do not track specific memory addresses, but do track use/def memOp.
 
    Lower descriptor bits are used to mirror the Rn/Rd/Rs/Rm register
    slots in an A32 opcode. This makes it easier to manipulate
-   'active' register slots in the opcode.
+   'active' register slots in the actual instructions.
 */
 
 /*
@@ -152,7 +151,7 @@ int is_const(int *inst)
 }
 
 /* Amacc pc-relative constants always appear in the instruction */
-/* stream after the instrunctions that reference them.  Because */
+/* stream after the instructions that reference them.  Because */
 /* of this we can safely scan an instruction stream forward, */
 /* skipping any constants we encounter. */
 void create_const_map(int *begin, int *end)
@@ -199,7 +198,7 @@ void destroy_const_map()
    struct ia_s *inst, *next;
    int i;
 
-   for (i = 0;  i< cnst_pool_size; ++i) {
+   for (i = 0;  i < cnst_pool_size; ++i) {
       inst = cnst_pool[i].inst;
       while (inst != 0) {
          next = inst->next;
@@ -398,21 +397,6 @@ void rename_nop(int *begin, int *end)
 /**********************************************************/
 /****************** amacc use-def analysis ****************/
 /**********************************************************/
-
-/* Register Use/Def Analysis
-
-   For each ARM instruction, create an integer descriptor describing
-   register usage.  Since the stack simultaneously behaves like a
-   single register *and* an 'infinite' register file, we also need to
-   keep track of stack usage. We only track user-assignable registers
-   here, and (mostly) exclude the behavior of the fp, sp, lr, pc whose
-   behavior is constrained via both hardware and ABI conventions.  We
-   do not track specific memory addresses, but do track use/def memOp.
-
-   Lower descriptor bits are used to mirror the Rn/Rd/Rs/Rm register
-   slots in an A32 opcode. This makes it easier to manipulate
-   'active' register slots in the actual instructions.
-*/
 
 /* The following bit masks are used to transfer 'active' register
    slots between the def/use descriptors and the A32 opcodes.
