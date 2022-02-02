@@ -1586,6 +1586,9 @@ int *codegen(int *jitmem, int *jitmap)
             if (tmp >= 64 || tmp < 0) {
                 printf("jit: ENT %d out of bounds\n", tmp); exit(6);
             }
+            if (peephole) { // reserve space for frame registers
+                for (ii=0; ii<8; ++ii) *je++ = 0xe1a00000; // mov r0, r0
+            }
             break;
         case ADJ:
             *je++ = 0xe28dd000 + *pc++ * 4;      // add sp, sp, #(tmp * 4)

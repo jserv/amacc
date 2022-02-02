@@ -1,7 +1,7 @@
 /* Squint -- a peephole optimizer for amacc.*/
 
-/* amacc uses a 2-register stack based VM. */
-/* squint converts this to a ~two register frame based VM. */
+/* AMaCC uses a 2-register stack based VM. */
+/* Squint converts this to a ~two register frame based VM. */
 /* A 2-register frame based VM can potentially */
 /* make it easier to add an additional register */
 /* allocation pass to the peephole optimizer. */
@@ -86,7 +86,7 @@
 struct ia_s {
    int inst_addr; // inst address
    struct ia_s *next;
-} ;
+};
 
 struct pd_s {
    int data_addr; // data address
@@ -100,7 +100,7 @@ struct loop_s {
    int *begin;
    int *end;
    int info; // stats between begin/end
-} ;
+};
 
 int *cbegin;
 
@@ -110,10 +110,10 @@ int *cbegin;
 
 int popcount32b(int i)
 {
-    i = i - ((i >> 1) & 0x55555555); // add pairs of bits
-    i = (i & 0x33333333) + ((i >> 2) & 0x33333333); // quads
-    i = (i + (i >> 4)) & 0x0F0F0F0F; // groups of 8
-    return (i * 0x01010101) >> 24; // horizontal sum of bytes
+   i = i - ((i >> 1) & 0x55555555); // add pairs of bits
+   i = (i & 0x33333333) + ((i >> 2) & 0x33333333); // quads
+   i = (i + (i >> 4)) & 0x0F0F0F0F; // groups of 8
+   return (i * 0x01010101) >> 24; // horizontal sum of bytes
 }
 
 /**********************************************************/
@@ -158,6 +158,7 @@ int is_const(int *inst)
 void create_const_map(int *begin, int *end)
 {
    int *scan = begin;
+   int i;
 
    /* initialize global variables */
    cbegin = begin;
@@ -172,11 +173,10 @@ void create_const_map(int *begin, int *end)
          int low = find_const(addr);
 
          if (cnst_pool[low].data_addr != addr) {
-            int i;
             int *mem = ((int *)&cnst_pool[cnst_pool_size]) + 1;
 
             // insert addr at this location
-            for (i=cnst_pool_size; i>low; --i) {
+            for (i = cnst_pool_size; i > low; --i) {
                *mem = *(mem-2); --mem;
                *mem = *(mem-2); --mem;
             }
@@ -199,7 +199,7 @@ void destroy_const_map()
    struct ia_s *inst, *next;
    int i;
 
-   for (i=0; i<cnst_pool_size; ++i) {
+   for (i = 0;  i< cnst_pool_size; ++i) {
       inst = cnst_pool[i].inst;
       while (inst != 0) {
          next = inst->next;
@@ -217,7 +217,7 @@ void const_imm_opt(int *begin, int *end)
    int *newinst;
    int i, j, val, rotate;
 
-   for (i=0, j=0; i<cnst_pool_size; ++i) {
+   for (i = 0, j = 0; i < cnst_pool_size; ++i) {
       val = cbegin[cnst_pool[i].data_addr/4];
       rotate = 0;
       if ((val & 0x0000ff00) && !(val & 0xffff00ff)) rotate = 1;
@@ -258,18 +258,18 @@ void const_imm_opt(int *begin, int *end)
 /* relocate a ldr rX, [pc, #X] instruction */
 void rel_pc_ldr(int *dst, int *src)
 {
-   if (dst != src) {
-      struct ia_s **inst;
-      int addr = ((src + 2 + (*src & 0xfff) / 4) - cbegin)*4;
-      int low = find_const(addr);
-      if (cnst_pool[low].data_addr == addr) { // verify 'low' is index of const
-         for (inst = &cnst_pool[low].inst; *inst != 0; inst = &(*inst)->next) {
-            if ((*inst)->inst_addr == (src - cbegin)*4) {
-               /* make sure pc-relative addr is still valid after move */
-               (*inst)->inst_addr = (dst - cbegin)*4;
-               *dst = *src + (src - dst)*4;
-               break;
-            }
+   if (dst == src) return;
+
+   struct ia_s **inst;
+   int addr = ((src + 2 + (*src & 0xfff) / 4) - cbegin)*4;
+   int low = find_const(addr);
+   if (cnst_pool[low].data_addr == addr) { // verify 'low' is index of const
+      for (inst = &cnst_pool[low].inst; *inst != 0; inst = &(*inst)->next) {
+         if ((*inst)->inst_addr == (src - cbegin)*4) {
+            /* make sure pc-relative addr is still valid after move */
+            (*inst)->inst_addr = (dst - cbegin)*4;
+            *dst = *src + (src - dst)*4;
+            break;
          }
       }
    }
@@ -388,9 +388,9 @@ void rename_nop(int *begin, int *end)
 {
    int *scan;
 
-   for (scan=begin; scan <= end; ++scan) {
+   for (scan = begin; scan <= end; ++scan) {
       if (is_nop(*scan) && !is_const(scan)) {
-         *scan = NOP ;
+         *scan = NOP;
       }
    }
 }
@@ -407,7 +407,7 @@ void rename_nop(int *begin, int *end)
    keep track of stack usage. We only track user-assignable registers
    here, and (mostly) exclude the behavior of the fp, sp, lr, pc whose
    behavior is constrained via both hardware and ABI conventions.  We
-   do not track specific memory addresses, but do track use/def memOp. 
+   do not track specific memory addresses, but do track use/def memOp.
 
    Lower descriptor bits are used to mirror the Rn/Rd/Rs/Rm register
    slots in an A32 opcode. This makes it easier to manipulate
@@ -435,13 +435,13 @@ int activeRegMask[16] =
    0x000ff00f,
    0x000fff00,
    0x000fff0f
-} ;
+};
 
 /**********************************************/
 
 #define MAX_RENAME_REG 8
 
-int test(int inst, int opmask)
+int regtest(int inst, int opmask)
 {
    return ((inst & opmask) == opmask);
 }
@@ -454,7 +454,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
    int Rn, Rd, Rs, Rm;
    int inst, instMask, op;
 
-   for (scan=funcBegin; scan<=funcEnd; ++scan) {
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
       int info = 0;
 
       /* skip code that won't be transformed */
@@ -462,7 +462,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
          int *end = skip_nop(scan, 1);
          while (scan < end) {
             if (*scan == NOP13) {
-               *rInfo++ = RI_func ; // R0 set in func
+               *rInfo++ = RI_func; // R0 set in func
             }
             else
                *rInfo++ = info;
@@ -483,7 +483,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
       if (instMask == 0x02) { /* ALU_immed */
          op = (inst >> 21) & 0x0f;
          if ((op != 0x0d) && (op != 0x0f)) {
-             info |= RI_RnAct ;
+             info |= RI_RnAct;
          }
          if ((op & 0x0c) != 0x08) { // not tst instructions
              info |= RI_RdAct | RI_RdDest;
@@ -491,12 +491,12 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
       }
       else if (instMask == 0x00) { /* ALU_register */
          if ((inst & 0xf0) == 0x90) { /* mul */
-            info |= RI_RnAct | RI_RsAct | RI_RmAct | RI_RnDest ;
+            info |= RI_RnAct | RI_RsAct | RI_RmAct | RI_RnDest;
          }
          else { /* not mul */
             op = (inst >> 21) & 0x0f;
             if ((op != 0x0d) && (op != 0x0f)) {
-                info |= RI_RnAct ;
+                info |= RI_RnAct;
             }
             if ((op & 0x0c) != 0x08) {
                 info |= RI_RdAct | RI_RdDest;
@@ -522,10 +522,10 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
                }
 
                if (Rn == 0x0f) {
-                  info |= RI_instR ;
+                  info |= RI_instR;
                }
                else if (Rn == 0x0b) {
-                  info |= RI_frameR ;
+                  info |= RI_frameR;
                }
                else {
                   info |= RI_dataR;
@@ -540,7 +540,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
             }
             else {
                if (Rn == 0x0b) {
-                  info |= RI_frameW ;
+                  info |= RI_frameW;
                }
                else {
                   info |= RI_dataW;
@@ -549,7 +549,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
          }
       }
       else if (instMask == 0x0a) { /* BRANCH */
-         // info |= RI_branch ; Enabling this causes a basic block bug
+         // info |= RI_branch; Enabling this causes a basic block bug
          if ( (*(scan-1) & 0x0e000000) != 0x0a000000 ) {
             *(rInfo-1) |= RI_be; /* basic block end */
          }
@@ -564,10 +564,10 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
 
       /* Mask out any registers outside of rename range */
 
-      if ( (Rn >= MAX_RENAME_REG) && test(info, RI_RnAct) ) {
-         info &= ~(RI_RnAct | RI_RnDest) ;
+      if ( (Rn >= MAX_RENAME_REG) && regtest(info, RI_RnAct) ) {
+         info &= ~(RI_RnAct | RI_RnDest);
       }
-      if ( (Rd >= MAX_RENAME_REG) && test(info, RI_RdAct) ) {
+      if ( (Rd >= MAX_RENAME_REG) && regtest(info, RI_RdAct) ) {
          info &= ~(RI_RdAct | RI_RdDest);
          if ((info & RI_memMask) == RI_push) { /* check for push or pop */
             info &= ~RI_memOp; /* clear push/pop operation */
@@ -575,17 +575,17 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
          /* Note that RI_mem is left set here, since we still
             need to handle pc relative addresses */
       }
-      if ( (Rs >= MAX_RENAME_REG) && test(info, RI_RsAct) ) {
+      if ( (Rs >= MAX_RENAME_REG) && regtest(info, RI_RsAct) ) {
          info &= ~RI_RsAct;
       }
-      if ( (Rm >= MAX_RENAME_REG) && test(info, RI_RmAct) ) {
+      if ( (Rm >= MAX_RENAME_REG) && regtest(info, RI_RmAct) ) {
          info &= ~RI_RmAct;
       }
 
       /* keep register Ids for active registers */
-      info |= inst & activeRegMask[(info & RI_Active) >> 4] ;
+      info |= inst & activeRegMask[(info & RI_Active) >> 4];
 
-      *rInfo++ = info ;
+      *rInfo++ = info;
    }
 
    /* termination sentinel to simplify reg_info scans */
@@ -611,7 +611,7 @@ int *find_def(int *instInfo, int *rInfo, int reg, int direction)
       info = *rInfo;
       if (info & RI_hasD) {
          int cmpReg = (info & RI_RnDest) ?
-                      (info & RI_Rn) >> 16 : (info & RI_Rd) >> 12 ;
+                      (info & RI_Rn) >> 16 : (info & RI_Rd) >> 12;
          if (reg == cmpReg) {
             retVal = rInfo;
             break;
@@ -672,20 +672,16 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
 {
    int *scan;
    int *scanp1, *scanp2, *scanp3;
-
-   for (scan=funcBegin; scan<funcEnd; ++scan) {
-
+   for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
-
       /* one instruction peepholes */
-
       if (*scan == 0xe2400000 || /* sub r0, r0, #0 */
           *scan == 0xe2800000) { /* add r0, r0, #0 */
-         *scan = NOP ;
+         *scan = NOP;
       }
       else {    /* two instruction peephole */
 
-         scanp1 = active_inst(scan, 1) ;
+         scanp1 = active_inst(scan, 1);
 
          if ((*scan & 0xfff00000) == 0xe2800000 || // add rI, rS, #X
              (*scan & 0xfff00000) == 0xe2400000) { // sub rI, rS, #X
@@ -704,21 +700,19 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
    }
 
    funcEnd -= 2;
-   for (scan=funcBegin; scan<funcEnd; ++scan) {
-
+   for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
-
       scanp1 = active_inst(scan,   1);
       scanp2 = active_inst(scanp1, 1);
 
       /* change register to immediate if possible */
-      if (*scan   == 0xe52d0004 && /* push {r0} */ 
+      if (*scan   == 0xe52d0004 && /* push {r0} */
           *scanp2 == 0xe49d1004 && /* pop  {r1} */
           (*scanp1 & 0xffffff00) == 0xe3a00000) { /* mov r0, #X */
-         scanp3 = active_inst(scanp2, 1) ;
+         scanp3 = active_inst(scanp2, 1);
          if ((*scanp3 & 0xfe1fffff) == 0xe0010000 &&
              (*scanp3>>23 & 0x3) != 0x2) { /* exclude comparisons */
-            *scanp3 = (*scanp3 ^ 1<<16) | 1<<25 | (*scanp1 & 0xff) ;
+            *scanp3 = (*scanp3 ^ 1<<16) | 1<<25 | (*scanp1 & 0xff);
             *scan   = NOP;
             *scanp1 = NOP;
             *scanp2 = NOP;
@@ -739,23 +733,21 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
 void apply_peepholes2(int *instInfo, int *funcBegin, int *funcEnd)
 {
    int *scan;
-   int *scanp1, *scanp2, *scanp3, *scanp4, *scanp5 ;
+   int *scanp1, *scanp2, *scanp3, *scanp4, *scanp5;
    int *scanm1, *scanm2;
 
    create_inst_info(instInfo, funcBegin, funcEnd);
 
    funcEnd -= 6;
-   for (scan=funcBegin; scan<funcEnd; ++scan) {
-
+   for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
-
       /* Convert amacc array addressing to more compact form */
       if ((*scan & 0xffffff00) == 0xe3a00000) { /* mov r0, #X */
          int imm = *scan & 0xff;
          scanm1 = active_inst(scan, -1);
          scanp1 = active_inst(scan,  1);
          if ((imm & (imm-1)) == 0 && // power of 2
-             *scanm1 == 0xe52d0004 && /* push {r0} */ 
+             *scanm1 == 0xe52d0004 && /* push {r0} */
              *scanp1 == 0xe49d1004) { /* pop  {r1} */
             int *loc;
             scanm2 = active_inst(scanm1, -1);
@@ -784,9 +776,6 @@ void apply_peepholes2(int *instInfo, int *funcBegin, int *funcEnd)
                }
                else { // move onto "load" instruction
                   int *fscan = active_inst(pscan, -1);
-                  // loc = &instInfo[pscan-funcBegin];
-                  // if (find_def(instInfo, loc, 0, 1) == loc) {
-                  // jk fscan is a base pointer, but still might not be ldr...
                   if ((*fscan & 0xff700000) == 0xe5100000) { // ldr r0, [xxx]
                      imm = popcount32b(imm-1);
                      *pscan  = NOP;
@@ -802,14 +791,14 @@ void apply_peepholes2(int *instInfo, int *funcBegin, int *funcEnd)
                      if ((*scanp5 & 0xff3fffff) == 0xe5100000) {
                         // ldr[b] r0, [r0] -> ldr[b], [r2, r0, lsl #x]
                         *scanp4 = NOP;
-                        *scanp5 = 0xe7920000 | (imm << 7) ;
+                        *scanp5 = 0xe7920000 | (imm << 7);
                      }
                      else {
                         // add r0, r2, r0, lsl #X
                         *scanp4 = 0xe0820000 | (imm << 7);
                      }
                   }
-                  scan = active_inst(scanp4, 1); // should be scanp5, but good enough
+                  scan = active_inst(scanp4, 1);
                }
             }
          }
@@ -826,8 +815,7 @@ void apply_peepholes3(int *instInfo, int *funcBegin, int *funcEnd)
    create_inst_info(instInfo, funcBegin, funcEnd);
 
    funcEnd -= 5;
-   for (scan=funcBegin; scan<funcEnd; ++scan) {
-
+   for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
 
       // get rid of unused postincrement-operator cruft
@@ -861,10 +849,9 @@ void apply_peepholes4(int *funcBegin, int *funcEnd)
    int *scan, *scanp1;
 
    funcEnd -= 1;
-   for (scan=funcBegin; scan<=funcEnd; ++scan) {
-
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
-      scanp1 = active_inst(scan,  1);
+      scanp1 = active_inst(scan, 1);
 
       if (*scanp1 == 0xe0410000 &&              // sub r0, r1, r0
           (*scan & 0xffffff00) == 0xe3e00000 && // mvn r0, #X
@@ -874,7 +861,12 @@ void apply_peepholes4(int *funcBegin, int *funcEnd)
       }
       else if (*scan   == 0xe3e00000 && // mvn r0, #0
                *scanp1 == 0xe0000091) { // mul r0, r1, r0
-         *scanp1 = 0xe2610000 ; // rsb r0, r1, #0
+         *scanp1 = 0xe2610000; // rsb r0, r1, #0
+         *scan = NOP;
+      }
+      else if ((*scan & 0x0fffff00) == 0x03a00000 && // mov r0, #imm
+               *scanp1 == 0xe1510000) {              // cmp r1, r0
+         *scanp1 |= 2<<24 | (*scan & 0xff);
          *scan = NOP;
       }
    }
@@ -899,9 +891,9 @@ void simplifyBranch1(int *funcBegin, int *funcEnd)
    memset(reachable, 0, (funcEnd-funcBegin)+1);
 
    /* estimate number of branches */
-   for (scan=funcBegin; scan<=funcEnd; ++scan) {
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
       if ((*scan & 0x0e000000) == 0x0a000000) { // branch
-        ++numQueue;
+         ++numQueue;
       }
    }
 
@@ -920,13 +912,13 @@ void simplifyBranch1(int *funcBegin, int *funcEnd)
          reachable[scan-funcBegin] = 1; // 1 = inst
          if ((*scan & 0x0f000000) == 0x0a000000) { // branch
             int cond = (*scan>>28) & 0xf;
-            if (cond < 0xf) { // extended instruction == 0x0f 
+            if (cond < 0xf) { // extended instruction == 0x0f
                int i;
                int tmp = (*scan & 0x00ffffff) |
-                         ((*scan & 0x00800000) ? 0xff000000 : 0) ;
+                         ((*scan & 0x00800000) ? 0xff000000 : 0);
                int *dst = scan + 2 + tmp;
                if (!reachable[dst-funcBegin]) {
-                  for (i=0; i<numQueue; ++i) {
+                  for (i = 0; i < numQueue; ++i) {
                      if (queue[i] == dst)
                         break;
                   }
@@ -943,11 +935,11 @@ void simplifyBranch1(int *funcBegin, int *funcEnd)
             break;
 
          ++scan;
-      } while (scan <= funcEnd) ; 
+      } while (scan <= funcEnd);
    }
 
    cursor = 0;
-   for (scan=funcBegin; scan<=funcEnd; ++scan) {
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
       if (!reachable[cursor++]) {
          if (!is_const(scan)) {
             *scan = NOP;
@@ -959,7 +951,7 @@ void simplifyBranch1(int *funcBegin, int *funcEnd)
             --scan;
             if ((*scan & 0x0fffffff) == 0x0a000001 &&
                 ((*scan >> 28) & 0xf) != 0xf && !is_const(scan)) {
-              *scan ^= 1; // allows other optimizations, 2 inst amacc
+               *scan ^= 1; // allows other optimizations, 2 inst amacc
             }
             ++scan;
             ++scan;
@@ -978,10 +970,10 @@ void simplifyBranch1(int *funcBegin, int *funcEnd)
 /* add set all branch targets to the final address */
 int *rethreadBranch(int *branchInst)
 {
-   int* retVal ;
+   int* retVal;
    if  ((*branchInst & 0xff000000) == 0xea000000) { // uncond branch
       int tmp = (*branchInst & 0x00ffffff) |
-                ((*branchInst & 0x00800000) ? 0xff000000 : 0) ;
+                ((*branchInst & 0x00800000) ? 0xff000000 : 0);
 
       int *dstInst = branchInst + 2 + tmp;
       retVal = rethreadBranch(dstInst);
@@ -990,18 +982,16 @@ int *rethreadBranch(int *branchInst)
    else {
       retVal = branchInst;
    }
-
    return retVal;
 }
 
 /* rethread unconditional branch chains */
 void simplifyBranch2(int *funcBegin, int *funcEnd) {
    int *scan;
-
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
       if ((*scan & 0xff000000) == 0xea000000) { // uncond branch
-         rethreadBranch(scan) ;
+         rethreadBranch(scan);
       }
    }
 }
@@ -1011,11 +1001,8 @@ void simplifyBranch2(int *funcBegin, int *funcEnd) {
 void simplifyBranch3(int *funcBegin, int *funcEnd) {
    int *scan;
    int match, tmp;
-
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-
       scan = skip_nop(scan, 1);
-
       if (*scan == 0xe3500000) { /* cmp r0, #0 */
          int *branchInst = active_inst(scan, 1);
          int *target = branchInst;
@@ -1025,10 +1012,10 @@ void simplifyBranch3(int *funcBegin, int *funcEnd) {
             while(1) {
                /* calc sign extended branch addr */
                tmp = (*target & 0x00ffffff) |
-                     ((*target & 0x00800000) ? 0xff000000 : 0) ;
+                     ((*target & 0x00800000) ? 0xff000000 : 0);
                target += 2 + tmp;
                if (*target == 0xe3500000) { /* cmp r0, #0 */
-                 target = active_inst(target, 1);
+                  target = active_inst(target, 1);
                }
                if ((*target & 0xff000000) == 0x0a000000 || /* beq */
                    (*target & 0xff000000) == 0x1a000000) { /* bne */
@@ -1042,7 +1029,7 @@ void simplifyBranch3(int *funcBegin, int *funcEnd) {
                else if ((*target & 0xff000000) != 0xea000000) { /* b */
                   break;
                }
-            } 
+            }
             *branchInst = (*branchInst & 0xff000000) |
                           ((target - branchInst - 2) & 0xffffff);
          }
@@ -1055,24 +1042,19 @@ void simplifyBranch3(int *funcBegin, int *funcEnd) {
 void simplifyBranch4(int *funcBegin, int *funcEnd)
 {
    int *scan;
-
    for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
 
       if (*scan == 0xe3500000) { /* cmp r0, #0 */
          int *scanm1, *scanm2, *scanm3, *scanp1;
 
-         /* jk verify that no branch targets land on a cmp (optional) */
-         /* ... */
-
          /* simplify cmp blocks */
-         // Using active_inst is overkill, since amacc generates code blocks jk
          scanm1 = active_inst(scan,   -1);
          scanm2 = active_inst(scanm1, -1);
          scanm3 = active_inst(scanm2, -1);
          if ((*scanm3 & 0xf3f0f000) == 0xe1500000)  { /* cmp rX, r0 */
             scanp1 = active_inst(scan, 1);
-            int match = ((*scanp1 & 0xf0000000) == 0) ? 0 /* eq */ : 1 /* ne */ ;
+            int match = ((*scanp1 & 0xf0000000) == 0) ? 0 /* eq */ : 1 /* ne */;
             if ((*scanm1 & 1) == match) {
                *scanp1 = (*scanp1 & 0x0fffffff) | (*scanm1 & 0xf0000000);
             }
@@ -1092,10 +1074,8 @@ void simplifyBranch4(int *funcBegin, int *funcEnd)
 void simplifyBranch5(int *funcBegin, int *funcEnd)
 {
    int *scan;
-
    for (scan = funcBegin; scan < funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
-
       if ((*scan & 0x0fffffff) == 0x0a000000 &&  // cond jump past next inst
           ((*scan >> 28) &0xf) < 0xe &&
           (scan[1] & 0xff000000) == 0xea000000) {
@@ -1109,12 +1089,6 @@ void simplifyBranch5(int *funcBegin, int *funcEnd)
 
 /* optimize branch-specific code sequences */
 void simplifyBranch(int *funcBegin, int *funcEnd) {
-
-   /*************************************************/
-   /* Note that you may want to identify loops before
-      rethreading jumps!!! jk */
-   /*************************************************/
-
    simplifyBranch1(funcBegin, funcEnd);
    simplifyBranch2(funcBegin, funcEnd);
    simplifyBranch3(funcBegin, funcEnd);
@@ -1124,6 +1098,7 @@ void simplifyBranch(int *funcBegin, int *funcEnd) {
 }
 
 /* remove all NOP instructions ( mov r0, r0 ) and adjust branches */
+/* mode == 0: intra-function repack, mode != 0, inter-function */
 int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
 {
    int *retVal = funcEnd;
@@ -1136,7 +1111,7 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
    int currTarget;
    int hasLink;
    int offset;
-   int loopAlign;
+   int align;
 
    int *scan;
    int *packed;
@@ -1178,9 +1153,9 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
                  ((mode != 0) &&  hasLink) ) {  // inter-function mode
                /* add branch to table */
                permutation[branchCount] = branchCount;
-               branchAddr[branchCount] = (scan - funcBegin); 
+               branchAddr[branchCount] = (scan - funcBegin);
                tmp = (*scan & 0x00ffffff) |
-                     ((*scan & 0x00800000) ? 0xff000000 : 0) ;
+                     ((*scan & 0x00800000) ? 0xff000000 : 0);
                branchTarget[branchCount] = (scan - funcBegin) + 2 + tmp;
                ++branchCount;
             }
@@ -1193,7 +1168,7 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
       ii = 0;
       do {
          done = 1;
-         for (jj=branchCount-2; jj >= ii; --jj) {
+         for (jj = branchCount-2; jj >= ii; --jj) {
             if (branchTarget[jj+1] < branchTarget[jj]) {
                tmp = branchTarget[jj+1];
                branchTarget[jj+1] = branchTarget[jj];
@@ -1205,7 +1180,7 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
             }
          }
          ++ii;
-      } while (!done) ;
+      } while (!done);
    }
 
    if (nopCount > 0) { // there are nops to remove
@@ -1216,23 +1191,23 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
 
       packed = funcBegin;
       for (scan = funcBegin; scan <= funcEnd; ++scan, ++offset) {
-         loopAlign = 1;
+         align = 1;
          while (currTarget < branchCount) {
             if (branchTarget[currTarget] == offset) {
-               if (loopAlign &&
-                   branchAddr[permutation[currTarget]] > offset) {
+               if (align && ((mode != 0) ||
+                   branchAddr[permutation[currTarget]] > offset)) {
                   /* quadword align loop branch target */
-                  tmp = 4 - ((packed-funcBegin) & 3) ;
+                  tmp = 4 - ((packed-funcBegin) & 3);
                   if (tmp != 4 && (scan-packed) >= tmp) {
                      while (tmp-- > 0)
                         *packed++ = NOP;
                   }
-                  loopAlign = 0;
+                  align = 0;
                }
                branchTarget[currTarget++] = packed - funcBegin;
             }
             else {
-               break ;
+               break;
             }
          }
          if (currAddr < branchCount) {
@@ -1246,7 +1221,7 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
          }
          else if (*scan != NOP) {
             if ((*scan>>16 & 0x0fff) == 0x59f) { // ldr rx, [pc, #x]
-               rel_pc_ldr(packed, scan) ;
+               rel_pc_ldr(packed, scan);
                ++packed;
                /* remap pc-relative load operations */
                // *scan += (scan - packed)*sizeof(int);
@@ -1265,10 +1240,10 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
       }
 
       /* fixup branch instructions with new target address */
-      for (ii=0; ii<branchCount; ++ii) {
-         tmp = branchAddr[permutation[ii]] ;
+      for (ii = 0; ii < branchCount; ++ii) {
+         tmp = branchAddr[permutation[ii]];
          funcBegin[tmp] = (funcBegin[tmp] & 0xff000000) |
-                      ((branchTarget[ii] - tmp - 2) & 0x00ffffff) ;
+                      ((branchTarget[ii] - tmp - 2) & 0x00ffffff);
       }
 
       retVal = packed - 1;
@@ -1293,13 +1268,11 @@ struct { int *push, *pop; int lev; } pair[2000];
 
 void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
 {
-   int safe = 0;
-   int safelev = 0;
-   int lev = 0;
+   int i, lev = 0;
    int maxlev = 0;
    int *scanm1, *scanp1;
    int *stack[10];
-   int *scan ;
+   int *scan;
    int np = 0;
 
    create_inst_info(instInfo, funcBegin, funcEnd);
@@ -1310,10 +1283,6 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
           *(scan-1) != NOP1 &&
           *(scan+3) != 0xe3a0780f && // mov r7, #983040
           *(scan+6) != 0xe3a0780f) { // amacc specific hack
-         if (lev == 0) {
-            safe = np;
-            safelev = maxlev;
-         }
          stack[lev] = scan;
          ++lev;
       }
@@ -1332,15 +1301,13 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
    }
 
    // innermost to outermost push/pop pairs
-
-   for (int i=0; i<np; ++i) {
+   for (i = 0; i < np; ++i) {
       scanm1 = active_inst(pair[i].push, -1);
       scanp1 = active_inst(pair[i].pop,   1);
-      //jk reactivate the ldr case!!!
-      // if (*scanp1 == 0xe5900000 || *scanp1 == 0xe5d00000)  ldr[b] r0, [r0]
       if (*scanp1 == 0xe5810000 || *scanp1 == 0xe5c10000) { // str[b] r0, [r1]
-         int *r0d = find_def(instInfo, &instInfo[(pair[i].push-funcBegin)+1], 0, 1);
-         int *r0u = find_use(instInfo, &instInfo[(pair[i].push-funcBegin)+1], 0, 1);
+         int *pushp1 = &instInfo[(pair[i].push-funcBegin)+1];
+         int *r0d = find_def(instInfo, pushp1, 0, 1);
+         int *r0u = find_use(instInfo, pushp1, 0, 1);
          if (r0d <= r0u &&
              ((*scanm1 & 0xffffff00) == 0xe28b0000 ||  // add r0, fp, #X
               (*scanm1 & 0xffffff00) == 0xe24b0000 )) { // sub r0, fp, #X
@@ -1349,23 +1316,21 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
             if ((*scanm1 & 0xffffff00) == 0xe24b0000) { // sub r0, fp, #X
                addOffsetBit = 0;
             }
-
             if (r0u == r0d) {
                if (funcBegin[r0d-instInfo] == 0xe5900000) { // ldr r0, [r0]
                   funcBegin[r0d-instInfo] =
                      (funcBegin[r0d-instInfo] & 0xff70ff00) | addOffsetBit |
-                      0x000b0000 | offset ;
+                      0x000b0000 | offset;
                }
                else {
                   continue;
                }
             }
-
             *scanm1 = NOP;
             *pair[i].push = NOP;
             *pair[i].pop  = NOP;
             *scanp1 = (*scanp1 & 0xff70ff00) | addOffsetBit |
-                         0x000b0000 | offset ;
+                         0x000b0000 | offset;
          }
          else if (r0d < r0u &&
                   (*scanm1 & 0xffff0000) == 0xe59f0000 && // ldr r0, [pc, #X]
@@ -1378,9 +1343,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
       }
    }
 
-   safe = 0;
-   safelev = 0;
-   lev=0 ;
+   lev=0;
    maxlev=0;
    np=0;
    scan=funcBegin;
@@ -1393,10 +1356,6 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
           *(scan-1) != NOP1 &&
           *(scan+3) != 0xe3a0780f &&
           *(scan+6) != 0xe3a0780f) {
-         if (lev == 0) {
-            safe = np;
-            safelev = maxlev;
-         }
          stack[lev] = scan;
          ++lev;
       }
@@ -1416,10 +1375,9 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
    }
 
    // outermost to innermost push/pop pairs
-
    // need a ldr r0, [pc, #x] guard here for scanm1 instruction ...
-   for (lev=0; lev<=maxlev; ++lev) {
-      for (int i=0; i<np; ++i) {
+   for (lev = 0; lev <= maxlev; ++lev) {
+      for (i = 0; i < np; ++i) {
          if (pair[i].lev == lev) {
             int *pop  = &instInfo[pair[i].pop-funcBegin];
             int *pushp1 = &instInfo[(pair[i].push-funcBegin)+1];
@@ -1433,7 +1391,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
                int *r0md = find_def(instInfo, m1, 0, 1);
                int *r0push1u = find_use(instInfo, pushp1, 0, 1);
                int *r0push1d = find_def(instInfo, pushp1, 0, 1);
-               int m1modifiable = 
+               int m1modifiable =
                   (*(pair[i].push - 1) != NOP13) && (r0md == m1);
 
                /* if r0 defined in instruction before push and */
@@ -1461,16 +1419,170 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
 }
 
 /**********************************************************/
+/****       convert frame vars to registers          ******/
+/**********************************************************/
+
+void rename_register1(int *instInfo, int *funcBegin, int *funcEnd)
+{
+#define BR 3  /* base register */
+#define MAX_REN_REG 8
+   int *scan;
+   int offset[MAX_REN_REG];
+   int *protected[MAX_REN_REG];
+   int i, j, k, numReg = 0;
+
+   /* Abort trivial reg renaming if function calls exist */
+   for (scan = funcBegin; scan <= funcEnd; ++scan)
+      if (*scan == NOP13 && !is_const(scan)) return;  
+
+   /* record frame variable in this context */
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
+      scan = skip_nop(scan, 1);
+
+      if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
+         int off = (*scan & 0xfff);
+         if  ((*scan & (1<<23)) == 0) off = -off;
+         for (i = 0; i < numReg; ++i) {
+            if (offset[i] == off) break;
+         }
+         if (i == numReg) {
+            offset[numReg++] = off;
+            if (numReg == MAX_REN_REG) break;
+         }
+      }
+   }
+
+   /* discard any frame variables that are not trivial */
+   for (scan = funcBegin; scan <= funcEnd; ++scan) {
+      scan = skip_nop(scan, 1);
+
+      if ((*scan & 0xffffff00) == 0xe28b0000 || // add r0, fp, #X
+          (*scan & 0xffffff00) == 0xe24b0000) { // sub r0, fp, #X
+         int off = *scan & 0xff;
+         if ((*scan & 0xffffff00) == 0xe24b0000) {
+            off = -off;
+         }
+         for (i = 0; i < numReg; ++i) {
+            if (offset[i] == off) break;
+         }
+         if (i != numReg) {
+            --numReg;
+            for(; i < numReg; ++i)
+               offset[i] = offset[i+1];
+         }
+      }
+   }
+
+   if (numReg == 0) return;
+
+   /* needed for second pass transformations */
+   for (i = 0; i < numReg; ++i) protected[i] = 0;
+
+   for (k = 0; k < 2; ++k) { // requires two passes
+      create_inst_info(instInfo, funcBegin, funcEnd); // dependency info
+
+      /* create registers for frame vars */
+      for (scan = funcBegin; scan <= funcEnd; ++scan) {
+         scan = skip_nop(scan, 1);
+
+         if (k == 1) {
+            for (i = 0; i < numReg; ++i)
+               if (scan == protected[i]) break;
+            if (i != numReg) continue;
+         }
+
+         if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
+            int rd;
+            int *rdu, *rdd;
+            int regSet, mask;
+            int off = (*scan & 0xfff);
+            if  ((*scan & (1<<23)) == 0) off = -off;
+
+            for (i = 0; i < numReg; ++i) {
+               if (offset[i] == off) break;
+            }
+            if (i == numReg) continue; // this frame var not mapped
+
+            rd = (*scan >> 12) & 0xf;
+
+            if ((*scan & 0x0f3f0000) == 0x051b0000) { // ldr[b] rX, [fp, #X]
+               rdd = find_def(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
+               rdu = find_use(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
+               if (rdd == 0) rdd = &instInfo[funcEnd-funcBegin];
+               *scan = NOP;
+               while (rdu != 0 && rdd != 0 && rdu <= rdd) { // rename loop
+                  scan = &funcBegin[rdu-instInfo];
+                  if ((*scan & 0x0f2f0000) == 0x050b0000) { // frame var memop
+                     int off2 = (*scan & 0xfff);
+                     if ((*scan & (1<<23)) == 0) off2 = -off2;
+                     for (j = 0; j < numReg; ++j) {
+                        if (offset[j] == off2) break;
+                     }
+                     if (j != numReg) {
+                        if ((*scan & 0x0f3f0000) == 0x051b0000) // ldr [fp, #X]
+                           *scan = NOP;
+                        else // str [fp, #x]
+                           *scan = 0xe1a00000 | (*scan & 0x0000f000) | (BR+j);
+                        goto nextUse;
+                     }
+                  }
+                  regSet = 0;
+                  mask = (*rdu & RI_Active);
+                  if (*rdu & RI_hasD) // don't overwite dest reg
+                     mask &= ~((*rdu & RI_RdDest) ? RI_RdAct : RI_RnAct);
+
+                  if ((mask & RI_RmAct) && (*scan & RI_Rm) == rd)
+                     regSet |= (BR+i);
+                  else
+                     mask &= ~RI_RmAct;
+
+                  if ((mask & RI_RsAct) && ((*scan & RI_Rs) >> 8) == rd)
+                     regSet |= ((BR+i) << 8);
+                  else
+                     mask &= ~RI_RsAct;
+
+                  if ((mask & RI_RdAct) && ((*scan & RI_Rd) >> 12) == rd)
+                     regSet |= ((BR+i) << 12);
+                  else
+                     mask &= ~RI_RdAct;
+
+                  if ((mask & RI_RnAct) && ((*scan & RI_Rn) >> 16) == rd)
+                     regSet |= ((BR+i) << 16);
+                  else
+                     mask &= ~RI_RnAct;
+
+                  if (mask & RI_Active) // rename registers
+                     *scan = (*scan & ~activeRegMask[mask >> 4]) | regSet;
+nextUse:
+                  rdu = find_use(instInfo, &instInfo[(scan-funcBegin)+1], rd, 1);
+               }
+            }
+            else { // str[b] rX, [fp, #X]
+               *scan = 0xe1a00000 | ((BR+i) << 12) | ((*scan >> 12) & 0xf);
+            }
+         }
+      }
+   }
+
+   /* load frame vars into registers at top of function */
+   for (scan = funcBegin; *scan != NOP; ++scan);
+   for (i = 0; i < numReg; ++i) {
+      *scan++ = 0xe51b0000 | ((BR + i) << 12) | 
+                ((offset[i] < 0) ? -offset[i] : (offset[i] | (1<<23)));
+   }
+}
+
+/**********************************************************/
 /********* Peephole optimization driver function **********/
 /**********************************************************/
 
 void peephole_opt(int *begin, int *end)
 {
    int *scan = begin;
-
    int *tmpbuf = (int *) malloc((end-begin)*sizeof(int));
+
    create_const_map(begin, end);
-   const_imm_opt(begin, end);  
+   const_imm_opt(begin, end);
 
    while (scan < end) {
       if (*scan == 0xe92d4800 && !is_const(scan)) { // push {fp, lr}
@@ -1490,10 +1602,10 @@ void peephole_opt(int *begin, int *end)
             ++scan;
          }
          --scan;
-         funcEnd = scan /* retAddr */ ;
+         funcEnd = scan /* retAddr */;
 
          /******************************************/
-         /***    convert stack VM to frame VM    ***/
+         /***   convert stack VM to frame VM     ***/
          /******************************************/
 
          simplifyBranch(funcBegin, retAddr);
@@ -1503,7 +1615,14 @@ void peephole_opt(int *begin, int *end)
          apply_peepholes3(tmpbuf, funcBegin, retAddr);
          create_pushpop_map(tmpbuf, funcBegin, retAddr);
          apply_peepholes4(funcBegin, retAddr);
-         rename_nop(funcBegin, retAddr); 
+        
+         /******************************************/
+         /***  convert frame VM to register VM   ***/
+         /******************************************/
+
+         rename_register1(tmpbuf, funcBegin, retAddr);
+
+         rename_nop(funcBegin, retAddr);
          funcEnd = relocate_nop(funcBegin, funcEnd, 0);
       }
       else {
@@ -1521,8 +1640,8 @@ void peephole_opt(int *begin, int *end)
 
 int main(int argc, char *argv[])
 {
-   int fd ;
-   int offset, length;  
+   int fd;
+   int offset, length;
    int *mem;
 
    if (argc != 4) {
@@ -1530,15 +1649,15 @@ int main(int argc, char *argv[])
       exit(-1);
    }
 
-   offset = strtol(argv[2], 0, 16) ;
-   length = strtol(argv[3], 0, 16) ;
+   offset = strtol(argv[2], 0, 16);
+   length = strtol(argv[3], 0, 16);
 
    if (!(offset > 0 && length > 0)) {
        printf("last two arguments must be hex file offset and length\n");
        exit(-1);
    }
 
-   mem     = (int *) malloc(length);
+   mem = (int *) malloc(length);
 
    if ((fd = open(argv[1], O_RDWR)) < 0) {
       printf("could not open file %s\n", argv[1]);
@@ -1571,6 +1690,7 @@ int main(int argc, char *argv[])
 
    free(mem);
 
+   printf("Please remember the amacc '-p' compiler flag is a prerequisite.\n");
    printf("executable file %s was optimized.\n", argv[1]);
 
    return 0;
