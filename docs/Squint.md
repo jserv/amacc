@@ -37,7 +37,7 @@ Squint goes a step further than most peephole optimizers, and relies on
 a knowledge of code generation strategies used by the AMaCC compiler.
 For example, A common "high level" pattern in AMaCC is:
 
-LEA   { Load Effective Address e.g. add R0, fp, #X }
+- LEA   { Load Effective Address e.g. add R0, fp, #X }
 PUSH  { push R0 }
 [ do a (large) self contained calculation yielding a result in R0 ]
 SI    { pop R1 ; str R0, [R1] }
