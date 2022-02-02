@@ -17,39 +17,39 @@ to transform to other VMs.
 
 ## What is peephole optimization?
 Ideally, code simplifying transformations would be done at a high level
-in the compiler, ideally at the IR level or higher. High level transformations,
-such as common subexpression elimination as an example, apply across a wide
-variety of architectures.  On the other hand, specific architectures
+in the compiler, ideally at the IR level or higher. High level
+transformations typically apply across a wide variety of architectures, e.g
+common subexpression elimination.  On the other hand, specific architectures
 often have features that are hard to express at a high enough level to be
 used across many architectures.  Because of this, a common compiler strategy
-if to generate "general purpose code" that uses the features of an architecture
-that are common across many or all architectures, and then rely on
-"peephole optimization for architecture specific tuning.
+if to generate "general purpose code" that uses common featuresa found in
+all architectures, and then relies on a "peephole optimization" pass
+at the last second for architecture specific tuning.
 
 Peephole optimizers usually operate of a small window of assembly language
-instructions, maybe 1 to 5.  In this way, the small window can be passed
-across the entire program to apply safe optimizations in a local scope,
+instructions, maybe one to five.  A small window can be passed
+across the entire program to apply safe optimizations in a local scope
 that don't require a lot of analysis.
 
 ## What is Squint?
 
 Squint goes a step further than most peephole optimizers, and relies on
 a knowledge of code generation strategies used by the AMaCC compiler.
-For example, A common "high level" pattern in AMaCC is:
+For example, A common "high level" IR pattern in AMaCC is:
 ```
 LEA   { Load Effective Address e.g. add R0, fp, #X }
 PUSH  { push R0 }
 [ do a (large) self contained calculation yielding a result in R0 ]
 SI    { pop R1 ; str R0, [R1] }
 ```
-So squint does not need to worry about intermediate register states if it
+Squint does not need to worry about intermediate register states if it
 sees the "LEA, PUSH, {...}, SI" pattern.  It can transform the
 "add R0, fp, #X" used in the LEA before the push into "str R0, [fp, #X]"
-in the SI instruction. Also, with just a tiny amount of analysis, Squint 
-can usually remove the push and pop at the assembly level, greatly
+in the SI instruction. Furthermore, with just a tiny amount of analysis,
+Squint can usually remove the push and pop at the assembly level, greatly
 reducing data movement in the executable. Since AMaCC targets a stack
 based VM, roughly half of all operations are pushes and pops, so getting
-rid of those pairs of instructions is a big deal!
+rid of push/pop pairs is a big deal!
 
 ## What are the major components of Squint?
 
@@ -57,7 +57,9 @@ Squint manages the following features:
 
 * Instruction stream constants
 
-Squint has to track these for two reasons
+The ARM architecture allows compilers to emebed constants
+in the instruction stream. Squint has to track these for
+two reasons
 
     - Since a window is passed over the code, Squint
       has to know if it is analyzing an instruction or
@@ -68,71 +70,76 @@ Squint has to track these for two reasons
 
 * Push/Pop analysis
 
-In a stack stack machine pushes and pops occur in nested
-contexts.  Beause of this, Squint can identify push/pop
-pairs in the instruction stream.  The only time that
-push/pop pairs do not balance is when there are function
-call that push registers on the stack.
+Usually, in a stack machine, pushes and pops are generated as
+nested contexts.  Squint does analysis to identify push/pop
+pairs in the instruction stream.  The only time that push/pop
+pairs do not balance in AMaCC is when function calls push
+arguments onto the stack.
 
 * Function calls
 
-Squint must track the pushes created by function calls.
+Squint must analyze pushes created by function calls.
 A special IR symbol, peephole disable (PD), is inserted by
-AMaCC when the peephole optimization is turned on that
-generates a special NOP instruction before function call
-push operations, so that the push/pop analysis in the
-peephole optimizaer can ignore those pushes to generate
-perfect push/pop nests.
+AMaCC when the -p flag is used. A special NOP instruction
+is generated that skips the instruction that follows it
+so that Squint can skip/ignore code during analysis.
 
 Another special IR symbol, Peephole r0 (P0), inserts
 a special NOP at the end of a function call to indicate
-an R0 value has been generated as a result of a return
-from a function call.  Without this, there is no simple
+an R0 value has been generated as a return value
+by the function call.  Without P0, there is no simple
 indication in the code that R0 has been assigned a
 "live" value.
 
 * Branch analysis
 
-A surprisingly large amount of code generation and execution time
-is tied to branching.  AMaCC generates very simple branching
-that is easy to generate, but not efficient.  The branch analysis
-rewrites the branching to be efficient, and cleans up a lot of code
-generated by simple the comparison construct strategies used in AMaCC.
+A surprisingly large amount of code generation, and also execution
+time, is tied to control flow branching.  AMaCC generates very simple
+branch logic that is guaranteed to be correct, but not efficient. 
+The branch analysis in Squint rewrites the branching logic to be efficient.
+This includes rethreading branches, eliminating branches, and simplifying
+comparison code sequences.
 
 * NOP manipulation
 
 As the peephole optimizer does its job, it leaves behing a lot of NOP
 operations where instructions used to be.  All those NOPS can increase
-the complexity of analysis.  Because of this special operations
-were needed to access the "previous instruction" or "next instruction",
-avoiding any NOPS or pc-relative constants in the instruction stream.
-Also, once all optimizations have been applied, all the NOPS have to be
+the complexity of analysis.  Because of this, special operations
+were needed to access the "previous instruction" or "next instruction".
+These operations filter out all NOPS or pc-relative constants in the
+instruction stream.
+
+Once all optimizations have been applied, all the NOPS have to be
 compressed out of the code and the pc-relative constants and branchs/calls
-have to be moved.  Finally, padding operations can be done for better
+have to be moved.  Finally, padding operations should be done for better
 memory alignment to make the hardware run more efficiently.
 
 * Peephole optimizations
 
-These are all the operations that operate on a window of a few instructions
-in a row.  All the peephole operations call the NOP manipulation functions
+Several functions exist that operate on a window of a few instructions
+in a row. These functions may need to be called multiple times in a
+particular order to get the best hardware-specific optimization with
+the least amount of coding.
+
+All the peephole operations call the NOP manipulation functions
 to get the next/last instruction, so that the algorithms for peephole
 optimization can be as uncluttered as possible.
 
 * Use/Def analysis
 
-This is the most important analysis in squint, even though it is only
-used for a few opeartions.  Typically, a use-def map is created for
-one function at a time.  This is high level information about each
+This is the most important analysis in Squint, even though it is only
+used for a few operations.  Typically, a use-def map is created for
+one function at a time.  It contains high level information about each
 instruction that can be easily scanned to look for register usage or
 definition within the instruction stream.  Squint is currently very small
-but by adding just 1000 lines of additional use-def analysis, some
-incredibly powerful optimizations can be added.
+but the use-def logic provides a foundation to add additional powerful
+analysis functions.
 
-* Frame variables to register allocation
+* Frame variable register allocation
 
 The current register allocator is very small and primitive, and applies
-to any function context that does not contain any calls to other functions..
-It is very easy to eliminate much more code than this function provides.
-It has been kept simple just to keep the size of Squint small, in the
-spirit of AMaCC itself.
-
+to function contexts.  It is currently only applied to functions that do not
+call other functions. It can be extended to work at a loop level, or to apply
+more agressive optimizations, especially with the help of use-def analysis.
+It has been kept simple to keep the size of Squint small, in the spirit of
+AMaCC itself.
