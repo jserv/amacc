@@ -59,7 +59,7 @@ $(OBJ_DIR)/$(BIN)-opt: $(BIN) $(PEEP)
 	$(Q)$(ARM_EXEC) ./scipts/peep $@
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
-$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
+$(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN) $(OBJ_DIR)/$(BIN)-opt
 	$(VECHO) "[*** verify $< <JIT> *******]\n"
 	$(Q)$(ARM_EXEC) ./$(BIN) $< 2 $(REDIR)
 	$(VECHO) "[*** verify $< <ELF> *******]\n"
