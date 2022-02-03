@@ -674,8 +674,8 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
             if ((*scanp1 & 0xff3000ff) == 0xe5100000 &&
                 ((*scanp1 >> 16) & 0xf) == rI) { // ldr[b] rX, [rI]
 
-               *scanp1 = (*scanp1 & 0xff70ff00) + (*scan & 0xff) +
-                         ((*scan & 0xfff00000) == 0xe2800000 ? (1<<23) : 0)
+               *scanp1 = (*scanp1 & 0xff70ff00) | (*scan & 0xff) |
+                         (((*scan & 0xfff00000) == 0xe2800000) ? (1<<23) : 0)
                          | (rS << 16); // ldr[b] rX, [rS, #X]
                *scan = NOP;
             }
