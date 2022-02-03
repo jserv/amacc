@@ -241,8 +241,8 @@ enum {
     SYSC, /* 30 system call */
     CLCA, /* 31 clear cache, used by JIT compilation */
 
-    PD , /* 32 Hide next instruction from peephole opt */
-    P0 , /* 33 Inform peephole opt that R0 holds a return value */
+    PHD ,  /* 32 Hide next assembly instruction from peephole opt */
+    PHR0 , /* 33 Inform peephole opt that R0 holds a return value */
 
     INVALID
 };
@@ -403,7 +403,7 @@ void next()
                              "LI   LC   SI   SC   PSH  "
                              "OR   XOR  AND  EQ   NE   LT   GT   LE   GE   "
                              "SHL  SHR  ADD  SUB  MUL  DIV  MOD  "
-                             "SYSC CLCA PD   P0  " [*++le * 5]);
+                             "SYSC CLCA PHD  PHR0" [*++le * 5]);
                     if (*le <= ADJ) {
                         ++le;
                         if (*le > (int) base && *le <= (int) e)
@@ -1055,14 +1055,14 @@ void gen(int *n)
     case Sub:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = SUB; break;
     case Mul:  gen((int *) n[1]); *++e = PSH; gen(n + 2); *++e = MUL; break;
     case Div:  gen((int *) n[1]);
-               if (peephole) *++e = PD;
+               if (peephole) *++e = PHD;
                *++e = PSH; gen(n + 2); *++e = DIV;
-               if (peephole) *++e = P0;
+               if (peephole) *++e = PHR0;
                break;
     case Mod:  gen((int *) n[1]);
-               if (peephole) *++e = PD;
+               if (peephole) *++e = PHD;
                *++e = PSH; gen(n + 2); *++e = MOD;
-               if (peephole) *++e = P0;
+               if (peephole) *++e = PHR0;
                break;
     case Func:
     case Syscall:
@@ -1079,7 +1079,7 @@ void gen(int *n)
         // push parameters
         while (j >= 0 && k > 0) {
             gen(b + 1);
-            if (peephole && i != ClearCache) *++e = PD;
+            if (peephole && i != ClearCache) *++e = PHD;
             *++e = PSH; --j; b = (int *) a[j];
         }
         free(a);
@@ -1087,7 +1087,7 @@ void gen(int *n)
         if (i == Func) *++e = JSR;
         *++e = n[2];
         if (n[3]) { *++e = ADJ; *++e = n[3]; }
-        if (peephole && i != ClearCache) *++e = P0;
+        if (peephole && i != ClearCache) *++e = PHR0;
         break;
     case While:
     case DoWhile:
@@ -1687,10 +1687,10 @@ int *codegen(int *jitmem, int *jitmap)
             *je++ = 0xe3a02000; *je++ = 0xef000000; // mov r2, #0
                                                     // svc 0
             break;
-        case PD:
+        case PHD:
             *je++ = 0xe1a01001; // mov r1, r1
             break;
-        case P0:
+        case PHR0:
             *je++ = 0xe1a0d00d; // mov sp, sp
             break;
         default:
