@@ -27,6 +27,7 @@ $(BIN)-native: $(BIN).c
 $(PEEP): $(PEEP).c
 	$(VECHO) "  CC+LD\t\t$@\n"
 	$(Q)$(ARM_CC) $(CFLAGS) -o $@ $< -g
+
 ## Run tests and show message
 check: $(EXEC) $(TEST_OBJ)
 	$(VECHO) "[ C to IR translation          ]"
@@ -55,7 +56,7 @@ $(OBJ_DIR)/$(BIN): $(BIN)
 $(OBJ_DIR)/$(BIN)-opt: $(BIN) $(PEEP)
 	$(VECHO) "  SelfCC\t$@\n"
 	$(Q)$(ARM_EXEC) ./$< -o $@ $(BIN).c
-   $(Q)$(ARM_EXEC) ./scipts/peep $@
+	$(Q)$(ARM_EXEC) ./scipts/peep $@
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
