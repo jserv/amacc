@@ -22,4 +22,4 @@ GCC_REL=10.3-2021.07
 set -x
 
 export PATH=gcc-arm-${GCC_REL}-x86_64-arm-none-linux-gnueabihf/bin:$PATH
-make CROSS_COMPILE=arm-none-linux-gnueabihf- check || exit 1
+make -d CROSS_COMPILE=arm-none-linux-gnueabihf- check || exit 1
