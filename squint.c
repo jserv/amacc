@@ -1406,7 +1406,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
 /****       convert frame vars to registers          ******/
 /**********************************************************/
 
-void rename_register1(int *instInfo, int *funcBegin, int *funcEnd)
+void rename_register1(int *funcBegin, int *funcEnd)
 {
 #define BR 3  /* base register */
 #define MAX_REN_REG 8
@@ -1534,7 +1534,7 @@ void peephole_opt(int *begin, int *end)
          /***  convert frame VM to register VM   ***/
          /******************************************/
 
-         rename_register1(tmpbuf, funcBegin, retAddr);
+         rename_register1(funcBegin, retAddr);
 
          rename_nop(funcBegin, retAddr);
          funcEnd = relocate_nop(funcBegin, funcEnd, 0);
