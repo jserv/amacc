@@ -7,6 +7,7 @@ import os
 import sys
 
 amacc = './amacc'
+amacc_opt = './amacc-opt'
 gcc = 'arm-none-linux-gnueabihf-gcc'
 amaccdir = 'elf'
 gccdir = 'out-gcc'
@@ -58,7 +59,15 @@ def _generate_test(test_name, test_file, extra_cflags):
         prog_exe = os.path.join(amaccdir, test_file_name)
         amacc_params = [amacc] + extra_cflags + ['-o', prog_exe, test_file]
         sp.run(qemuCmd + amacc_params)
+        proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
+        amacc_out, amacc_err, amacc_retcode = proc.stdout, proc.stderr, proc.returncode
+        self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))
+        self.assertEqual(amacc_retcode, gcc_retcode)
 
+        # run amacc in peephole optmized compiler mode
+        prog_exe = os.path.join(amaccdir, test_file_name)
+        amacc_params = [amacc_opt] + extra_cflags + ['-o', prog_exe, test_file]
+        sp.run(qemuCmd + amacc_params)
         proc = sp.run(qemuCmd + [prog_exe] + args, timeout=10, stdout=sp.PIPE)
         amacc_out, amacc_err, amacc_retcode = proc.stdout, proc.stderr, proc.returncode
         self.assertEqual(amacc_out.decode('utf-8'), gcc_out.decode('utf-8'))

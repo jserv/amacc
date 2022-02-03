@@ -5,7 +5,8 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_OBJ = $(TEST_SRC:.c=.o)
 
 BIN = amacc
-EXEC = $(BIN) $(BIN)-native
+PEEP = squint
+EXEC = $(BIN) $(BIN)-native $(PEEP)
 
 include mk/arm.mk
 include mk/common.mk
@@ -22,6 +23,10 @@ $(BIN)-native: $(BIN).c
 	$(Q)$(CC) $(CFLAGS) -o $@ $< \
 	    -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-format \
 	    -ldl
+
+$(PEEP): $(PEEP).c
+	$(VECHO) "  CC+LD\t\t$@\n"
+	$(Q)$(ARM_CC) $(CFLAGS) -o $@ $< -g
 ## Run tests and show message
 check: $(EXEC) $(TEST_OBJ)
 	$(VECHO) "[ C to IR translation          ]"
@@ -46,6 +51,11 @@ check: $(EXEC) $(TEST_OBJ)
 $(OBJ_DIR)/$(BIN): $(BIN)
 	$(VECHO) "  SelfCC\t$@\n"
 	$(Q)$(ARM_EXEC) ./$^ -o $@ $(BIN).c
+
+$(OBJ_DIR)/$(BIN)-opt: $(BIN) $(PEEP)
+	$(VECHO) "  SelfCC\t$@\n"
+	$(Q)$(ARM_EXEC) ./$< -o $@ $(BIN).c
+   $(Q)$(ARM_EXEC) ./scipts/peep $@
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN)
