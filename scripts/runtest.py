@@ -8,8 +8,8 @@ import sys
 
 amacc = './amacc'
 amacc_opt = './amacc-opt'
-gcc = 'arm-none-linux-gnueabihf-gcc'
 amaccdir = 'elf'
+gcc = os.getenv("CROSS_COMPILE", "arm-none-linux-gnueabihf-") + "gcc"
 gccdir = 'out-gcc'
 
 

@@ -3,8 +3,15 @@ CROSS_COMPILE ?= arm-none-linux-gnueabihf-
 ARM_CC = $(CROSS_COMPILE)gcc
 ARM_CC := $(shell which $(ARM_CC))
 ifndef ARM_CC
-$(error "no $(CROSS_COMPILE)gcc found.")
+  # Try Debian/Ubuntu package
+  CROSS_COMPILE = arm-linux-gnueabihf-
+  ARM_CC = $(CROSS_COMPILE)gcc
+  ARM_CC := $(shell which $(ARM_CC))
+  ifndef ARM_CC
+  $(error "no $(CROSS_COMPILE)gcc found.")
+  endif
 endif
+export CROSS_COMPILE
 
 ARM_CC2 = $(shell echo | $(CROSS_COMPILE)cpp -dM - | grep ARM && echo 1)
 ifeq ("$(ARM_CC2)","")
