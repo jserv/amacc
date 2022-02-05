@@ -2,7 +2,7 @@
 
 ## What is AMaCC?
 
-AMaCC is an educational compiler that produces code for a 
+AMaCC is an educational compiler that produces code for a
 two register stack based virtual machine (VM).  The two
 registers are (1) an accumulator and (2) an Index register
 that can act as a second accumulator for math operations.
@@ -79,12 +79,12 @@ arguments onto the stack.
 * Function calls
 
 Squint must analyze pushes created by function calls.
-A special IR symbol, peephole disable (PD), is inserted by
+A special IR symbol, peephole disable (PHD), is inserted by
 AMaCC when the -p flag is used. A special NOP instruction
 is generated that skips the instruction that follows it
 so that Squint can skip/ignore code during analysis.
 
-Another special IR symbol, Peephole r0 (P0), inserts
+Another special IR symbol, Peephole R0 (PHR0), inserts
 a special NOP at the end of a function call to indicate
 an R0 value has been generated as a return value
 by the function call.  Without P0, there is no simple
@@ -95,7 +95,7 @@ indication in the code that R0 has been assigned a
 
 A surprisingly large amount of code generation, and also execution
 time, is tied to control flow branching.  AMaCC generates very simple
-branch logic that is guaranteed to be correct, but not efficient. 
+branch logic that is guaranteed to be correct, but not efficient.
 The branch analysis in Squint rewrites the branching logic to be efficient.
 This includes rethreading branches, eliminating branches, and simplifying
 comparison code sequences.
@@ -119,7 +119,8 @@ memory alignment to make the hardware run more efficiently.
 Several functions exist that operate on a window of a few instructions
 in a row. These functions may need to be called multiple times in a
 particular order to get the best hardware-specific optimization with
-the least amount of coding.
+the least amount of coding. Each function merely provides a scope to
+facilitate reordering of operations, and the name is not meaningful.
 
 All the peephole operations call the NOP manipulation functions
 to get the next/last instruction, so that the algorithms for peephole

@@ -1,10 +1,9 @@
 /* Squint -- a peephole optimizer for amacc.*/
 
 /* AMaCC uses a 2-register stack based VM. */
-/* Squint converts this to a ~two register frame based VM. */
-/* A 2-register frame based VM can potentially */
-/* make it easier to add an additional register */
-/* allocation pass to the peephole optimizer. */
+/* Squint converts this to a 2-register frame based VM. */
+/* A 2-register frame based VM makes it easier to add */
+/* a register allocation pass to the peephole optimizer. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,7 +130,7 @@ int find_const(int addr)
    // binsearch pool for address of data
    low = 0; high = cnst_pool_size;
    while (low != high) {
-      mid = (low+high)/2;
+      mid = (low + high) / 2;
       if (cnst_pool[mid].data_addr <= addr) {
          low = mid;
          if (cnst_pool[mid].data_addr == addr) break;
@@ -303,7 +302,7 @@ void rel_pc_const(int *dst, int *src)
 /************* NOP related utility functions **************/
 /**********************************************************/
 
-/* check for nop, PD, and P0 instructions */
+/* check for nop, PHD, and PHR0 instructions */
 int is_nop(int inst) {
    return ( (inst == NOP) || (inst == NOP1) || (inst == NOP13) );
 }
@@ -311,7 +310,7 @@ int is_nop(int inst) {
 /* skip any nop instructions in given direction. */
 /* direction: -1 means move toward lower addresses */
 /*             1 means move toward higher addresses */
-/* Note that a NOP1 (PD) will treat the instruction */
+/* Note that a NOP1 (PHD) will treat the instruction */
 /* after it (+1) as though it were a nop */
 int *skip_nop(int *begin, int direction)
 { /* -1 = backward, 1 = forward */
@@ -574,7 +573,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
 
    /* termination sentinel to simplify reg_info scans */
    *rInfo = 0xffffffff;
- 
+
    /* fixup: bump basic block begin markers forward by one instruction */
    for (scan = rInfo-1; scan >= instInfo; --scan) {
       if (*(scan-1) & RI_bb) {
@@ -862,7 +861,7 @@ void apply_peepholes4(int *funcBegin, int *funcEnd)
 /**********************************************************/
 
 /* remove unreachable code by setting to NOP */
-void simplifyBranch1(int *funcBegin, int *funcEnd)
+void simplify_branch1(int *funcBegin, int *funcEnd)
 {
    int **queue;
    char *reachable;
@@ -970,7 +969,7 @@ int *rethreadBranch(int *branchInst)
 }
 
 /* rethread unconditional branch chains */
-void simplifyBranch2(int *funcBegin, int *funcEnd) {
+void simplify_branch2(int *funcBegin, int *funcEnd) {
    int *scan;
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
@@ -982,7 +981,7 @@ void simplifyBranch2(int *funcBegin, int *funcEnd) {
 
 /* amacc has condtional branches that jump to a compare instruction */
 /* follow chains of these instructions to go directly to final address */
-void simplifyBranch3(int *funcBegin, int *funcEnd) {
+void simplify_branch3(int *funcBegin, int *funcEnd) {
    int *scan;
    int match, tmp;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
@@ -1023,7 +1022,7 @@ void simplifyBranch3(int *funcBegin, int *funcEnd) {
 
 /* Now that we have simplified all final branch targets, we */
 /* will simplify and compress out extraneous comparison opcodes. */
-void simplifyBranch4(int *funcBegin, int *funcEnd)
+void simplify_branch4(int *funcBegin, int *funcEnd)
 {
    int *scan;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
@@ -1055,7 +1054,7 @@ void simplifyBranch4(int *funcBegin, int *funcEnd)
 
 /* "bcond target1 ; b target2 ; taget1: <inst>;" -> "bnotcond target2;" */
 /* todo: may want to check for chains of intervening nops here */
-void simplifyBranch5(int *funcBegin, int *funcEnd)
+void simplify_branch5(int *funcBegin, int *funcEnd)
 {
    int *scan;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
@@ -1072,13 +1071,13 @@ void simplifyBranch5(int *funcBegin, int *funcEnd)
 
 
 /* optimize branch-specific code sequences */
-void simplifyBranch(int *funcBegin, int *funcEnd) {
-   simplifyBranch1(funcBegin, funcEnd);
-   simplifyBranch2(funcBegin, funcEnd);
-   simplifyBranch3(funcBegin, funcEnd);
-   simplifyBranch4(funcBegin, funcEnd);
-   simplifyBranch5(funcBegin, funcEnd);
-   simplifyBranch1(funcBegin, funcEnd); // optional
+void simplify_branch(int *funcBegin, int *funcEnd) {
+   simplify_branch1(funcBegin, funcEnd);
+   simplify_branch2(funcBegin, funcEnd);
+   simplify_branch3(funcBegin, funcEnd);
+   simplify_branch4(funcBegin, funcEnd);
+   simplify_branch5(funcBegin, funcEnd);
+   simplify_branch1(funcBegin, funcEnd); // optional
 }
 
 /* remove all NOP instructions ( mov r0, r0 ) and adjust branches */
@@ -1385,7 +1384,8 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
                   for (loc = pair[i].push + 1; loc < pair[i].pop; ++loc) {
                       if (*loc == NOP13 && !is_const(loc)) break; // func call
                   }
-                  if (loc == pair[i].pop) { // if no func call in push/pop...
+                  if (loc == pair[i].pop && // if no func call in push/pop...
+                      (*scanm1 & 0xf0000000) == 0xe0000000) { // && not cond op
                      *scanm1 |=
                         (((*scanm1 & 0x0e0000f0) == 0x90) ? (1<<16) : (1<<12));
                      *pair[i].push = NOP;
@@ -1416,7 +1416,7 @@ void rename_register1(int *funcBegin, int *funcEnd)
 
    /* Abort trivial reg renaming if function calls exist */
    for (scan = funcBegin; scan <= funcEnd; ++scan)
-      if (*scan == NOP13 && !is_const(scan)) return;  
+      if (*scan == NOP13 && !is_const(scan)) return;
 
    /* record frame variable in this context */
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
@@ -1481,7 +1481,7 @@ void rename_register1(int *funcBegin, int *funcEnd)
    /* load frame vars into registers at top of function */
    for (scan = funcBegin; *scan != NOP; ++scan);
    for (i = 0; i < numReg; ++i) {
-      *scan++ = 0xe51b0000 | ((BR + i) << 12) | 
+      *scan++ = 0xe51b0000 | ((BR + i) << 12) |
                 ((offset[i] < 0) ? -offset[i] : (offset[i] | (1<<23)));
    }
 }
@@ -1522,14 +1522,14 @@ void peephole_opt(int *begin, int *end)
          /***   convert stack VM to frame VM     ***/
          /******************************************/
 
-         simplifyBranch(funcBegin, retAddr);
+         simplify_branch(funcBegin, retAddr);
          apply_peepholes1(funcBegin, retAddr);
          apply_peepholes2(tmpbuf, funcBegin, retAddr);
          apply_peepholes1(funcBegin, retAddr);
          apply_peepholes3(tmpbuf, funcBegin, retAddr);
          create_pushpop_map(tmpbuf, funcBegin, retAddr);
          apply_peepholes4(funcBegin, retAddr);
-        
+
          /******************************************/
          /***  convert frame VM to register VM   ***/
          /******************************************/

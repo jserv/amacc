@@ -56,7 +56,7 @@ $(OBJ_DIR)/$(BIN): $(BIN)
 $(OBJ_DIR)/$(BIN)-opt: $(BIN) $(PEEP)
 	$(VECHO) "  SelfCC\t$@\n"
 	$(Q)$(ARM_EXEC) ./$< -p -o $@ $(BIN).c
-	$(Q)$(ARM_EXEC) scripts/peep $@
+	$(Q) scripts/peep $@
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN) $(OBJ_DIR)/$(BIN)-opt
@@ -64,6 +64,9 @@ $(TEST_DIR)/%.o: $(TEST_DIR)/%.c $(BIN) $(OBJ_DIR)/$(BIN) $(OBJ_DIR)/$(BIN)-opt
 	$(Q)$(ARM_EXEC) ./$(BIN) $< 2 $(REDIR)
 	$(VECHO) "[*** verify $< <ELF> *******]\n"
 	$(Q)$(ARM_EXEC) ./$(BIN) -o $(OBJ_DIR)/$(notdir $(basename $<)) $< $(REDIR)
+	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2 $(REDIR)
+	$(VECHO) "[*** verify $< <ELF-opt> *******]\n"
+	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(BIN)-opt -o $(OBJ_DIR)/$(notdir $(basename $<)) $< $(REDIR)
 	$(Q)$(ARM_EXEC) $(OBJ_DIR)/$(notdir $(basename $<)) 2 $(REDIR)
 	$(VECHO) "[*** verify $< <ELF-self> **]\n"
 	$(Q)$(ARM_EXEC) ./$(OBJ_DIR)/$(BIN) $< 2 $(REDIR)

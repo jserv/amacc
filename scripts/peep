@@ -8,5 +8,5 @@ fi
 PPATH="`dirname \"$0\"`"
 if [[ ! -x $PPATH/../squint ]] ;
    then echo "A 'squint' executable must exist.";
-   else $PPATH/../squint $1 `readelf -a $1 2>/dev/null | awk '/\.text.*PROGBITS/ { print $6, $7 }'`;
+   else $ARM_EXEC $PPATH/../squint $1 `readelf -a $1 2>/dev/null | awk '/\.text.*PROGBITS/ { print $6, $7 }'`;
 fi

@@ -241,8 +241,8 @@ enum {
     SYSC, /* 30 system call */
     CLCA, /* 31 clear cache, used by JIT compilation */
 
-    PHD ,  /* 32 Hide next assembly instruction from peephole opt */
-    PHR0 , /* 33 Inform peephole opt that R0 holds a return value */
+    PHD ,  /* 32 PeepHole Disable next assembly instruction in optimizer */
+    PHR0 , /* 33 Inform PeepHole optimizer that R0 holds a return value */
 
     INVALID
 };
