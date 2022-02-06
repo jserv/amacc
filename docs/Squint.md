@@ -8,23 +8,24 @@ registers are (1) an accumulator and (2) an Index register
 that can act as a second accumulator for math operations.
 A stack is used for temporary memory, and stacks are
 a great tool for simplifying operations on grammars.
-Because of this stack based compilers are often the
+Because of this, stack based compilers are often the
 compiler used in Compiler classes, allowing the students
 to create a working compiler in a semester.  Finally,
-the great thing about this VM is that it's simple to
+the great thing about a stack VM is that it's simple to
 to transform to other VMs.
 
 
 ## What is peephole optimization?
-Ideally, code simplifying transformations would be done at a high level
-in the compiler, ideally at the IR level or higher. High level
-transformations typically apply across a wide variety of architectures, e.g
-common subexpression elimination.  On the other hand, specific architectures
+
+Ideally, code simplifying transformations would be done at the IR level or
+higher in a compiler. High level transformations typically apply across a wide
+range of architectures, common subexpression elimination being an example of
+such a transformation.  On the other hand, specific architectures
 often have features that are hard to express at a high enough level to be
 used across many architectures.  Because of this, a common compiler strategy
-if to generate "general purpose code" that uses common featuresa found in
-all architectures, and then relies on a "peephole optimization" pass
-at the last second for architecture specific tuning.
+is to generate "general purpose code" that uses common features found in
+all architectures, and then rely on a "peephole optimization" pass
+for architecture specific tuning as a final step.
 
 Peephole optimizers usually operate of a small window of assembly language
 instructions, maybe one to five.  A small window can be passed
@@ -43,7 +44,7 @@ PUSH  { push R0 }
 SI    { pop R1 ; str R0, [R1] }
 ```
 Squint does not need to worry about intermediate register states if it
-sees the "LEA, PUSH, {...}, SI" pattern.  It can transform the
+sees the "LEA, PUSH, {...}, SI" pattern.  It can safely transform the
 "add R0, fp, #X" used in the LEA before the push into "str R0, [fp, #X]"
 in the SI instruction. Furthermore, with just a tiny amount of analysis,
 Squint can usually remove the push and pop at the assembly level, greatly
