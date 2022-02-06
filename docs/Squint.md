@@ -88,7 +88,7 @@ so that Squint can skip/ignore code during analysis.
 Another special IR symbol, Peephole R0 (PHR0), inserts
 a special NOP at the end of a function call to indicate
 an R0 value has been generated as a return value
-by the function call.  Without P0, there is no simple
+by the function call.  Without PHR00, there is no simple
 indication in the code that R0 has been assigned a
 "live" value.
 
@@ -103,25 +103,28 @@ comparison code sequences.
 
 * NOP manipulation
 
-As the peephole optimizer does its job, it leaves behing a lot of NOP
+As the peephole optimizer does its job, it leaves behind a lot of NOP
 operations where instructions used to be.  All those NOPS can increase
 the complexity of analysis.  Because of this, special operations
 were needed to access the "previous instruction" or "next instruction".
 These operations filter out all NOPS or pc-relative constants in the
 instruction stream.
 
-Once all optimizations have been applied, all the NOPS have to be
+After peephole optimization is complete, all the NOPS have to be
 compressed out of the code and the pc-relative constants and branchs/calls
-have to be moved.  Finally, padding operations should be done for better
-memory alignment to make the hardware run more efficiently.
+have to be moved.
+
+Finally, NOP padding is inserted to improve memory alignment wherever
+it will make the hardware run more efficiently.
 
 * Peephole optimizations
 
 Several functions exist that operate on a window of a few instructions
-in a row. These functions may need to be called multiple times in a
-particular order to get the best hardware-specific optimization with
-the least amount of coding. Each function merely provides a scope to
-facilitate reordering of operations, and the name is not meaningful.
+in a row. These functions can be called multiple times and/or in a
+specific order to get the best hardware-specific optimization with
+the least amount of coding effort. Peephole optimization functions
+are given a generic name since they merely provide a scope to
+facilitate reordering of operations. The name is not meaningful.
 
 All the peephole operations call the NOP manipulation functions
 to get the next/last instruction, so that the algorithms for peephole
@@ -135,7 +138,7 @@ one function at a time.  It contains high level information about each
 instruction that can be easily scanned to look for register usage or
 definition within the instruction stream.  Squint is currently very small
 but the use-def logic provides a foundation to add additional powerful
-analysis functions.
+analysis functions with just a few lines of code.
 
 * Frame variable register allocation
 
