@@ -39,6 +39,16 @@ int main(int argc, char **argv)
         ++c;
     }
 
+    for (i = 0; i < len; ++i) {
+        printf("%d------------\n", i);
+        printf("%s\n", d[i].p);
+        printf("%s\n", d[i].pad);
+        printf("%d\n", d[i].x);
+        printf("%c\n", d[i].c);
+        printf("--------------\n");
+        ++ptr;
+    }
+
     ptr = d;
     for (i = 0; i < len; ++i) {
         printf("%d------------\n", i);

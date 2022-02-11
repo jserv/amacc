@@ -918,6 +918,7 @@ void expr(int lev)
             break;
         case Dot:
             ty += PTR;
+            if (n[0] == Load && n[1] > INT && n[1] < PTR) n += 2; // struct
         case Arrow:
             if (ty <= PTR+INT || ty >= PTR2) fatal("structure expected");
             next();
@@ -930,6 +931,7 @@ void expr(int lev)
             }
             ty = m->type;
             if (ty <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT;
+            else *--n = ty; // struct, not struct pointer
             *--n = Load;
             next();
             break;
@@ -947,8 +949,8 @@ void expr(int lev)
             }
             if (*n == Num && *b == Num) n[1] += b[1];
             else { *--n = (int) b; *--n = Add; }
-            if ((ty = t) <= INT || ty >= PTR)
-                *--n = (ty == CHAR) ? CHAR : INT;
+            if ((ty = t) <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT;
+            else *--n = ty; // struct, not struct pointer
             *--n = Load;
             break;
         default:
@@ -983,6 +985,7 @@ void gen(int *n)
     case Load:
         gen(n + 2); // load the value
         if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
+        else fatal("AMaCC does not yet allow whole struct memory access");
         break;
     case Assign: // assign the value to variables
         gen((int *) n[2]); *++e = PSH; gen(n + 3);
