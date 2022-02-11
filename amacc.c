@@ -984,8 +984,8 @@ void gen(int *n)
         break;
     case Load:
         gen(n + 2); // load the value
-        if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
-        else fatal("AMaCC does not yet allow whole struct memory access");
+        if (n[1] > INT && n[1] < PTR) fatal("struct copies not yet supported");
+        *++e = (n[1] == CHAR) ? LC : LI;
         break;
     case Assign: // assign the value to variables
         gen((int *) n[2]); *++e = PSH; gen(n + 3);
