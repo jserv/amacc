@@ -1,4 +1,3 @@
-
 struct s2 {
     int x, y;
 };
