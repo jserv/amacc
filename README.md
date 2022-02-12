@@ -31,9 +31,9 @@ into methods.
 AMaCC is capable of compiling C source files written in the following
 syntax:
 
-* support for all C89 statements.
+* support for all C89 statements except typedef.
 * support for all C89 expression operators.
-* data types: char, int, enum, struct, and multi-level pointers
+* data types: char, int, enum, struct, union, and multi-level pointers
     - type modifiers, qualifiers, and storage class specifiers are
       currently unsupported, though many keywords of this nature
       are not routinely used, and can be easily worked around with

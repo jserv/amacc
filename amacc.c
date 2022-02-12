@@ -93,7 +93,7 @@ enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
     Func, Syscall, Main, ClearCache, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
-    Sizeof, Struct, Switch, For, While, DoWhile, Goto,
+    Sizeof, Struct, Union, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
     OrAssign, XorAssign, AndAssign, ShlAssign, ShrAssign, // |=, ^=, &=, <<=, >>=
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
@@ -581,8 +581,9 @@ void expr(int lev)
         case Int: next(); break;
         case Char: next(); ty = CHAR; break;
         case Struct:
+        case Union:
             next();
-            if (tk != Id) fatal("bad struct type");
+            if (tk != Id) fatal("bad struct/union type");
             ty = id->stype; next(); break;
         }
         // multi-level pointers, plus `PTR` for each level
@@ -635,13 +636,13 @@ void expr(int lev)
     // Type cast or parenthesis
     case '(':
         next();
-        if (tk == Int || tk == Char || tk == Struct) {
+        if (tk == Int || tk == Char || tk == Struct || tk == Union) {
             switch (tk) {
             case Int: next(); t = INT; break;
             case Char: next(); t = CHAR; break;
             default:
                 next();
-                if (tk != Id) fatal("bad struct type");
+                if (tk != Id) fatal("bad struct/union type");
                 t = id->stype; next(); break;
             }
             // t: pointer
@@ -1177,7 +1178,7 @@ void check_label(int **tt)
 void stmt(int ctx)
 {
     int *a, *b, *c, *d;
-    int i, j;
+    int i, j, atk;
     int bt;
 
     switch (tk) {
@@ -1217,9 +1218,11 @@ void stmt(int ctx)
     case Int:
     case Char:
     case Struct:
+    case Union:
         switch (tk) {
         case Struct:
-            next();
+        case Union:
+            atk = tk; next();
             if (tk == Id) {
                 if (!id->stype) id->stype = tnew++;
                 bt = id->stype;
@@ -1228,6 +1231,7 @@ void stmt(int ctx)
                 bt = tnew++;
             }
             if (tk == '{') {
+                tsize[bt] = 0; // for unions
                 next();
                 if (members[bt]) fatal("duplicate structure definition");
                 i = 0;
@@ -1237,8 +1241,9 @@ void stmt(int ctx)
                     case Int: next(); break;
                     case Char: next(); mbt = CHAR; break;
                     case Struct:
+                    case Union:
                         next();
-                        if (tk != Id) fatal("bad struct declaration");
+                        if (tk != Id) fatal("bad struct/union declaration");
                         mbt = id->stype;
                         next(); break;
                     }
@@ -1256,13 +1261,14 @@ void stmt(int ctx)
                         members[bt] = m;
                         i += (ty >= PTR) ? sizeof(int) : tsize[ty];
                         i = (i + 3) & -4;
+                        if (atk == Union) { if (i > tsize[bt]) tsize[bt] = i ; i = 0; }
                         next();
                         if (tk == ',') next();
                     }
                     next();
                 }
                 next();
-                tsize[bt] = i;
+                if (atk != Union) tsize[bt] = i;
             }
             break;
         case Int:
@@ -2395,8 +2401,8 @@ int main(int argc, char **argv)
     /* Resgister keywords and system calls to symbol stack
      * must match the sequence of enum
      */
-    p = "break continue case char default else enum if int return "
-        "sizeof struct switch for while do goto __clear_cache void main";
+    p = "break continue case char default else enum if int return sizeof "
+        "struct union switch for while do goto __clear_cache void main";
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
