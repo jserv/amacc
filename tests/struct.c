@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 
     d = malloc(sizeof(struct foo) * len);
     ptr = d;
-    for (i = 0; i < len/2; ++i) {
+    for (i = 0; i < len / 2; ++i) {
         ptr->p = "one";
         ptr->pad = str;
         ptr->x = i;
@@ -40,11 +40,11 @@ int main(int argc, char **argv)
     }
 
     for (; i < len; ++i) {
-       d[i].p = "one";
-       d[i].pad = str;
-       d[i].x = i;
-       d[i].c = c;
-       ++c;
+        d[i].p = "one";
+        d[i].pad = str;
+        d[i].x = i;
+        d[i].c = c;
+        ++c;
     }
 
     for (i = 0; i < len; ++i) {
