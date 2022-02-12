@@ -1461,7 +1461,7 @@ void stmt(int ctx)
         if (tk != '(') fatal("open parentheses expected");
         next();
         *--n = ';';
-        expr(Assign);
+        if (tk != ';') expr(Assign);
         while (tk == ',') {
             int *f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
@@ -1473,7 +1473,7 @@ void stmt(int ctx)
         if (tk != ';') fatal("semicolon expected");
         next();
         *--n = ';';
-        expr(Assign);
+        if (tk != ')') expr(Assign);
         while (tk == ',') {
             int *g = n; next(); expr(Assign); *--n = (int) g; *--n = '{';
         }
