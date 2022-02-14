@@ -94,7 +94,7 @@ enum {
     Num = 128, // the character set of given source is limited to 7-bit ASCII
     Func, Syscall, Main, ClearCache, Glo, Par, Loc, Keyword, Id, Label, Load, Enter,
     Break, Continue, Case, Char, Default, Else, Enum, If, Int, Return,
-    Sizeof, Struct, Switch, For, While, DoWhile, Goto,
+    Sizeof, Struct, Union, Switch, For, While, DoWhile, Goto,
     Assign, // operator =, keep Assign as highest priority operator
     OrAssign, XorAssign, AndAssign, ShlAssign, ShrAssign, // |=, ^=, &=, <<=, >>=
     AddAssign, SubAssign, MulAssign, DivAssign, ModAssign, // +=, -=, *=, /=, %=
@@ -586,8 +586,9 @@ void expr(int lev)
         case Int: next(); break;
         case Char: next(); ty = CHAR; break;
         case Struct:
+        case Union:
             next();
-            if (tk != Id) fatal("bad struct type");
+            if (tk != Id) fatal("bad struct/union type");
             ty = id->stype; next(); break;
         }
         // multi-level pointers, plus `PTR` for each level
@@ -640,13 +641,13 @@ void expr(int lev)
     // Type cast or parenthesis
     case '(':
         next();
-        if (tk == Int || tk == Char || tk == Struct) {
+        if (tk == Int || tk == Char || tk == Struct || tk == Union) {
             switch (tk) {
             case Int: next(); t = INT; break;
             case Char: next(); t = CHAR; break;
             default:
                 next();
-                if (tk != Id) fatal("bad struct type");
+                if (tk != Id) fatal("bad struct/union type");
                 t = id->stype; next(); break;
             }
             // t: pointer
@@ -923,6 +924,7 @@ void expr(int lev)
             break;
         case Dot:
             ty += PTR;
+            if (n[0] == Load && n[1] > INT && n[1] < PTR) n += 2; // struct
         case Arrow:
             if (ty <= PTR+INT || ty >= PTR2) fatal("structure expected");
             next();
@@ -935,6 +937,7 @@ void expr(int lev)
             }
             ty = m->type;
             if (ty <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT;
+            else *--n = ty; // struct, not struct pointer
             *--n = Load;
             next();
             break;
@@ -952,8 +955,8 @@ void expr(int lev)
             }
             if (*n == Num && *b == Num) n[1] += b[1];
             else { *--n = (int) b; *--n = Add; }
-            if ((ty = t) <= INT || ty >= PTR)
-                *--n = (ty == CHAR) ? CHAR : INT;
+            if ((ty = t) <= INT || ty >= PTR) *--n = (ty == CHAR) ? CHAR : INT;
+            else *--n = ty; // struct, not struct pointer
             *--n = Load;
             break;
         default:
@@ -987,7 +990,8 @@ void gen(int *n)
         break;
     case Load:
         gen(n + 2); // load the value
-        if (n[1] <= INT || n[1] >= PTR) { *++e = (n[1] == CHAR) ? LC : LI; }
+        if (n[1] > INT && n[1] < PTR) fatal("struct copies not yet supported");
+        *++e = (n[1] == CHAR) ? LC : LI;
         break;
     case Assign: // assign the value to variables
         gen((int *) n[2]); *++e = PSH; gen(n + 3);
@@ -1190,7 +1194,7 @@ void check_label(int **tt)
 void stmt(int ctx)
 {
     int *a, *b, *c, *d;
-    int i, j;
+    int i, j, atk;
     int bt;
 
     switch (tk) {
@@ -1230,9 +1234,11 @@ void stmt(int ctx)
     case Int:
     case Char:
     case Struct:
+    case Union:
         switch (tk) {
         case Struct:
-            next();
+        case Union:
+            atk = tk; next();
             if (tk == Id) {
                 if (!id->stype) id->stype = tnew++;
                 bt = id->stype;
@@ -1241,6 +1247,7 @@ void stmt(int ctx)
                 bt = tnew++;
             }
             if (tk == '{') {
+                tsize[bt] = 0; // for unions
                 next();
                 if (members[bt]) fatal("duplicate structure definition");
                 i = 0;
@@ -1250,8 +1257,9 @@ void stmt(int ctx)
                     case Int: next(); break;
                     case Char: next(); mbt = CHAR; break;
                     case Struct:
+                    case Union:
                         next();
-                        if (tk != Id) fatal("bad struct declaration");
+                        if (tk != Id) fatal("bad struct/union declaration");
                         mbt = id->stype;
                         next(); break;
                     }
@@ -1269,13 +1277,14 @@ void stmt(int ctx)
                         members[bt] = m;
                         i += (ty >= PTR) ? sizeof(int) : tsize[ty];
                         i = (i + 3) & -4;
+                        if (atk == Union) { if (i > tsize[bt]) tsize[bt] = i ; i = 0; }
                         next();
                         if (tk == ',') next();
                     }
                     next();
                 }
                 next();
-                tsize[bt] = i;
+                if (atk != Union) tsize[bt] = i;
             }
             break;
         case Int:
@@ -1307,6 +1316,7 @@ void stmt(int ctx)
             id->type = ty;
             if (tk == '(') { // function
                 if (ctx != Glo) fatal("nested function");
+                if (ty > INT && ty < PTR) fatal("return type can't be struct");
                 id->class = Func; // type is function
                 // "+ 1" is because the code to add instruction always uses "++e".
                 id->val = (int) (e + 1); // function Pointer? offset/address
@@ -1347,12 +1357,17 @@ void stmt(int ctx)
                 }
             }
             else {
+                int sz = ((ty <= INT || ty >= PTR) ? sizeof(int) : tsize[ty]);
                 id->hclass = id->class; id->class = ctx;
                 id->htype = id->type; id->type = ty;
                 id->hval = id->val;
-                if (ctx == Glo) { id->val = (int) data; data += sizeof(int); }
-                else if (ctx == Loc) { id->val = ++ld; }
-                else if (ctx == Par) { id->val = ld++; }
+                if (ctx == Glo) { id->val = (int) data; data += sz; }
+                else if (ctx == Loc) { id->val = (ld += sz / sizeof(int)); }
+                else if (ctx == Par) {
+                    if (ty > INT && ty < PTR) // local struct decl
+                        fatal("struct parameters must be pointers");
+                    id->val = ld++;
+                }
                 if (ctx == Loc && tk == Assign) {
                     int ptk = tk;
                     *--n = loc - id->val; *--n = Loc;
@@ -1474,7 +1489,7 @@ void stmt(int ctx)
         if (tk != '(') fatal("open parentheses expected");
         next();
         *--n = ';';
-        expr(Assign);
+        if (tk != ';') expr(Assign);
         while (tk == ',') {
             int *f = n; next(); expr(Assign); *--n = (int) f; *--n = '{';
         }
@@ -1486,7 +1501,7 @@ void stmt(int ctx)
         if (tk != ';') fatal("semicolon expected");
         next();
         *--n = ';';
-        expr(Assign);
+        if (tk != ')') expr(Assign);
         while (tk == ',') {
             int *g = n; next(); expr(Assign); *--n = (int) g; *--n = '{';
         }
@@ -1538,7 +1553,7 @@ int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
 {
-    int i, ii, tmp;
+    int i, ii, tmp, c;
     int *je, *tje;    // current position in emitted native code
     int *immloc, *il;
 
@@ -1582,10 +1597,12 @@ int *codegen(int *jitmem, int *jitmap)
             break;
         case ENT:
             *je++ = 0xe92d4800; *je++ = 0xe28db000; // push {fp, lr}; add  fp, sp, #0
-            tmp = *pc++; if (tmp) *je++ = 0xe24dd000 | (tmp * 4); // sub  sp, sp, #(tmp * 4)
-            if (tmp >= 64 || tmp < 0) {
-                printf("jit: ENT %d out of bounds\n", tmp); exit(6);
-            }
+            ii = c = 0; tmp = 4 * (*pc++);
+            while (tmp >= 255) { c |= tmp & 3; tmp >>= 2; ++ii; }
+            tmp += (c ? 1 : 0); if ((tmp << (2*ii)) >= 32768 || tmp < 0) {
+                printf("jit: ENT %d out of bounds\n", tmp << (2*ii)); exit(6);
+            } // sub  sp, sp, #tmp (scaled)
+            if (tmp) *je++ = 0xe24dd000 | (((16-ii) & 0xf) << 8) | tmp;
             if (peephole) { // reserve space for frame registers
                 for (ii=0; ii<8; ++ii) *je++ = 0xe1a00000; // mov r0, r0
             }
@@ -2437,8 +2454,8 @@ int main(int argc, char **argv)
     /* Resgister keywords and system calls to symbol stack
      * must match the sequence of enum
      */
-    p = "break continue case char default else enum if int return "
-        "sizeof struct switch for while do goto __clear_cache void main";
+    p = "break continue case char default else enum if int return sizeof "
+        "struct union switch for while do goto __clear_cache void main";
 
     // call "next" to create symbol table entry.
     // store the keyword's token type in the symbol table entry's "tk" field.
