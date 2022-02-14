@@ -1300,6 +1300,7 @@ void stmt(int ctx)
             id->type = ty;
             if (tk == '(') { // function
                 if (ctx != Glo) fatal("nested function");
+                if (ty > INT && ty < PTR) fatal("return type can't be struct");
                 id->class = Func; // type is function
                 // "+ 1" is because the code to add instruction always uses "++e".
                 id->val = (int) (e + 1); // function Pointer? offset/address
