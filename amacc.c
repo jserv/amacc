@@ -1300,6 +1300,7 @@ void stmt(int ctx)
             id->type = ty;
             if (tk == '(') { // function
                 if (ctx != Glo) fatal("nested function");
+                if (ty > INT && ty < PTR) fatal("return type can't be struct");
                 id->class = Func; // type is function
                 // "+ 1" is because the code to add instruction always uses "++e".
                 id->val = (int) (e + 1); // function Pointer? offset/address
@@ -1340,12 +1341,17 @@ void stmt(int ctx)
                 }
             }
             else {
+                int sz = ((ty <= INT || ty >= PTR) ? sizeof(int) : tsize[ty]);
                 id->hclass = id->class; id->class = ctx;
                 id->htype = id->type; id->type = ty;
                 id->hval = id->val;
-                if (ctx == Glo) { id->val = (int) data; data += sizeof(int); }
-                else if (ctx == Loc) { id->val = ++ld; }
-                else if (ctx == Par) { id->val = ld++; }
+                if (ctx == Glo) { id->val = (int) data; data += sz; }
+                else if (ctx == Loc) { id->val = (ld += sz / sizeof(int)); }
+                else if (ctx == Par) {
+                    if (ty > INT && ty < PTR) // local struct decl
+                        fatal("struct parameters must be pointers");
+                    id->val = ld++;
+                }
                 if (ctx == Loc && tk == Assign) {
                     int ptk = tk;
                     *--n = loc - id->val; *--n = Loc;
@@ -1531,7 +1537,7 @@ int reloc_bl(int offset) { return 0xeb000000 | reloc_imm(offset); }
 
 int *codegen(int *jitmem, int *jitmap)
 {
-    int i, tmp;
+    int i, ii, tmp, c;
     int *je, *tje;    // current position in emitted native code
     int *immloc, *il;
 
@@ -1574,10 +1580,12 @@ int *codegen(int *jitmem, int *jitmap)
             break;
         case ENT:
             *je++ = 0xe92d4800; *je++ = 0xe28db000; // push {fp, lr}; add  fp, sp, #0
-            tmp = *pc++; if (tmp) *je++ = 0xe24dd000 | (tmp * 4); // sub  sp, sp, #(tmp * 4)
-            if (tmp >= 64 || tmp < 0) {
-                printf("jit: ENT %d out of bounds\n", tmp); exit(6);
-            }
+            ii = c = 0; tmp = 4 * (*pc++);
+            while (tmp >= 255) { c |= tmp & 3; tmp >>= 2; ++ii; }
+            tmp += (c ? 1 : 0); if ((tmp << (2*ii)) >= 32768 || tmp < 0) {
+                printf("jit: ENT %d out of bounds\n", tmp << (2*ii)); exit(6);
+            } // sub  sp, sp, #tmp (scaled)
+            if (tmp) *je++ = 0xe24dd000 | (((16-ii) & 0xf) << 8) | tmp;
             break;
         case ADJ:
             *je++ = 0xe28dd000 + *pc++ * 4;      // add sp, sp, #(tmp * 4)
