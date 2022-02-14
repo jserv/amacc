@@ -42,8 +42,7 @@ syntax:
       in AMaCC, e.g. s1 = s2.  This also applies to function return
       values and parameters. Passing and returning pointers is recommended.
       Use memcpy if you want to copy a full struct, e.g.
-      memcpy(&s1, &s2, sizeof(struct xxx));  This limitation is imposed
-      by the IR, which currently only supports char and int/ptr data types.
+      memcpy(&s1, &s2, sizeof(struct xxx));
 * global/local variable initializations for supported data types
     - e.g., `int i = [expr]`
     - New variables are allowed to be declared within functions anywhere.
