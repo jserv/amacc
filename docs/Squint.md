@@ -6,12 +6,12 @@ AMaCC is an educational compiler that produces code for a
 two register stack based virtual machine (VM).  The two
 registers are (1) an accumulator and (2) an Index register
 that can act as a second accumulator for math operations.
-A stack is used for temporary memory, and stacks are
+A stack is used for temporary memory. Stacks are
 a great tool for simplifying operations on grammars.
 Because of this, stack based compilers are often the
 compiler used in Compiler classes, allowing the students
 to create a working compiler in a semester.  Finally,
-the great thing about a stack VM is that it's simple to
+the great thing about a stack VM is that it's simple
 to transform to other VMs.
 
 
@@ -88,7 +88,7 @@ so that Squint can skip/ignore code during analysis.
 Another special IR symbol, Peephole R0 (PHR0), inserts
 a special NOP at the end of a function call to indicate
 an R0 value has been generated as a return value
-by the function call.  Without PHR00, there is no simple
+by the function call.  Without PHR0, there is no simple
 indication in the code that R0 has been assigned a
 "live" value.
 

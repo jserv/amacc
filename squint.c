@@ -352,7 +352,7 @@ int *skip_nop(int *begin, int direction)
 /* This is a convenience function that should always */
 /* start from a non-nop, non-const instruction. */
 /* index is a count of how many non-nop instructions */
-/* to move through the istruction stream. e.g. */
+/* to move through the instruction stream. e.g. */
 /* index == 0 means return immediately */
 /* index == -5 means move backward 5 active instructions */
 int *active_inst(int *cursor, int index)
@@ -493,43 +493,35 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
       else if (instMask == 0x04 ||
                (instMask == 0x06 && (inst & (1<<4)) == 0)) { /* MEM op */
          int MEM_mask = (inst >> 20) & 0xd7;
-         if ( (MEM_mask == 0x41) || /* pop */
-              (MEM_mask == 0x51) || (MEM_mask == 0x55) ) { /* ldr || ldrb */
+         if (MEM_mask == 0x51 || MEM_mask == 0x55) { /* ldr || ldrb */
             info |= RI_RdAct | RI_RnAct | RI_RdDest;
-            if (MEM_mask == 0x41) {
-               info |= RI_pop;
+            if (inst & (1<<25)) {
+               info |= RI_RmAct;
             }
-            else {
-               if (inst & (1<<25)) {
-                  info |= RI_RmAct;
-               }
 
-               if (Rn == 0x0f) {
-                  info |= RI_instR;
-               }
-               else if (Rn == 0x0b) {
-                  info |= RI_frameR;
-               }
-               else {
-                  info |= RI_dataR;
-               }
+            if (Rn == 0x0f) {
+               info |= RI_instR;
             }
-         }
-         else if ((MEM_mask == 0x52) ||  /* push */
-                  (MEM_mask == 0x50) || (MEM_mask == 0x54)) { /* str | strb */
-            info |= RI_RdAct | RI_RnAct;
-            if (MEM_mask == 0x52) {
-               info |= RI_push;
+            else if (Rn == 0x0b) {
+               info |= RI_frameR;
             }
             else {
-               if (Rn == 0x0b) {
-                  info |= RI_frameW;
-               }
-               else {
-                  info |= RI_dataW;
-               }
+               info |= RI_dataR;
             }
          }
+         else if (MEM_mask == 0x50 || MEM_mask == 0x54) { /* str | strb */
+            info |= RI_RdAct | RI_RnAct;
+            if (Rn == 0x0b) {
+               info |= RI_frameW;
+            }
+            else {
+               info |= RI_dataW;
+            }
+         }
+         else if (MEM_mask == 0x41) /* pop */
+            info |= RI_RdAct | RI_RnAct | RI_RdDest | RI_pop;
+         else if (MEM_mask == 0x52) /* push */
+            info |= RI_RdAct | RI_RnAct | RI_push;
       }
       else if (instMask == 0x0a) { /* BRANCH */
          // info |= RI_branch; Enabling this causes a basic block bug
@@ -666,8 +658,8 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
 
          scanp1 = active_inst(scan, 1);
 
-         if ((*scan & 0xfff00000) == 0xe2800000 || // add rI, rS, #X
-             (*scan & 0xfff00000) == 0xe2400000) { // sub rI, rS, #X
+         if ((*scan & 0xfff00f00) == 0xe2800000 || // add rI, rS, #X
+             (*scan & 0xfff00f00) == 0xe2400000) { // sub rI, rS, #X
             int rS = (*scan >> 16) & 0xf; // Source, RI_Rn
             int rI = (*scan >> 12) & 0xf; // Index,  RI_Rd
             if ((*scanp1 & 0xff3000ff) == 0xe5100000 &&
@@ -702,7 +694,8 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
             scan = scanp3;
          }
          else if (*scanp3 == 0xe1a00051) { /* asr r0, r1, r0 */
-            *scanp3 = 0xe1a00040 | (*scanp1 & 0x1f) << 7;
+            int shift = ((*scanp1 & 0xff) < 0x20) ? (*scanp1 & 0x1f) : 0x1f;
+            *scanp3 = 0xe1a00040 | (shift << 7);
             *scan   = NOP;
             *scanp1 = NOP;
             *scanp2 = NOP;
@@ -951,7 +944,7 @@ void simplify_branch1(int *funcBegin, int *funcEnd)
 
 /* recursively follow a chain of unconditional branches */
 /* add set all branch targets to the final address */
-int *rethreadBranch(int *branchInst)
+int *rethread_branch(int *branchInst)
 {
    int* retVal;
    if  ((*branchInst & 0xff000000) == 0xea000000) { // uncond branch
@@ -959,7 +952,7 @@ int *rethreadBranch(int *branchInst)
                 ((*branchInst & 0x00800000) ? 0xff000000 : 0);
 
       int *dstInst = branchInst + 2 + tmp;
-      retVal = rethreadBranch(dstInst);
+      retVal = rethread_branch(dstInst);
       *branchInst += (retVal - dstInst);
    }
    else {
@@ -974,7 +967,7 @@ void simplify_branch2(int *funcBegin, int *funcEnd) {
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
       scan = skip_nop(scan, 1);
       if ((*scan & 0xff000000) == 0xea000000) { // uncond branch
-         rethreadBranch(scan);
+         rethread_branch(scan);
       }
    }
 }
@@ -1490,8 +1483,9 @@ void rename_register1(int *funcBegin, int *funcEnd)
 /********* Peephole optimization driver function **********/
 /**********************************************************/
 
-void peephole_opt(int *begin, int *end)
+int squint_opt(int *begin, int *end)
 {
+   int optApplied = 0 ;
    int *scan = begin;
    int *tmpbuf = (int *) malloc((end-begin)*sizeof(int));
 
@@ -1518,6 +1512,9 @@ void peephole_opt(int *begin, int *end)
          --scan;
          funcEnd = scan /* retAddr */;
 
+         // verify this function has been prepared for peephole opt
+         if (funcBegin[8] != NOP) continue;
+
          /******************************************/
          /***   convert stack VM to frame VM     ***/
          /******************************************/
@@ -1538,14 +1535,15 @@ void peephole_opt(int *begin, int *end)
 
          rename_nop(funcBegin, retAddr);
          funcEnd = relocate_nop(funcBegin, funcEnd, 0);
+         optApplied = 1;
       }
       else {
          ++scan;
       }
    }
-
    destroy_const_map();
    free(tmpbuf);
+   return optApplied;
 }
 
 /**********************************************************/
@@ -1588,7 +1586,11 @@ int main(int argc, char *argv[])
       exit(-1);
    }
 
-   peephole_opt(mem, mem + length/4);
+   if (!squint_opt(mem, mem + length/4)) {
+      printf("Compile with amacc -Op flag to enable peephole optimizer\n");
+      close(fd);
+      exit(-1);
+   }
 
    if (lseek(fd, (off_t) offset, SEEK_SET) != offset) {
       printf("could not seek to offset %x in file %s.\n", offset, argv[1]);
@@ -1601,10 +1603,8 @@ int main(int argc, char *argv[])
    }
 
    close(fd);
-
    free(mem);
 
-   printf("Please remember the amacc '-p' compiler flag is a prerequisite.\n");
    printf("executable file %s was optimized.\n", argv[1]);
 
    return 0;

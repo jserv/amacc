@@ -2407,7 +2407,7 @@ int main(int argc, char **argv)
         if (!strcmp(*argv, "-fsigned-char")) {
             signed_char = 1; --argc; ++argv;
         }
-        if ((*argv)[1] == 'p') {
+        if ((*argv)[1] == 'O' && (*argv)[2] == 'p') {
             peephole = 1; --argc; ++argv;
         }
         if ((*argv)[1] == 'o') {
@@ -2419,7 +2419,8 @@ int main(int argc, char **argv)
             --argc; ++argv;
         }
     }
-    if (argc < 1) die("usage: amacc [-s] [-p] [-fsigned-char] [-o object] file");
+    if (argc < 1)
+       die("usage: amacc [-s] [-Op] [-fsigned-char] [-o object] file");
 
     int fd;
     if ((fd = open(*argv, 0)) < 0) {

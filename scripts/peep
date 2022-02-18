@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 if [ "$#" != "1" ]; then
     echo "Usage: peep <amacc ELF executable file>"
-    echo "'amacc -p -o foo foo.c' must have been used to compile the executable"
+    echo "'amacc -Op -o foo foo.c' must have been used to compile the executable"
     echo "This command overwrites the executable file with an optimized version"
     exit
 fi
