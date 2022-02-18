@@ -55,7 +55,7 @@ $(OBJ_DIR)/$(BIN): $(BIN)
 
 $(OBJ_DIR)/$(BIN)-opt: $(BIN) $(PEEP)
 	$(VECHO) "  SelfCC\t$@\n"
-	$(Q)$(ARM_EXEC) ./$< -p -o $@ $(BIN).c
+	$(Q)$(ARM_EXEC) ./$< -Op -o $@ $(BIN).c
 	$(Q) scripts/peep $@
 
 SHELL_HACK := $(shell mkdir -p $(OBJ_DIR))

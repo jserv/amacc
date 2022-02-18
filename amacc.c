@@ -2404,19 +2404,22 @@ int main(int argc, char **argv)
         if ((*argv)[1] == 's') {
             src = 1; --argc; ++argv;
         }
-        if (!strcmp(*argv, "-fsigned-char")) {
+        else if (!strcmp(*argv, "-fsigned-char")) {
             signed_char = 1; --argc; ++argv;
         }
-        if ((*argv)[1] == 'O' && (*argv)[2] == 'p') {
+        else if ((*argv)[1] == 'O' && (*argv)[2] == 'p') {
             peephole = 1; --argc; ++argv;
         }
-        if ((*argv)[1] == 'o') {
+        else if ((*argv)[1] == 'o') {
             elf = 1; --argc; ++argv;
             if (argc < 1) die("no output file argument");
             if ((elf_fd = open(*argv, _O_CREAT | _O_WRONLY, 0775)) < 0) {
                 printf("could not open(%s)\n", *argv); return -1;
             }
             --argc; ++argv;
+        }
+        else {
+            argc = 0; // bad compiler option. Force exit.
         }
     }
     if (argc < 1)
