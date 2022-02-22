@@ -81,6 +81,8 @@
 #define NOP1      0xe1a01001
 #define NOP13     0xe1a0d00d
 
+enum search_direction { S_BACK = -1, S_FWD = 1 };
+
 struct ia_s {
    int inst_addr; // inst address
    struct ia_s *next;
@@ -312,7 +314,7 @@ int is_nop(int inst) {
 /*             1 means move toward higher addresses */
 /* Note that a NOP1 (PHD) will treat the instruction */
 /* after it (+1) as though it were a nop */
-int *skip_nop(int *begin, int direction)
+int *skip_nop(int *begin, enum search_direction dir)
 { /* -1 = backward, 1 = forward */
    int *scan = begin;
    int done;
@@ -321,14 +323,14 @@ int *skip_nop(int *begin, int direction)
       done = 1;
 
       /* skip past any consts in instruction stream */
-      while (is_const(scan)) scan += direction;
+      while (is_const(scan)) scan += dir;
 
       /* skip past any NOPS in instruction stream */
       if (*scan == NOP || *scan == NOP13) {
-         scan += direction;
+         scan += dir;
          done = 0;
       }
-      else if (direction == 1 &&
+      else if (dir == 1 &&
                *scan == NOP1 &&
                (*(scan+1) & 0xffff0fff) != 0xe52d0004) { /* push */
          scan += 2;
@@ -336,12 +338,12 @@ int *skip_nop(int *begin, int direction)
       }
       else if (*(scan-1) == NOP1 &&
                (*scan & 0xffff0fff) != 0xe52d0004 && /* push */
-               direction == -1) {
+               dir == -1) {
          scan -= 2;
          done = 0;
       }
       else if (*scan == NOP1) {
-         scan += direction;
+         scan += dir;
          done = 0;
       }
    } while (!done);
@@ -357,22 +359,22 @@ int *skip_nop(int *begin, int direction)
 /* index == -5 means move backward 5 active instructions */
 int *active_inst(int *cursor, int index)
 {
-   int direction;
+   enum search_direction dir;
    int count;
 
    if (index != 0) {
       if (index < 0) {
-         direction = -1;
+         dir = S_BACK;
          count = -index;
       }
       else {
-         direction = 1;
+         dir = S_FWD;
          count = index;
       }
 
       while (count > 0) {
-         cursor += direction;
-         cursor = skip_nop(cursor, direction);
+         cursor += dir;
+         cursor = skip_nop(cursor, dir);
          --count;
       }
    }
@@ -442,7 +444,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
 
       /* skip code that won't be transformed */
       if (is_nop(*scan)) {
-         int *end = skip_nop(scan, 1);
+         int *end = skip_nop(scan, S_FWD);
          while (scan < end) {
             if (*scan == NOP13) {
                *rInfo++ = RI_func; // R0 set in func
@@ -576,7 +578,7 @@ void create_inst_info(int *instInfo, int *funcBegin, int *funcEnd)
 }
 
 /* find first def of reg in given direction */
-int *find_def(int *instInfo, int *rInfo, int reg, int direction)
+int *find_def(int *instInfo, int *rInfo, int reg, enum search_direction dir)
 {
    int *retVal = 0;
    int info;
@@ -596,14 +598,14 @@ int *find_def(int *instInfo, int *rInfo, int reg, int direction)
          retVal = rInfo; // only good for location, not content
          break;
       }
-      rInfo += direction;
+      rInfo += dir;
    }
 
    return retVal;
 }
 
 /* find first use of reg in given direction */
-int *find_use(int *instInfo, int *rInfo, int reg, int direction)
+int *find_use(int *instInfo, int *rInfo, int reg, enum search_direction dir)
 {
    int *retVal = 0;
    int info;
@@ -633,7 +635,7 @@ int *find_use(int *instInfo, int *rInfo, int reg, int direction)
          retVal = rInfo;
          break;
       }
-      rInfo += direction;
+      rInfo += dir;
    }
 
    return retVal;
@@ -648,7 +650,7 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
    int *scan;
    int *scanp1, *scanp2, *scanp3;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       /* one instruction peepholes */
       if (*scan == 0xe2400000 || /* sub r0, r0, #0 */
           *scan == 0xe2800000) { /* add r0, r0, #0 */
@@ -676,7 +678,7 @@ void apply_peepholes1(int *funcBegin, int *funcEnd)
 
    funcEnd -= 2;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       scanp1 = active_inst(scan,   1);
       scanp2 = active_inst(scanp1, 1);
 
@@ -716,7 +718,7 @@ void apply_peepholes2(int *instInfo, int *funcBegin, int *funcEnd)
 
    funcEnd -= 6;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       /* Convert amacc array addressing to more compact form */
       if ((*scan & 0xffffff00) == 0xe3a00000) { /* mov r0, #X */
          int imm = *scan & 0xff;
@@ -738,7 +740,7 @@ void apply_peepholes2(int *instInfo, int *funcBegin, int *funcEnd)
                int lev=1;
                int *pscan = scanm2;
                while (lev != 0 && pscan > funcBegin) {
-                  pscan = skip_nop(--pscan, -1);
+                  pscan = skip_nop(--pscan, S_BACK);
                   if (*pscan == 0xe49d1004) { /* pop  {r1} */
                      ++lev;
                   }
@@ -792,7 +794,7 @@ void apply_peepholes3(int *instInfo, int *funcBegin, int *funcEnd)
 
    funcEnd -= 5;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       // get rid of unused postincrement-operator cruft
       info = instInfo[scan-funcBegin];
@@ -826,7 +828,7 @@ void apply_peepholes4(int *funcBegin, int *funcEnd)
 
    funcEnd -= 1;
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       scanp1 = active_inst(scan, 1);
 
       if (*scanp1 == 0xe0410000 &&              // sub r0, r1, r0
@@ -965,7 +967,7 @@ int *rethread_branch(int *branchInst)
 void simplify_branch2(int *funcBegin, int *funcEnd) {
    int *scan;
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       if ((*scan & 0xff000000) == 0xea000000) { // uncond branch
          rethread_branch(scan);
       }
@@ -978,7 +980,7 @@ void simplify_branch3(int *funcBegin, int *funcEnd) {
    int *scan;
    int match, tmp;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       if (*scan == 0xe3500000) { /* cmp r0, #0 */
          int *branchInst = active_inst(scan, 1);
          int *target = branchInst;
@@ -1019,7 +1021,7 @@ void simplify_branch4(int *funcBegin, int *funcEnd)
 {
    int *scan;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if (*scan == 0xe3500000) { /* cmp r0, #0 */
          int *scanm1, *scanm2, *scanm3, *scanp1;
@@ -1051,7 +1053,7 @@ void simplify_branch5(int *funcBegin, int *funcEnd)
 {
    int *scan;
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
       if ((*scan & 0x0fffffff) == 0x0a000000 &&  // cond jump past next inst
           ((*scan >> 28) &0xf) < 0xe &&
           (scan[1] & 0xff000000) == 0xea000000) {
@@ -1253,7 +1255,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
 
    create_inst_info(instInfo, funcBegin, funcEnd);
    for (scan = funcBegin; scan < funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if (*scan == 0xe52d0004 && // push {r0}
           *(scan-1) != NOP1 &&
@@ -1326,7 +1328,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
 
    create_inst_info(instInfo, funcBegin, funcEnd); // regen dependency info
    while (scan < funcEnd) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if (*scan == 0xe52d0004 && // push {r0}
           *(scan-1) != NOP1 &&
@@ -1413,7 +1415,7 @@ void rename_register1(int *funcBegin, int *funcEnd)
 
    /* record frame variable in this context */
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
          int off = (*scan & 0xfff);
@@ -1430,7 +1432,7 @@ void rename_register1(int *funcBegin, int *funcEnd)
 
    /* discard any frame variables that are not trivial */
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if ((*scan & 0xffffff00) == 0xe28b0000 || // add r0, fp, #X
           (*scan & 0xffffff00) == 0xe24b0000) { // sub r0, fp, #X
@@ -1453,7 +1455,7 @@ void rename_register1(int *funcBegin, int *funcEnd)
 
    /* create registers for frame vars */
    for (scan = funcBegin; scan <= funcEnd; ++scan) {
-      scan = skip_nop(scan, 1);
+      scan = skip_nop(scan, S_FWD);
 
       if ((*scan & 0x0f2f0000) == 0x050b0000) { // (ldr|str)[b], [fp, #X]
          int off = (*scan & 0xfff);
@@ -1487,7 +1489,7 @@ int squint_opt(int *begin, int *end)
 {
    int optApplied = 0 ;
    int *scan = begin;
-   int *tmpbuf = (int *) malloc((end-begin)*sizeof(int));
+   int *tmpbuf = (int *) malloc((end-begin+1)*sizeof(int));
 
    create_const_map(begin, end);
    const_imm_opt(begin, end);
@@ -1496,7 +1498,6 @@ int squint_opt(int *begin, int *end)
       if (*scan == 0xe92d4800 && !is_const(scan)) { // push {fp, lr}
          int *funcBegin = scan;
          int *funcEnd;
-         int numReturn = 0;
          int *retAddr = 0;
          ++scan;
          while (scan < end) {
@@ -1504,7 +1505,6 @@ int squint_opt(int *begin, int *end)
                break;
             }
             else if (*scan == 0xe8bd8800 && !is_const(scan)) { // pop {fp, pc}
-               ++numReturn;
                retAddr = scan;
             }
             ++scan;
