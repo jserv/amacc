@@ -1115,7 +1115,7 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
    }
 
    if (branchCount != 0) {
-      memblk = malloc(3*branchCount*4);
+      memblk = malloc(3*branchCount*sizeof(int));
       branchAddr = memblk;
       branchTarget = branchAddr + branchCount;
       permutation = branchTarget + branchCount;
@@ -1201,8 +1201,6 @@ int *relocate_nop(int *funcBegin, int *funcEnd, int mode)
             if ((*scan>>16 & 0x0fff) == 0x59f) { // ldr rx, [pc, #x]
                rel_pc_ldr(packed, scan);
                ++packed;
-               /* remap pc-relative load operations */
-               // *scan += (scan - packed)*sizeof(int);
             }
             else if ((*scan & 0x0e000000) == 0x0a000000) {
                if (*scan & (1<<24)) {
