@@ -1359,6 +1359,10 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
             int *pushp1 = &instInfo[(pair[i].push-funcBegin)+1];
             int *r1push1u = find_use(instInfo, pushp1, 1, 1);
             int *r1push1d = find_def(instInfo, pushp1, 1, 1);
+            for (scan = pair[i].push + 1; scan < pair[i].pop; ++scan) {
+               if (*scan == NOP13 && !is_const(scan)) break; // func call
+            }
+            if (scan != pair[i].pop) continue; // skip regions with func call
 
             /* if r1 not used or defined between push and pop... */
             if (r1push1d == pop && r1push1u > pop) {
@@ -1373,12 +1377,7 @@ void create_pushpop_map(int *instInfo, int *funcBegin, int *funcEnd)
                /* if r0 defined in instruction before push and */
                /* within push/pop, def of r0 happens before use... */
                if (m1modifiable && r0push1u > r0push1d) {
-                  int *loc;
-                  for (loc = pair[i].push + 1; loc < pair[i].pop; ++loc) {
-                      if (*loc == NOP13 && !is_const(loc)) break; // func call
-                  }
-                  if (loc == pair[i].pop && // if no func call in push/pop...
-                      (*scanm1 & 0xf0000000) == 0xe0000000) { // && not cond op
+                  if ((*scanm1 & 0xf0000000) == 0xe0000000) { // uncond op
                      *scanm1 |=
                         (((*scanm1 & 0x0e0000f0) == 0x90) ? (1<<16) : (1<<12));
                      *pair[i].push = NOP;
