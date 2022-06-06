@@ -14,6 +14,11 @@ int main(int argc, char **argv)
 {
     /* Value test */
     int a, b, c;
+    int d = 5, e = 10;
+
+    assert_eq(d, 5);
+    assert_eq(e, 10);
+
     a = 1;
     a += 101;
     assert_eq(a, 102);

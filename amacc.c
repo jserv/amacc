@@ -1281,6 +1281,7 @@ void stmt(int ctx)
          * "enum" finishes by "tk == ';'", so the code below will be skipped.
          * While current token is not statement end or block end.
          */
+        b = 0;
         while (tk != ';' && tk != '}' && tk != ',' && tk != ')') {
             ty = bt;
             // if the beginning of * is a pointer type, then type plus `PTR`
@@ -1299,6 +1300,7 @@ void stmt(int ctx)
             next();
             id->type = ty;
             if (tk == '(') { // function
+                if (b != 0) fatal("func decl can't be mixed with var decl(s)");
                 if (ctx != Glo) fatal("nested function");
                 if (ty > INT && ty < PTR) fatal("return type can't be struct");
                 id->class = Func; // type is function
@@ -1354,9 +1356,11 @@ void stmt(int ctx)
                 }
                 if (ctx == Loc && tk == Assign) {
                     int ptk = tk;
-                    *--n = loc - id->val; *--n = Loc;
+                    if (b == 0) *--n = ';';
+                    b = n; *--n = loc - id->val; *--n = Loc;
                     next(); a = n; expr(ptk);
                     *--n = (int)a; *--n = ty; *--n = Assign;
+                    *--n = (int) b; *--n = '{';
                 }
             }
             if (ctx != Par && tk == ',') next();
