@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 
 int assert_eq(int a, int b)
@@ -30,7 +31,7 @@ int main()
         printf("failed, e - s = %x\n", v);
 
     data = (int *) malloc(sizeof(int) * 10);
-    sptr = (struct abc_s *) malloc(sizeof(struct abc) * 10);
+    sptr = (struct abc_s *) malloc(sizeof(struct abc_s) * 10);
 
     assert_eq(&sptr[5] - &sptr[2], 3);
     assert_eq((int) (&sptr[5] - 3), (int) &sptr[2]);
