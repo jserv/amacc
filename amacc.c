@@ -541,7 +541,7 @@ int popcount(int i)
  */
 void expr(int lev)
 {
-    int otk;
+    int otk, tc;
     int t, *b, sz, *c;
     struct ident_s *d;
     struct member_s *m;
@@ -843,29 +843,65 @@ void expr(int lev)
             break;
         case Add:
             next(); expr(Mul);
-            sz = (ty = t) >= PTR2 ? sizeof(int) :
-                                    ty >= PTR ? tsize[ty - PTR] : 1;
-            if (*n == Num) n[1] *= sz;
+            tc = ((t | ty) & (PTR | PTR2)) ? (t >= PTR) : (t >= ty);
+            c = n; if (tc) ty = t;
+            sz = (ty >= PTR2) ? sizeof(int) :
+                 ((ty >= PTR) ? tsize[ty - PTR] : 1);
+            if (*n == Num && tc) { n[1] *= sz; sz = 1; }
+            else if (*b == Num && !tc) { b[1] *= sz; sz = 1; }
             if (*n == Num && *b == Num) n[1] += b[1];
+            else if (sz != 1) {
+                *--n = sz; *--n = Num;
+                *--n = (int) (tc ? c : b); *--n = Mul;
+                *--n = (int) (tc ? b : c); *--n = Add;
+            }
             else { *--n = (int) b; *--n = Add; }
             break;
-        case Sub:
-            next(); expr(Mul);
-            sz = t >= PTR2 ? sizeof(int) : t >= PTR ? tsize[t - PTR] : 1;
-            if (sz > 1 && *n == Num) {
-                *--n = sz; *--n = Num; --n; *n = (int) (n + 3); *--n = Mul;
-            }
-            if (*n == Num && *b == Num) n[1] = b[1] - n[1];
-            else {
-                *--n = (int) b; *--n = Sub;
-                if (t == ty && sz > 1) {
-                    switch (sz) {
-                    case 4: *--n = 2; *--n = Num; --n; *n = (int) (n + 3);
-                            *--n = Shr; break;
-                    default: *--n = sz; *--n = Num; --n; *n = (int) (n + 3);
-                             *--n = Sub;
+        case Sub: // 4 cases: ptr-ptr, ptr-int, int-ptr (err), int-int
+            next(); expr(Mul); // t = left type, ty = right type
+            if (t < PTR && ty >= PTR) fatal("bad pointer subtraction");
+            if (t >= PTR) { // left arg is ptr
+                sz = (t >= PTR2) ? sizeof(int) : tsize[t - PTR];
+                if (ty >= PTR) { // ptr - ptr
+                    if (t != ty) fatal("mismatched ptr type subtraction");
+                    if (*n == Num && *b == Num) n[1] = (b[1] - n[1]) / sz;
+                    else {
+                        *--n = (int) b; *--n = Sub;
+                        if (sz > 1) {
+                            if ((sz & (sz - 1)) == 0) { // 2^n
+                                *--n = popcount(sz - 1); *--n = Num;
+                                --n; *n = (int) (n + 3); *--n = Shr;
+                            } else {
+                                *--n = sz; *--n = Num; --n; *n = (int) (n + 3);
+                                *--n = Div; ef_getidx("__aeabi_idiv");
+                            }
+                        }
                     }
+                    ty = INT;
+                } else { // ptr - int
+                    if (*n == Num) {
+                        n[1] *= sz;
+                        if (*b == Num) n[1] = b[1] - n[1];
+                        else { *--n = (int) b; *--n = Sub; }
+                    } else {
+                        if (sz > 1) {
+                            if ((sz & (sz - 1)) == 0) { // 2^n
+                                *--n = popcount(sz - 1); *--n = Num;
+                                --n; *n = (int) (n + 3); *--n = Shl;
+                            }
+                            else {
+                                *--n = sz; *--n = Num;
+                                --n; *n = (int) (n + 3); *--n = Mul;
+                            }
+                        }
+                        *--n = (int) b; *--n = Sub;
+                    }
+                    ty = t;
                 }
+            } else { // int - int
+                if (*n == Num && *b == Num) n[1] = b[1] - n[1];
+                else { *--n = (int) b; *--n = Sub; }
+                ty = INT;
             }
             break;
         case Mul:
