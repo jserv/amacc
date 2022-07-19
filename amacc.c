@@ -1553,7 +1553,8 @@ void stmt(int ctx)
         next();
         *--n = ';';
         while (tk != '}') {
-            a = n; check_label(&a); stmt(ctx); *--n = (int) a; *--n = '{';
+            a = n; check_label(&a); stmt(ctx);
+            if (a != n) { *--n = (int) a; *--n = '{'; }
         }
         next();
         return;
