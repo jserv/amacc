@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int assert_eq(int a, int b)
 {
@@ -15,7 +15,9 @@ int main()
     int i;
     int *s, *e, v;
     int *data;
-    struct abc_s { int a, b, c; } *sptr;
+    struct abc_s {
+        int a, b, c;
+    } * sptr;
 
     s = (int *) 0xbebebeb0;
     e = (int *) 0xbebebeb4;
@@ -38,15 +40,18 @@ int main()
     assert_eq((int) &sptr[5], (int) (sptr + 5));
     assert_eq((int) &sptr[5], (int) (5 + sptr));
 
-    for (i = 0; i < 10; ++i) data[i] = i;
+    for (i = 0; i < 10; ++i)
+        data[i] = i;
 
-    s = data; e = &data[9];
+    s = data;
+    e = &data[9];
     for (i = 0; i < 10; ++i) {
-       assert_eq(s[i], *(s + i));
-       assert_eq(e[-i], *(e - i));
+        assert_eq(s[i], *(s + i));
+        assert_eq(e[-i], *(e - i));
     }
 
-    free(sptr); free(data);
+    free(sptr);
+    free(data);
 
     return 0;
 }
