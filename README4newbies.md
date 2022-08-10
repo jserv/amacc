@@ -14,7 +14,10 @@ issues.
   modified accordingly. For example, changing `apt-get` to `yum` for CentOS.
 * Install [GNU Toolchain for the A-profile Architecture]
   (https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-a/downloads)
-  ```shell sudo apt-get install gcc-arm-linux-gnueabihf ```
+
+```shell 
+$ sudo apt-get install gcc-arm-linux-gnueabihf 
+```
 
 
 ## Potential Issues Running AMaCC
