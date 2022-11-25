@@ -44,6 +44,7 @@ int tnew;            // next available type
 int tk;              // current token
 int ival;            // current token value
 int ty;              // current expression type
+int compound;        // handle precedence of compound assignment
 int loc;             // local variable offset
 int line;            // current line number
 int src;             // print source and assembly flag
@@ -539,9 +540,12 @@ int popcount(int i)
  * Dec     --
  * Bracket [
  */
+
+enum { REENTRANT = 0x10000 };
+
 void expr(int lev)
 {
-    int otk, tc;
+    int tc;
     int t, *b, sz, *c;
     struct ident_s *d;
     struct member_s *m;
@@ -707,7 +711,9 @@ void expr(int lev)
         if (*n != Load) fatal("bad lvalue in pre-increment");
         *n = t;
         break;
-    default: fatal("bad expression");
+    default:
+        if (tk & REENTRANT) tk ^= REENTRANT;
+        else fatal("bad expression");
     }
 
     // "precedence climbing" or "Top Down Operator Precedence" method
@@ -734,23 +740,11 @@ void expr(int lev)
         case MulAssign:
         case DivAssign:
         case ModAssign:
-            otk = tk;
-            *--n=';'; *--n = ty = id->type; *--n = Load;
-            sz = (ty = t) >= PTR2 ? sizeof(int) :
-                                    ty >= PTR ? tsize[ty - PTR] : 1;
-            next(); c = n; expr(otk);
-            if (*n == Num) n[1] *= sz;
-            *--n = (int) c;
-            if (otk < ShlAssign) {
-                *--n = Or + (otk - OrAssign);
-            } else {
-                *--n = Shl + (otk - ShlAssign);
-                // Compound-op bypasses literal const optimizations
-                if (otk == DivAssign) ef_getidx("__aeabi_idiv");
-                if (otk == ModAssign) ef_getidx("__aeabi_idivmod");
-            }
+            *--n=';'; *--n = t; *--n = Load;
+            if (tk < ShlAssign) tk = Or + (tk - OrAssign);
+            else tk = Shl + (tk - ShlAssign);
+            tk |= REENTRANT; compound = 1; expr(Assign);
             *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
-            ty = INT;
             break;
         case Cond: // `x?a:b` is similar to if except that it relies on else
             next(); expr(Assign);
@@ -772,19 +766,25 @@ void expr(int lev)
             ty = INT;
             break;
         case Or: // push the current value, calculate the right value
-            next(); expr(Xor);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Xor);
             if (*n == Num && *b == Num) n[1] = b[1] | n[1];
             else { *--n = (int) b; *--n = Or; }
             ty = INT;
             break;
         case Xor:
-            next(); expr(And);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(And);
             if (*n == Num && *b == Num) n[1] = b[1] ^ n[1];
             else { *--n = (int) b; *--n = Xor; }
             ty = INT;
             break;
         case And:
-            next(); expr(Eq);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Eq);
             if (*n == Num && *b == Num) n[1] = b[1] & n[1];
             else { *--n = (int) b; *--n = And; }
             ty = INT;
@@ -826,7 +826,9 @@ void expr(int lev)
             ty = INT;
             break;
         case Shl:
-            next(); expr(Add);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Add);
             if (*n == Num && *b == Num) {
                 if (n[1] < 0) n[1] = b[1] >> -n[1];
                 else n[1] = b[1] << n[1];
@@ -834,7 +836,9 @@ void expr(int lev)
             ty = INT;
             break;
         case Shr:
-            next(); expr(Add);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Add);
             if (*n == Num && *b == Num) {
                 if (n[1] < 0) n[1] = b[1] << -n[1];
                 else n[1] = b[1] >> n[1];
@@ -842,7 +846,9 @@ void expr(int lev)
             ty = INT;
             break;
         case Add:
-            next(); expr(Mul);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Mul);
             tc = ((t | ty) & (PTR | PTR2)) ? (t >= PTR) : (t >= ty);
             c = n; if (tc) ty = t;
             sz = (ty >= PTR2) ? sizeof(int) :
@@ -858,7 +864,9 @@ void expr(int lev)
             else { *--n = (int) b; *--n = Add; }
             break;
         case Sub: // 4 cases: ptr-ptr, ptr-int, int-ptr (err), int-int
-            next(); expr(Mul); // t = left type, ty = right type
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Mul); // t = left type, ty = right type
             if (t < PTR && ty >= PTR) fatal("bad pointer subtraction");
             if (t >= PTR) { // left arg is ptr
                 sz = (t >= PTR2) ? sizeof(int) : tsize[t - PTR];
@@ -905,7 +913,9 @@ void expr(int lev)
             }
             break;
         case Mul:
-            next(); expr(Inc);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Inc);
             if (*n == Num && *b == Num) n[1] *= b[1];
             else {
                 *--n = (int) b;
@@ -926,7 +936,9 @@ void expr(int lev)
             next();
             break;
         case Div:
-            next(); expr(Inc);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Inc);
             if (*n == Num && *b == Num) n[1] = b[1] / n[1];
             else {
                 *--n = (int) b;
@@ -940,7 +952,9 @@ void expr(int lev)
             ty = INT;
             break;
         case Mod:
-            next(); expr(Inc);
+            next();
+            if (compound) { compound = 0; expr(Assign); }
+            else expr(Inc);
             if (*n == Num && *b == Num) n[1] = b[1] % n[1];
             else {
                 *--n = (int) b;
