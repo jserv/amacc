@@ -745,7 +745,7 @@ void expr(int lev)
             else tk = Shl + (tk - ShlAssign);
             tk |= REENTRANT; compound = 1; expr(Assign);
             *--n = (int) (b + 2); *--n = ty = t; *--n = Assign;
-            return;
+            break;
         case Cond: // `x?a:b` is similar to if except that it relies on else
             next(); expr(Assign);
             if (tk != ':') fatal("conditional missing colon");
