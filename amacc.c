@@ -830,8 +830,7 @@ void expr(int lev)
             if (compound) { compound = 0; expr(Assign); }
             else expr(Add);
             if (*n == Num && *b == Num) {
-                if (n[1] < 0) n[1] = b[1] >> -n[1];
-                else n[1] = b[1] << n[1];
+                n[1] = b[1] << n[1];
             } else { *--n = (int) b; *--n = Shl; }
             ty = INT;
             break;
@@ -840,8 +839,7 @@ void expr(int lev)
             if (compound) { compound = 0; expr(Assign); }
             else expr(Add);
             if (*n == Num && *b == Num) {
-                if (n[1] < 0) n[1] = b[1] << -n[1];
-                else n[1] = b[1] >> n[1];
+                n[1] = b[1] >> n[1];
             } else { *--n = (int) b; *--n = Shr; }
             ty = INT;
             break;
