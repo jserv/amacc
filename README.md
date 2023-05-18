@@ -89,7 +89,7 @@ Test environment:
 
 Input source file: `amacc.c`
 
-| comiler driver                     | binary size (KiB) | compile time (s) |
+| compiler driver                    | binary size (KiB) | compile time (s) |
 | ---------------------------------- | ----------------- | ---------------- |
 | gcc with `-O0 -ldl` (compile+link) | 56                |  0.5683          |
 | gcc with `-O0 -c` (compile only)   | 56                |  0.4884          |
