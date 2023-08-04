@@ -148,7 +148,7 @@ enum {
      *
      * If we need to refer to arg1, we need to fetch new_bp + 4, which can not
      * be achieved by restricted ADD instruction. Thus another special
-     * instrcution is introduced to do this: LEA <offset>.
+     * Instruction is introduced to do this: LEA <offset>.
      * The following pseudocode illustrates how LEA works.
      *     if (op == LEA) { ax = (int) (bp + *pc++); } // load address for arguments
      * Together with JSR, ENT, ADJ, LEV, and LEA instruction, we are able to make
@@ -301,7 +301,7 @@ int ef_getidx(char *name) // get cache index of external function
 }
 
 /* parse next token
- * 1. store data into id and then set the id to current lexcial form
+ * 1. store data into id and then set the id to current lexical form
  * 2. set tk to appropriate type
  */
 void next()
@@ -366,14 +366,14 @@ void next()
         }
         switch (tk) {
         case '\n':
-            /* Take an integer (representing an operation) and printing out
+            /* Take an integer (representing an operation) and print out
              * the name of that operation. First thing to say is that "* ++le"
              * is the integer representing the operation to perform.
              * This basically walks through the array of instructions
              * returning each integer in turn.
              *
              * Starting at the beginning of the line, we have "printf" with
-             * a format string of "%8.4s". This means print out the first 4
+             * a format string of "%8.4s". This means printing out the first 4
              * characters of the string that we are about to pass next (padded
              * to 8 characters). There then follows a string containing all of
              * the operation names, in numerical order, padded to 4 characters
@@ -381,7 +381,7 @@ void next()
              *
              * Finally, we do a lookup into this string (treating it as an
              * array) at offset "* ++le * 5", i.e. the integer representing
-             * the operation multipled by "5", being the number of characters
+             * the operation multiplied by "5", being the number of characters
              * between the start of each operation name). Doing this lookup
              * gives us a char, but actually we wanted the pointer to this
              * char (as we want printf to print out this char and the
@@ -455,12 +455,12 @@ void next()
                     case '0': ival = '\0'; break; // an int with value 0
                     }
                 }
-                // if it is double quotes (string literal), it is considered as
+                // If it is double quotes (string literal), it is considered as
                 // a string, copying characters to data
                 if (tk == '"') *data++ = ival;
             }
             ++p;
-            //  if .text too big rwdata v_addr will overlap it, add that to stay away from .text
+            //  If .text too big rwdata v_addr will overlap it, add that to stay away from .text
             if (tk == '"') ival = (int) pp; else tk = Num;
             return;
         case '=': if (*p == '=') { ++p; tk = Eq; } else tk = Assign; return;
@@ -1008,7 +1008,7 @@ void expr(int lev)
     }
 }
 
-// AST parsing for IR generatiion
+// AST parsing for IR generation
 // With a modular code generator, new targets can be easily supported such as
 // native Arm machine code.
 void gen(int *n)
@@ -1065,7 +1065,7 @@ void gen(int *n)
         // Point "b" to the jump address field to be patched later.
         if (n[3]) {
             *b = (int) (e + 3); *++e = JMP; b = ++e; gen((int *) n[3]);
-        } // else statment
+        } // else statement
         // Patch the jump address field pointed to by "d" to hold the address
         // past the false branch.
         *b = (int) (e + 1);
@@ -1160,7 +1160,7 @@ void gen(int *n)
         gen((int *) n[1]); // condition
         a = cas; *++e = JMP; cas = ++e;
         b = brks; d = def; brks = def = 0;
-        gen((int *) n[2]); // case statment
+        gen((int *) n[2]); // case statement
         // deal with no default inside switch case
         *cas = def ? (int) def : (int) (e + 1); cas = a;
         while (brks) { t = (int *) * brks; *brks = (int) (e + 1); brks = t; }
@@ -1196,7 +1196,7 @@ void gen(int *n)
     case Return:
         if (n[1]) gen((int *) n[1]); *++e = LEV; break; // parse return AST
     case '{':
-        // parse expression or statment from AST
+        // parse expression or statement from AST
         gen((int *) n[1]); gen(n + 2); break;
     case Enter: *++e = ENT; *++e = n[1]; gen(n + 2);
                 if (*e != LEV) *++e = LEV; break;
@@ -1297,7 +1297,7 @@ void stmt(int ctx)
                     }
                     while (tk != ';') {
                         ty = mbt;
-                        // if the beginning of * is a pointer type,
+                        // If the beginning of * is a pointer type,
                         // then type plus `PTR` indicates what kind of pointer
                         while (tk == Mul) { next(); ty += PTR; }
                         if (tk != Id) fatal("bad struct member definition");
@@ -1332,7 +1332,7 @@ void stmt(int ctx)
         b = 0;
         while (tk != ';' && tk != '}' && tk != ',' && tk != ')') {
             ty = bt;
-            // if the beginning of * is a pointer type, then type plus `PTR`
+            // If the beginning of * is a pointer type, then type plus `PTR`
             // indicates what kind of pointer
             while (tk == Mul) { next(); ty += PTR; }
             switch (ctx) {
@@ -1800,7 +1800,7 @@ int *codegen(int *jitmem, int *jitmap)
                    reloc_imm(jitmap[(tmp - (int) text) >> 2] - (int) je));
         }
         // If the instruction has operand, increment instruction pointer to
-        // skip he operand.
+        // skip the operand.
         else if (i <= ADJ || i == SYSC) { ++pc; }
     }
     free(iv);
@@ -2459,7 +2459,7 @@ int main(int argc, char **argv)
     memset(ast, 0, poolsz);
     ast = (int *) ((int) ast + poolsz); // abstract syntax tree is most efficiently built as a stack
 
-    /* Resgister keywords and system calls to symbol stack
+    /* Register keywords and system calls to symbol stack
      * must match the sequence of enum
      */
     p = "break continue case char default else enum if int return sizeof "
