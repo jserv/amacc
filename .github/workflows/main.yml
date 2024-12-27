@@ -4,13 +4,13 @@ on: [push, pull_request]
 
 jobs:
   host_x86:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        compiler: [gcc-10]
+        compiler: [gcc]
     steps:
       - name: checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: build artifact
         env:
           CC: ${{ matrix.compiler }}
