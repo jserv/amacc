@@ -76,22 +76,74 @@ top to bottom illustrated as following:
 |         |               |   11  |            |   22  | -> the result we get
 ```
 
-## Instructsion sets
+## Instruction sets
+
+### Memory and Stack Operations
 
 |   opcode  |       format      |       ARM instructions        |                       comments                                   |
 |-----------|-------------------|-------------------------------|------------------------------------------------------------------|
 |LEA        | LEA \<offset\>    |add r0, r11, #\<offset>        |fetch arguments inside sub function                               |
 |IMM        | IMM \<num\>       |mov r0, #20                    |put immediate \<num\> into general register                       |
-|JMP        | JMP \<addr\>      |b \<addr\>                     |set PC register to \<addr\>                                       |
-|JSR        | JSR \<addr\>      |bl \<addr\>                    |stores current execution position and jump to \<addr\>            |
-|LEV        | LEV               |add sp, r11, #0; pop {r11, pc} |fetch bookkeeping info to resume previous execution             |
-|ENT        | ENT \<size\>      |push {r11, lr} ;add r11, sp, #0|called when we are about to enter the function call to "make a new calling frame".It will store the current PC value onto the stack, and save \<size\> bytes to store the local variable for function.|
-|ADJ        | ADJ \<size\>      |add sp, sp, #\<size\>          |adjust the stack(to remove argument from frame)                   |
 |LI         | LI                |ldr r0, [r0]                   |loads an integer into general register from a given memory address which is stored in general register before execution|
 |SI         | SI                |pop {r1};str r0, [r1]          |stores the integer in general register into the memory whose  address is stored on the top of the stack|
 |LC         | LC                |ldrb r0, [r0]                  |loads an character into general register from a given memory address which is stored in general register before execution|
 |SC         | SC                |pop {r1}; strb r0, [r1]        |stores the character in general register into the memory whose address is stored on the top of the stack| 
 |PSH        | PSH               |push {r0}                      |pushes the value in general register onto the stack               |
+
+### Control Flow Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|JMP        | JMP \<addr\>      |b \<addr\>                     |set PC register to \<addr\>                                       |
+|JSR        | JSR \<addr\>      |bl \<addr\>                    |stores current execution position and jump to \<addr\>            |
+|BZ         | BZ \<addr\>       |cmp r0, #0; beq \<addr\>       |branch on zero (conditional jump if general register is zero)    |
+|BNZ        | BNZ \<addr\>      |cmp r0, #0; bne \<addr\>       |branch on not zero (conditional jump if general register is not zero)|
+
+### Function Call Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|ENT        | ENT \<size\>      |push {r11, lr} ;add r11, sp, #0|called when we are about to enter the function call to "make a new calling frame".It will store the current PC value onto the stack, and save \<size\> bytes to store the local variable for function.|
+|ADJ        | ADJ \<size\>      |add sp, sp, #\<size\>          |adjust the stack(to remove argument from frame)                   |
+|LEV        | LEV               |add sp, r11, #0; pop {r11, pc} |fetch bookkeeping info to resume previous execution             |
+
+### Arithmetic Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|ADD        | ADD               |pop {r1}; add r0, r1, r0       |addition: r0 = stack_top + r0                                    |
+|SUB        | SUB               |pop {r1}; sub r0, r1, r0       |subtraction: r0 = stack_top - r0                                 |
+|MUL        | MUL               |pop {r1}; mul r0, r1, r0       |multiplication: r0 = stack_top * r0                              |
+|DIV        | DIV               |pop {r1}; udiv r0, r1, r0      |division: r0 = stack_top / r0                                    |
+|MOD        | MOD               |pop {r1}; udiv r2, r1, r0; mul r2, r2, r0; sub r0, r1, r2|modulo: r0 = stack_top % r0|
+
+### Bitwise Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|OR         | OR                |pop {r1}; orr r0, r1, r0       |bitwise OR: r0 = stack_top \| r0                                  |
+|XOR        | XOR               |pop {r1}; eor r0, r1, r0       |bitwise XOR: r0 = stack_top ^ r0                                 |
+|AND        | AND               |pop {r1}; and r0, r1, r0       |bitwise AND: r0 = stack_top & r0                                 |
+|SHL        | SHL               |pop {r1}; lsl r0, r1, r0       |shift left: r0 = stack_top << r0                                 |
+|SHR        | SHR               |pop {r1}; lsr r0, r1, r0       |shift right: r0 = stack_top >> r0                                |
+
+### Comparison Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|EQ         | EQ                |pop {r1}; cmp r1, r0; moveq r0, #1; movne r0, #0|equal: r0 = (stack_top == r0) ? 1 : 0|
+|NE         | NE                |pop {r1}; cmp r1, r0; movne r0, #1; moveq r0, #0|not equal: r0 = (stack_top != r0) ? 1 : 0|
+|LT         | LT                |pop {r1}; cmp r1, r0; movlt r0, #1; movge r0, #0|less than: r0 = (stack_top < r0) ? 1 : 0|
+|GT         | GT                |pop {r1}; cmp r1, r0; movgt r0, #1; movle r0, #0|greater than: r0 = (stack_top > r0) ? 1 : 0|
+|LE         | LE                |pop {r1}; cmp r1, r0; movle r0, #1; movgt r0, #0|less or equal: r0 = (stack_top <= r0) ? 1 : 0|
+|GE         | GE                |pop {r1}; cmp r1, r0; movge r0, #1; movlt r0, #0|greater or equal: r0 = (stack_top >= r0) ? 1 : 0|
+
+### System Operations
+
+|   opcode  |       format      |       ARM instructions        |                       comments                                   |
+|-----------|-------------------|-------------------------------|------------------------------------------------------------------|
+|SYSC       | SYSC              |(varies)                       |system call                                                       |
+|CLCA       | CLCA              |(cache clear)                  |clear cache, used by JIT compilation                             |
 
 ## Function call example
 
@@ -178,7 +230,4 @@ cmp  r0, 0
 beq  0xff4a31d4
 ```
 
-|   opcode     | format      |      ARM instructions        | comments |
-| ------------ | ----------- | ---------------------------- | -------- |
-| BZ           | BZ <value>  |cmp  r0, 0;beq  \<address\>   |branch on zero
-| BNZ          | BNZ <value> |cmp  r0, 0;bne  \<address\>   |branch on not zero
+**Note**: The BZ and BNZ instructions are now included in the main instruction set table above under "Control Flow Operations".
