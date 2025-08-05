@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 
-MACHINE_TYPE=`uname -m`
-if [ ${MACHINE_TYPE} != 'x86_64' ]; then
-    exit
-fi
+. .ci/common.sh
 
-OS_TYPE=`uname -s`
-if [ ${OS_TYPE} != 'Linux' ]; then
-    exit
-fi
+check_platform
 
 # Clang/LLVM is natively a cross-compiler.
 # TODO: Do cross-compilation using Clang
@@ -17,9 +11,7 @@ if [ $(printenv CXX | grep clang) ]; then
     exit
 fi
 
-GCC_REL=11.2-2022.02
-
 set -x
 
-export PATH=gcc-arm-${GCC_REL}-x86_64-arm-none-linux-gnueabihf/bin:$PATH
+export PATH=arm-gnu-toolchain-${GCC_REL}-x86_64-arm-none-linux-gnueabihf/bin:$PATH
 make CROSS_COMPILE=arm-none-linux-gnueabihf- check || exit 1
